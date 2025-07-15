@@ -4,10 +4,17 @@ import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged }
 import { getFirestore, collection, doc, addDoc, getDocs, writeBatch, query, onSnapshot, deleteDoc, setDoc, where } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
-import { PlusCircle, Upload, Trash2, Edit, TrendingUp, TrendingDown, DollarSign, Settings, LayoutDashboard, List, BarChart2, Target, ArrowLeft, ArrowRightLeft, Repeat, CheckCircle, AlertTriangle, Clock, CalendarCheck2, Building, GitCompareArrows, ArrowUp, ArrowDown, Paperclip } from 'lucide-react';
+import { PlusCircle, Upload, Trash2, Edit, TrendingUp, TrendingDown, DollarSign, Settings, LayoutDashboard, List, BarChart2, Target, ArrowLeft, ArrowRightLeft, Repeat, CheckCircle, AlertTriangle, Clock, CalendarCheck2, Building, GitCompareArrows, ArrowUp, ArrowDown, Paperclip, FileText } from 'lucide-react';
 
 // --- CONFIGURAÇÃO DO FIREBASE (PARA TESTE LOCAL) ---
-const firebaseConfig = JSON.parse(process.env.REACT_APP_FIREBASE_CONFIG || '{}');
+const firebaseConfig = {
+  apiKey: "AIzaSyAssnm4OKxyI_IMFijKcU1wKDf0iGEFYAw",
+  authDomain: "meu-finaceiro.firebaseapp.com",
+  projectId: "meu-finaceiro",
+  storageBucket: "meu-finaceiro.firebasestorage.app",
+  messagingSenderId: "204846182105",
+  appId: "1:204846182105:web:695589e7181040bf5958c8",
+};
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -18,7 +25,7 @@ const storage = getStorage(app);
 const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 const formatDate = (dateStr) => new Date(dateStr).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
 const getMonthYear = (date) => new Date(date).toLocaleString('pt-BR', { month: 'short', year: 'numeric', timeZone: 'UTC' });
-const getYearMonth = (date) => date.toISOString().slice(0, 7);
+const getYearMonth = (dateStr) => new Date(dateStr).toISOString().slice(0, 7);
 
 
 const getCategoryFullName = (categoryId, categories) => {
@@ -707,7 +714,18 @@ const FutureEntriesView = ({ futureEntries, accounts, categories, payees, onSave
     };
     const handleCloseReconcileModal = () => setIsReconcileModalOpen(false);
 
-    const handleChange = (e) => setFormData(p => ({ ...p, [e.target.name]: e.target.value }));
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+        setFormData(prev => {
+            const newState = { ...prev, [name]: value };
+            if (name === 'payeeId') {
+                const selectedPayee = payees.find(p => p.id === value);
+                if (selectedPayee?.categoryId) newState.categoryId = selectedPayee.categoryId;
+            }
+            if (name === 'type') newState.categoryId = '';
+            return newState;
+        });
+    };
     const handleReconcileChange = (e) => setReconcileFormData(p => ({ ...p, [e.target.name]: e.target.value }));
 
     const handleSubmit = (e) => {
@@ -842,6 +860,120 @@ const FutureEntriesView = ({ futureEntries, accounts, categories, payees, onSave
         </div>
     );
 };
+
+// --- NOVA VIEW: DRE ---
+const DREView = ({ transactions, categories }) => {
+    const [period, setPeriod] = useState(getYearMonth(new Date().toISOString()));
+
+    const dreData = useMemo(() => {
+        const filtered = transactions.filter(t => getYearMonth(t.date) === period && !t.isTransfer);
+        
+        const revenues = filtered.filter(t => t.type === 'revenue');
+        const expenses = filtered.filter(t => t.type === 'expense');
+
+        const totalRevenue = revenues.reduce((sum, t) => sum + t.amount, 0);
+
+        const groupByCategory = (trans, type) => {
+            const parentCategories = categories.filter(c => !c.parentId && c.type === type);
+            const data = parentCategories.map(parent => {
+                const subcategories = categories.filter(sub => sub.parentId === parent.id);
+                const childIds = [parent.id, ...subcategories.map(s => s.id)];
+                
+                const total = trans.filter(t => childIds.includes(t.categoryId)).reduce((sum, t) => sum + t.amount, 0);
+
+                return {
+                    id: parent.id,
+                    name: parent.name,
+                    value: total,
+                    percentage: totalRevenue > 0 ? (total / totalRevenue) * 100 : 0,
+                    subItems: subcategories.map(sub => {
+                        const subTotal = trans.filter(t => t.categoryId === sub.id).reduce((sum, t) => sum + t.amount, 0);
+                        return {
+                            id: sub.id,
+                            name: sub.name,
+                            value: subTotal,
+                            percentage: totalRevenue > 0 ? (subTotal / totalRevenue) * 100 : 0,
+                        }
+                    }).filter(s => s.value > 0)
+                }
+            }).filter(p => p.value > 0);
+            return data;
+        };
+        
+        const revenueData = groupByCategory(revenues, 'revenue');
+        const expenseData = groupByCategory(expenses, 'expense');
+        const totalExpense = expenses.reduce((sum, t) => sum + t.amount, 0);
+        const netResult = totalRevenue - totalExpense;
+
+        return { revenueData, expenseData, totalRevenue, totalExpense, netResult };
+
+    }, [period, transactions, categories]);
+
+    const TableRow = ({ item, isSub = false }) => (
+        <tr className={`border-b ${isSub ? 'bg-gray-50' : 'bg-white'}`}>
+            <td className={`p-3 ${isSub ? 'pl-8' : 'font-semibold'}`}>{item.name}</td>
+            <td className="p-3 text-right">{formatCurrency(item.value)}</td>
+            <td className="p-3 text-right font-mono">{item.percentage.toFixed(2)}%</td>
+        </tr>
+    );
+
+    return (
+        <div className="bg-white p-8 rounded-2xl shadow-lg">
+            <div className="flex justify-between items-center mb-6">
+                <h2 className="text-3xl font-bold text-gray-800">DRE - Demonstrativo de Resultados</h2>
+                <input 
+                    type="month" 
+                    value={period} 
+                    onChange={(e) => setPeriod(e.target.value)}
+                    className="p-2 border rounded-lg"
+                />
+            </div>
+            <div className="overflow-x-auto">
+                <table className="w-full">
+                    <thead>
+                        <tr className="border-b-2 text-left">
+                            <th className="p-3 w-2/3">Descrição</th>
+                            <th className="p-3 text-right">Valor</th>
+                            <th className="p-3 text-right">% Faturamento</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {/* Receitas */}
+                        <tr className="bg-green-50"><td colSpan="3" className="p-2 font-bold text-green-800">Receita Operacional Bruta</td></tr>
+                        {dreData.revenueData.map(item => <TableRow key={item.id} item={item} />)}
+                        <tr className="bg-gray-100 font-bold border-y-2">
+                            <td className="p-3">(=) Total de Receitas</td>
+                            <td className="p-3 text-right">{formatCurrency(dreData.totalRevenue)}</td>
+                            <td className="p-3 text-right font-mono">100.00%</td>
+                        </tr>
+
+                        {/* Despesas */}
+                        <tr className="bg-red-50"><td colSpan="3" className="p-2 font-bold text-red-800 mt-4">Custos e Despesas Operacionais</td></tr>
+                        {dreData.expenseData.map(parent => (
+                            <React.Fragment key={parent.id}>
+                                <TableRow item={parent} />
+                                {parent.subItems.map(sub => <TableRow key={sub.id} item={sub} isSub />)}
+                            </React.Fragment>
+                        ))}
+                         <tr className="bg-gray-100 font-bold border-y-2">
+                            <td className="p-3">(-) Total de Despesas</td>
+                            <td className="p-3 text-right">{formatCurrency(dreData.totalExpense)}</td>
+                            <td className="p-3 text-right font-mono">{(dreData.totalRevenue > 0 ? (dreData.totalExpense / dreData.totalRevenue) * 100 : 0).toFixed(2)}%</td>
+                        </tr>
+
+                        {/* Resultado */}
+                         <tr className={`font-extrabold text-lg border-t-4 ${dreData.netResult >= 0 ? 'bg-green-100 text-green-900' : 'bg-red-100 text-red-900'}`}>
+                            <td className="p-4">(=) Resultado Líquido do Período</td>
+                            <td className="p-4 text-right">{formatCurrency(dreData.netResult)}</td>
+                            <td className="p-4 text-right font-mono">{(dreData.totalRevenue > 0 ? (dreData.netResult / dreData.totalRevenue) * 100 : 0).toFixed(2)}%</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+};
+
 
 // --- COMPONENTES DE GESTÃO (REUTILIZÁVEIS) ---
 const CompaniesManager = ({ companies, onSave, onDelete }) => {
@@ -1525,18 +1657,12 @@ export default function App() {
 
     // Autenticação
     useEffect(() => {
+        // Simplificado para usar autenticação anónima, que é mais robusta para desenvolvimento local e evita erros de token.
         const authAction = async () => {
             try {
-                // eslint-disable-next-line no-undef
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    // eslint-disable-next-line no-undef
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
-            } catch (error) {
-                console.error("Authentication error:", error);
                 await signInAnonymously(auth);
+            } catch (error) {
+                console.error("Anonymous Authentication error:", error);
             }
         };
 
@@ -1780,6 +1906,7 @@ export default function App() {
             case 'futureEntries': return <FutureEntriesView futureEntries={futureEntries} accounts={accounts} categories={categories} payees={payees} onSave={handleSave} onDelete={(coll, id) => handleDelete(coll, {id})} onReconcile={handleReconcile} />;
             case 'budgets': return <BudgetsView budgets={budgets} categories={categories} transactions={transactions} onSave={handleSave} onDelete={(coll, id) => handleDelete(coll, {id})} />;
             case 'reports': return <ReportsView transactions={transactions} categories={categories} accounts={accounts} />;
+            case 'dre': return <DREView transactions={transactions} categories={categories} />;
             case 'settings': return <SettingsView onSaveEntity={handleSave} onDeleteEntity={(coll, id) => handleDelete(coll, {id})} onImportTransactions={handleImportTransactions} {...{ accounts, payees, categories }} />;
             default: return <DashboardView transactions={transactions} accounts={accounts} categories={categories} />;
         }
@@ -1809,6 +1936,7 @@ export default function App() {
                     <NavItem icon={<CalendarCheck2 />} label="Lançamentos Futuros" active={view === 'futureEntries'} onClick={() => setView('futureEntries')} />
                     <NavItem icon={<Target />} label="Orçamentos" active={view === 'budgets'} onClick={() => setView('budgets')} />
                     <NavItem icon={<BarChart2 />} label="Relatórios" active={view === 'reports'} onClick={() => setView('reports')} />
+                    <NavItem icon={<FileText />} label="DRE" active={view === 'dre'} onClick={() => setView('dre')} />
                     <NavItem icon={<Settings />} label="Configurações" active={view === 'settings'} onClick={() => setView('settings')} />
                 </nav>
             </aside>
