@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
 import { getFirestore, collection, doc, addDoc, getDocs, writeBatch, query, onSnapshot, deleteDoc, setDoc, where } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
-import { PlusCircle, Upload, Trash2, Edit, TrendingUp, TrendingDown, DollarSign, Settings, LayoutDashboard, List, BarChart2, Target, ArrowLeft, ArrowRightLeft, Repeat, CheckCircle, AlertTriangle, Clock, CalendarCheck2, Building, GitCompareArrows, ArrowUp, ArrowDown, Paperclip, FileText } from 'lucide-react';
+import { PlusCircle, Upload, Trash2, Edit, TrendingUp, TrendingDown, DollarSign, Settings, LayoutDashboard, List, BarChart2, Target, ArrowLeft, ArrowRightLeft, Repeat, CheckCircle, AlertTriangle, Clock, CalendarCheck2, Building, GitCompareArrows, ArrowUp, ArrowDown, Paperclip, FileText, LogOut } from 'lucide-react';
 
 // --- CONFIGURAÇÃO DO FIREBASE (PARA TESTE LOCAL) ---
 const firebaseConfig = {
@@ -24,9 +24,7 @@ const storage = getStorage(app);
 // --- UTILITÁRIOS ---
 const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 const formatDate = (dateStr) => new Date(dateStr).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
-const getMonthYear = (date) => new Date(date).toLocaleString('pt-BR', { month: 'short', year: 'numeric', timeZone: 'UTC' });
 const getYearMonth = (dateStr) => new Date(dateStr).toISOString().slice(0, 7);
-
 
 const getCategoryFullName = (categoryId, categories) => {
     const category = categories.find(c => c.id === categoryId);
@@ -70,6 +68,48 @@ const StatCard = ({ title, value, icon, color }) => (
         </div>
     </div>
 );
+
+// --- NOVA VIEW DE AUTENTICAÇÃO ---
+const AuthView = ({ onGoogleSignIn }) => {
+    const [error, setError] = useState('');
+
+    const handleSignIn = async () => {
+        try {
+            await onGoogleSignIn();
+        } catch (err) {
+            setError('Ocorreu um erro ao tentar entrar com o Google. Tente novamente.');
+            console.error(err);
+        }
+    };
+
+    const GoogleIcon = () => (
+        <svg className="w-6 h-6" viewBox="0 0 48 48">
+            <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path>
+            <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path>
+            <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"></path>
+            <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"></path>
+            <path fill="none" d="M0 0h48v48H0z"></path>
+        </svg>
+    );
+
+    return (
+        <div className="w-full h-screen flex justify-center items-center bg-gray-100">
+            <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-2xl shadow-lg text-center">
+                <h2 className="text-3xl font-bold text-gray-800">Bem-vindo ao Financeiro PRO</h2>
+                <p className="text-gray-600">Entre com a sua conta Google para continuar.</p>
+                <button
+                    onClick={handleSignIn}
+                    className="w-full flex items-center justify-center space-x-3 bg-white border border-gray-300 text-gray-700 font-semibold py-3 px-4 rounded-lg shadow-sm transition-all transform hover:scale-105 hover:bg-gray-50"
+                >
+                    <GoogleIcon />
+                    <span>Entrar com o Google</span>
+                </button>
+                {error && <p className="text-red-500 text-sm text-center pt-4">{error}</p>}
+            </div>
+        </div>
+    );
+};
+
 
 // --- COMPONENTES DAS VIEWS ---
 const DashboardView = ({ transactions, accounts, categories }) => {
@@ -1638,7 +1678,7 @@ const HubScreen = ({ companies, onSelect, onShowReports, onManageCompanies }) =>
 // --- COMPONENTE PRINCIPAL ---
 export default function App() {
     const [view, setView] = useState('dashboard');
-    const [userId, setUserId] = useState(null);
+    const [user, setUser] = useState(null);
     const [isAuthReady, setIsAuthReady] = useState(false);
     const [loading, setLoading] = useState(true);
 
@@ -1657,40 +1697,42 @@ export default function App() {
 
     // Autenticação
     useEffect(() => {
-        // Simplificado para usar autenticação anónima, que é mais robusta para desenvolvimento local e evita erros de token.
-        const authAction = async () => {
-            try {
-                await signInAnonymously(auth);
-            } catch (error) {
-                console.error("Anonymous Authentication error:", error);
-            }
-        };
-
-        onAuthStateChanged(auth, (user) => {
-            if (user) {
-                setUserId(user.uid);
-            }
+        const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+            setUser(currentUser);
             setIsAuthReady(true);
+            if (!currentUser) {
+                // Limpar estados quando o utilizador faz logout
+                setCompanies([]);
+                setActiveCompanyId(null);
+                setAccounts([]);
+                setCategories([]);
+                setPayees([]);
+                setTransactions([]);
+                setBudgets([]);
+                setFutureEntries([]);
+            }
         });
-
-        if (!auth.currentUser) {
-            authAction();
-        }
+        return () => unsubscribe();
     }, []);
     
     // eslint-disable-next-line no-undef
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+    const userId = user?.uid;
 
     // Carregar lista de empresas e categorias globais
     useEffect(() => {
-        if (!isAuthReady || !userId) return;
+        if (!isAuthReady || !userId) {
+            setLoading(false);
+            return;
+        };
         
+        setLoading(true);
         const qCompanies = query(collection(db, `artifacts/${appId}/users/${userId}/companies`));
         const unsubCompanies = onSnapshot(qCompanies, (snapshot) => {
             const companyList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setCompanies(companyList);
             setLoading(false);
-        });
+        }, () => setLoading(false));
 
         const qCategories = query(collection(db, `artifacts/${appId}/users/${userId}/categories`));
         const unsubCategories = onSnapshot(qCategories, (snapshot) => {
@@ -1756,6 +1798,7 @@ export default function App() {
     }, [activeCompanyId, userId, appId]);
 
     const handleSave = async (collectionName, data, id, file = null) => {
+        if (!userId) return;
         const isGlobal = ['companies', 'categories'].includes(collectionName);
         const basePath = `artifacts/${appId}/users/${userId}`;
         const path = isGlobal ? `${basePath}/${collectionName}` : `${basePath}/companies/${activeCompanyId}/${collectionName}`;
@@ -1788,7 +1831,7 @@ export default function App() {
     };
     
     const handleDelete = async (collectionName, item) => {
-        if (!window.confirm('Tem a certeza que deseja apagar este item? Esta ação não pode ser desfeita.')) return;
+        if (!userId || !window.confirm('Tem a certeza que deseja apagar este item? Esta ação não pode ser desfeita.')) return;
 
         const isGlobal = ['companies', 'categories'].includes(collectionName);
         const basePath = `artifacts/${appId}/users/${userId}`;
@@ -1815,6 +1858,7 @@ export default function App() {
     };
     
     const handleImportTransactions = async (transactionsToImport, accountId) => {
+        if (!userId) return;
         const path = `artifacts/${appId}/users/${userId}/companies/${activeCompanyId}/transactions`;
         const batch = writeBatch(db);
         transactionsToImport.forEach(t => {
@@ -1827,6 +1871,7 @@ export default function App() {
     };
     
     const handleReconcile = async (reconciliationData) => {
+        if (!userId) return;
         const { id, finalAmount, paymentDate, accountId, notes, originalEntry } = reconciliationData;
         
         const batch = writeBatch(db);
@@ -1881,11 +1926,20 @@ export default function App() {
             console.error("Error during reconciliation:", error);
         }
     };
+
+    const handleGoogleSignIn = async () => {
+        const provider = new GoogleAuthProvider();
+        await signInWithPopup(auth, provider);
+    };
     
-    if (loading || !isAuthReady) {
+    if (!isAuthReady || loading) {
         return <div className="flex justify-center items-center h-screen w-screen"><p className="text-lg">A carregar o sistema financeiro...</p></div>;
     }
     
+    if (!user) {
+        return <AuthView onGoogleSignIn={handleGoogleSignIn} />;
+    }
+
     if (!activeCompanyId) {
         switch (hubView) {
             case 'reports':
@@ -1923,22 +1977,30 @@ export default function App() {
     return (
         <div className="flex h-screen bg-gray-100 font-sans">
             <aside className="w-72 bg-white p-6 flex-shrink-0 flex flex-col shadow-lg">
-                <h1 className="text-2xl font-bold text-blue-700 mb-4">Financeiro PRO</h1>
-                <div className="mb-8 p-3 bg-gray-100 rounded-lg">
-                    <p className="text-sm text-gray-500">Empresa Ativa</p>
-                    <p className="font-bold text-lg text-gray-800">{activeCompany?.name}</p>
-                    <button onClick={() => setActiveCompanyId(null)} className="text-xs text-blue-600 hover:underline mt-1">Trocar de empresa</button>
+                <div>
+                    <h1 className="text-2xl font-bold text-blue-700 mb-4">Financeiro PRO</h1>
+                    <div className="mb-8 p-3 bg-gray-100 rounded-lg">
+                        <p className="text-sm text-gray-500">Empresa Ativa</p>
+                        <p className="font-bold text-lg text-gray-800">{activeCompany?.name}</p>
+                        <button onClick={() => setActiveCompanyId(null)} className="text-xs text-blue-600 hover:underline mt-1">Trocar de empresa</button>
+                    </div>
+                    <nav className="space-y-2">
+                        <NavItem icon={<LayoutDashboard />} label="Dashboard" active={view === 'dashboard'} onClick={() => setView('dashboard')} />
+                        <NavItem icon={<List />} label="Transações" active={view ==='transactions'} onClick={() => setView('transactions')} />
+                        <NavItem icon={<GitCompareArrows />} label="Conciliação" active={view === 'reconciliation'} onClick={() => setView('reconciliation')} />
+                        <NavItem icon={<CalendarCheck2 />} label="Lançamentos Futuros" active={view === 'futureEntries'} onClick={() => setView('futureEntries')} />
+                        <NavItem icon={<Target />} label="Orçamentos" active={view === 'budgets'} onClick={() => setView('budgets')} />
+                        <NavItem icon={<BarChart2 />} label="Relatórios" active={view === 'reports'} onClick={() => setView('reports')} />
+                        <NavItem icon={<FileText />} label="DRE" active={view === 'dre'} onClick={() => setView('dre')} />
+                        <NavItem icon={<Settings />} label="Configurações" active={view === 'settings'} onClick={() => setView('settings')} />
+                    </nav>
                 </div>
-                <nav className="space-y-4">
-                    <NavItem icon={<LayoutDashboard />} label="Dashboard" active={view === 'dashboard'} onClick={() => setView('dashboard')} />
-                    <NavItem icon={<List />} label="Transações" active={view ==='transactions'} onClick={() => setView('transactions')} />
-                    <NavItem icon={<GitCompareArrows />} label="Conciliação" active={view === 'reconciliation'} onClick={() => setView('reconciliation')} />
-                    <NavItem icon={<CalendarCheck2 />} label="Lançamentos Futuros" active={view === 'futureEntries'} onClick={() => setView('futureEntries')} />
-                    <NavItem icon={<Target />} label="Orçamentos" active={view === 'budgets'} onClick={() => setView('budgets')} />
-                    <NavItem icon={<BarChart2 />} label="Relatórios" active={view === 'reports'} onClick={() => setView('reports')} />
-                    <NavItem icon={<FileText />} label="DRE" active={view === 'dre'} onClick={() => setView('dre')} />
-                    <NavItem icon={<Settings />} label="Configurações" active={view === 'settings'} onClick={() => setView('settings')} />
-                </nav>
+                <div className="mt-auto">
+                     <button onClick={() => signOut(auth)} className="flex items-center space-x-3 w-full text-left px-4 py-3 rounded-lg text-red-500 hover:bg-red-50 font-medium">
+                        <LogOut size={20} />
+                        <span>Terminar Sessão</span>
+                    </button>
+                </div>
             </aside>
             <main className="flex-1 p-8 overflow-y-auto">{renderView()}</main>
         </div>
