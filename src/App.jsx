@@ -4,7 +4,7 @@ import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signO
 import { getFirestore, collection, doc, addDoc, getDocs, writeBatch, query, onSnapshot, deleteDoc, setDoc, where } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
-import { PlusCircle, Upload, Trash2, Edit, TrendingUp, TrendingDown, DollarSign, Settings, LayoutDashboard, List, BarChart2, Target, ArrowLeft, ArrowRightLeft, Repeat, CheckCircle, AlertTriangle, Clock, CalendarCheck2, Building, GitCompareArrows, ArrowUp, ArrowDown, Paperclip, FileText, LogOut } from 'lucide-react';
+import { PlusCircle, Upload, Trash2, Edit, TrendingUp, TrendingDown, DollarSign, Settings, LayoutDashboard, List, BarChart2, Target, ArrowLeft, ArrowRightLeft, Repeat, CheckCircle, AlertTriangle, Clock, CalendarCheck2, Building, GitCompareArrows, ArrowUp, ArrowDown, Paperclip, FileText, LogOut, Download, UploadCloud, ShieldCheck } from 'lucide-react';
 
 // --- CONFIGURAÇÃO DO FIREBASE (PARA TESTE LOCAL) ---
 const firebaseConfig = {
@@ -1599,7 +1599,7 @@ const ConsolidatedReportsView = ({ allCompaniesData, companies, onBack }) => {
 };
 
 // --- NOVA VIEW: CONFIGURAÇÕES GLOBAIS ---
-const GlobalSettingsView = ({ companies, categories, onSave, onDelete, onBack }) => {
+const GlobalSettingsView = ({ companies, categories, onSave, onDelete, onBack, onBackup, onRestore }) => {
     const [activeTab, setActiveTab] = useState('empresas');
 
     const TabButton = ({ tabName, label, active }) => (
@@ -1626,6 +1626,7 @@ const GlobalSettingsView = ({ companies, categories, onSave, onDelete, onBack })
                 <div className="border-b border-gray-300">
                     <TabButton tabName="empresas" label="Empresas" active={activeTab === 'empresas'} />
                     <TabButton tabName="categorias" label="Categorias" active={activeTab === 'categorias'} />
+                    <TabButton tabName="backup" label="Backup / Restauração" active={activeTab === 'backup'} />
                 </div>
 
                 <div className="bg-white p-8 rounded-b-2xl rounded-r-2xl shadow-lg">
@@ -1635,11 +1636,65 @@ const GlobalSettingsView = ({ companies, categories, onSave, onDelete, onBack })
                     {activeTab === 'categorias' && (
                         <CategoryManager categories={categories} onSave={onSave} onDelete={onDelete} />
                     )}
+                    {activeTab === 'backup' && (
+                        <BackupManager onBackup={onBackup} onRestore={onRestore} />
+                    )}
                 </div>
             </div>
         </div>
     );
 };
+
+const BackupManager = ({ onBackup, onRestore }) => {
+    const [isLoading, setIsLoading] = useState(false);
+    const fileInputRef = React.useRef(null);
+
+    const handleBackup = async () => {
+        setIsLoading(true);
+        await onBackup();
+        setIsLoading(false);
+    };
+
+    const handleRestoreClick = () => {
+        fileInputRef.current.click();
+    };
+
+    const handleFileChange = (event) => {
+        const file = event.target.files[0];
+        if (file) {
+            if (window.confirm("Tem a certeza que deseja restaurar este backup? TODOS os seus dados atuais serão apagados e substituídos. Esta ação não pode ser desfeita.")) {
+                setIsLoading(true);
+                onRestore(file).finally(() => setIsLoading(false));
+            }
+        }
+    };
+
+    return (
+        <div>
+            <h2 className="text-3xl font-bold text-gray-800 mb-6">Backup e Restauração</h2>
+            <div className="space-y-6">
+                <div className="p-4 border border-blue-200 bg-blue-50 rounded-lg">
+                    <h3 className="font-bold text-blue-800">Criar Backup</h3>
+                    <p className="text-sm text-blue-700 mt-1 mb-3">Guarde todos os seus dados (empresas, contas, transações, etc.) num único ficheiro seguro.</p>
+                    <Button onClick={handleBackup} disabled={isLoading} className="bg-blue-600 hover:bg-blue-700">
+                        <Download size={18} />
+                        <span>{isLoading ? 'A criar...' : 'Criar Backup'}</span>
+                    </Button>
+                </div>
+                <div className="p-4 border border-red-200 bg-red-50 rounded-lg">
+                    <h3 className="font-bold text-red-800">Restaurar Backup</h3>
+                    <p className="text-sm text-red-700 mt-1 mb-3">Substitua todos os dados atuais por um ficheiro de backup. Esta ação é irreversível.</p>
+                    <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".json" className="hidden" />
+                    <Button onClick={handleRestoreClick} disabled={isLoading} className="bg-red-600 hover:bg-red-700">
+                        <UploadCloud size={18} />
+                        <span>{isLoading ? 'A restaurar...' : 'Restaurar Backup'}</span>
+                    </Button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 
 const HubScreen = ({ companies, onSelect, onShowReports, onManageCompanies }) => {
     return (
@@ -1931,6 +1986,105 @@ export default function App() {
         const provider = new GoogleAuthProvider();
         await signInWithPopup(auth, provider);
     };
+
+    const handleBackup = async () => {
+        if (!userId) return;
+        const userPath = `artifacts/${appId}/users/${userId}`;
+        const backupData = {
+            backupDate: new Date().toISOString(),
+            data: {
+                categories: [],
+                companies: []
+            }
+        };
+
+        // Backup categories
+        const categoriesQuery = query(collection(db, `${userPath}/categories`));
+        const categoriesSnap = await getDocs(categoriesQuery);
+        backupData.data.categories = categoriesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+        // Backup companies and their subcollections
+        const companiesQuery = query(collection(db, `${userPath}/companies`));
+        const companiesSnap = await getDocs(companiesQuery);
+        for (const companyDoc of companiesSnap.docs) {
+            const companyData = { id: companyDoc.id, ...companyDoc.data(), subcollections: {} };
+            const subcollections = ['accounts', 'transactions', 'payees', 'budgets', 'futureEntries'];
+            for (const sub of subcollections) {
+                const subQuery = query(collection(db, `${userPath}/companies/${companyDoc.id}/${sub}`));
+                const subSnap = await getDocs(subQuery);
+                companyData.subcollections[sub] = subSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+            }
+            backupData.data.companies.push(companyData);
+        }
+        
+        const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(backupData, null, 2))}`;
+        const link = document.createElement("a");
+        link.href = jsonString;
+        link.download = `financeiro_pro_backup_${new Date().toISOString().slice(0,10)}.json`;
+        link.click();
+    };
+
+    const handleRestore = async (file) => {
+        if (!userId) return;
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                const backupData = JSON.parse(event.target.result);
+                if (!backupData.data || !backupData.data.companies || !backupData.data.categories) {
+                    throw new Error("Formato de backup inválido.");
+                }
+
+                const userPath = `artifacts/${appId}/users/${userId}`;
+                const batch = writeBatch(db);
+
+                // Delete existing data
+                const collectionsToDelete = ['categories', 'companies'];
+                for (const collName of collectionsToDelete) {
+                    const collQuery = query(collection(db, `${userPath}/${collName}`));
+                    const collSnap = await getDocs(collQuery);
+                    for(const docToDelete of collSnap.docs) {
+                        if (collName === 'companies') {
+                            const subcollections = ['accounts', 'transactions', 'payees', 'budgets', 'futureEntries'];
+                            for (const sub of subcollections) {
+                                const subQuery = query(collection(db, `${userPath}/companies/${docToDelete.id}/${sub}`));
+                                const subSnap = await getDocs(subQuery);
+                                subSnap.forEach(subDoc => batch.delete(subDoc.ref));
+                            }
+                        }
+                        batch.delete(docToDelete.ref);
+                    }
+                }
+                await batch.commit(); // Commit deletions first
+
+                // Restore new data
+                const restoreBatch = writeBatch(db);
+                backupData.data.categories.forEach(cat => {
+                    const { id, ...data } = cat;
+                    restoreBatch.set(doc(db, `${userPath}/categories`, id), data);
+                });
+
+                backupData.data.companies.forEach(comp => {
+                    const { id, subcollections, ...data } = comp;
+                    restoreBatch.set(doc(db, `${userPath}/companies`, id), data);
+                    Object.keys(subcollections).forEach(subName => {
+                        subcollections[subName].forEach(subDoc => {
+                            const { id: subId, ...subData } = subDoc;
+                            restoreBatch.set(doc(db, `${userPath}/companies/${id}/${subName}`, subId), subData);
+                        });
+                    });
+                });
+
+                await restoreBatch.commit();
+                alert("Backup restaurado com sucesso!");
+                window.location.reload();
+
+            } catch (error) {
+                console.error("Erro ao restaurar backup:", error);
+                alert("Erro ao restaurar backup. Verifique o ficheiro e tente novamente.");
+            }
+        };
+        reader.readAsText(file);
+    };
     
     if (!isAuthReady || loading) {
         return <div className="flex justify-center items-center h-screen w-screen"><p className="text-lg">A carregar o sistema financeiro...</p></div>;
@@ -1945,7 +2099,7 @@ export default function App() {
             case 'reports':
                 return <ConsolidatedReportsView allCompaniesData={allCompaniesData} companies={companies} onBack={() => setHubView('selector')} />;
             case 'global_settings':
-                return <GlobalSettingsView companies={companies} categories={categories} onSave={handleSave} onDelete={(coll, item) => handleDelete(coll, {id: item})} onBack={() => setHubView('selector')} />;
+                return <GlobalSettingsView companies={companies} categories={categories} onSave={handleSave} onDelete={(coll, item) => handleDelete(coll, {id: item})} onBack={() => setHubView('selector')} onBackup={handleBackup} onRestore={handleRestore} />;
             case 'selector':
             default:
                 return <HubScreen companies={companies} onSelect={setActiveCompanyId} onShowReports={() => setHubView('reports')} onManageCompanies={() => setHubView('global_settings')} />;
