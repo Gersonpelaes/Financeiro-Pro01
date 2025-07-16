@@ -4,7 +4,7 @@ import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signO
 import { getFirestore, collection, doc, addDoc, getDocs, writeBatch, query, onSnapshot, deleteDoc, setDoc, where } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
-import { PlusCircle, Upload, Trash2, Edit, TrendingUp, TrendingDown, DollarSign, Settings, LayoutDashboard, List, BarChart2, Target, ArrowLeft, ArrowRightLeft, Repeat, CheckCircle, AlertTriangle, Clock, CalendarCheck2, Building, GitCompareArrows, ArrowUp, ArrowDown, Paperclip, FileText, LogOut, Download, UploadCloud, ShieldCheck } from 'lucide-react';
+import { PlusCircle, Upload, Trash2, Edit, TrendingUp, TrendingDown, DollarSign, Settings, LayoutDashboard, List, BarChart2, Target, ArrowLeft, ArrowRightLeft, Repeat, CheckCircle, AlertTriangle, Clock, CalendarCheck2, Building, GitCompareArrows, ArrowUp, ArrowDown, Paperclip, FileText, LogOut, Download, UploadCloud } from 'lucide-react';
 
 // --- CONFIGURAÇÃO DO FIREBASE (PARA TESTE LOCAL) ---
 const firebaseConfig = {
@@ -498,7 +498,7 @@ const ReportsView = ({ transactions, categories, accounts }) => {
 };
 
 // --- VIEW DE CONCILIAÇÃO BANCÁRIA ---
-const ReconciliationView = ({ transactions, accounts, onSaveTransaction }) => {
+const ReconciliationView = ({ transactions, accounts, categories, payees, onSaveTransaction }) => {
     const [selectedAccountId, setSelectedAccountId] = useState('');
     const [statementData, setStatementData] = useState([]);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -609,8 +609,8 @@ const ReconciliationView = ({ transactions, accounts, onSaveTransaction }) => {
                 onClose={() => setIsImportModalOpen(false)}
                 onImport={handleImport}
                 account={accounts.find(a => a.id === selectedAccountId)}
-                categories={[]}
-                payees={[]}
+                categories={categories}
+                payees={payees}
             />
         </div>
     );
@@ -1524,10 +1524,6 @@ const SettingsView = ({ onSaveEntity, onDeleteEntity, onImportTransactions, acco
                 <PayeesManager payees={payees} categories={categories} onSave={onSaveEntity} onDelete={onDeleteEntity} />
             </div>
             
-            <div className="bg-white p-8 rounded-2xl shadow-lg">
-                <h3 className="text-xl font-semibold text-gray-700 mb-4">Backup (Funcionalidade Futura)</h3>
-                 <p className="text-gray-500">Em breve poderá fazer o backup e a restauração dos dados desta empresa.</p>
-            </div>
             <TransactionImportModal 
                 isOpen={isImportModalOpen} 
                 onClose={() => setIsImportModalOpen(false)} 
@@ -1856,10 +1852,31 @@ export default function App() {
         if (!userId) return;
         const isGlobal = ['companies', 'categories'].includes(collectionName);
         const basePath = `artifacts/${appId}/users/${userId}`;
-        const path = isGlobal ? `${basePath}/${collectionName}` : `${basePath}/companies/${activeCompanyId}/${collectionName}`;
+        let path = isGlobal ? `${basePath}/${collectionName}` : `${basePath}/companies/${activeCompanyId}/${collectionName}`;
         
         if (collectionName === 'transactions' && data.type === 'transfer') {
-            // ... (lógica de transferência inalterada)
+            const { sourceAccountId, destinationAccountId, amount, date, description } = data;
+            const transferId = crypto.randomUUID();
+            const batch = writeBatch(db);
+
+            // Saída da conta de origem
+            const expenseData = {
+                amount, date, description: `Transferência para ${accounts.find(a => a.id === destinationAccountId)?.name || 'outra conta'}${description ? ` - ${description}` : ''}`,
+                type: 'expense', accountId: sourceAccountId, isTransfer: true, transferId
+            };
+            const expenseRef = doc(collection(db, path));
+            batch.set(expenseRef, expenseData);
+
+            // Entrada na conta de destino
+            const revenueData = {
+                amount, date, description: `Transferência de ${accounts.find(a => a.id === sourceAccountId)?.name || 'outra conta'}${description ? ` - ${description}` : ''}`,
+                type: 'revenue', accountId: destinationAccountId, isTransfer: true, transferId
+            };
+            const revenueRef = doc(collection(db, path));
+            batch.set(revenueRef, revenueData);
+            
+            await batch.commit();
+
         } else if (collectionName === 'transactions') {
             const docRef = id ? doc(db, path, id) : doc(collection(db, path));
             const docId = docRef.id;
@@ -2035,11 +2052,11 @@ export default function App() {
                 }
 
                 const userPath = `artifacts/${appId}/users/${userId}`;
-                const batch = writeBatch(db);
-
-                // Delete existing data
+                
+                // Delete all existing data for the user
                 const collectionsToDelete = ['categories', 'companies'];
                 for (const collName of collectionsToDelete) {
+                    const batch = writeBatch(db);
                     const collQuery = query(collection(db, `${userPath}/${collName}`));
                     const collSnap = await getDocs(collQuery);
                     for(const docToDelete of collSnap.docs) {
@@ -2053,8 +2070,8 @@ export default function App() {
                         }
                         batch.delete(docToDelete.ref);
                     }
+                    await batch.commit();
                 }
-                await batch.commit(); // Commit deletions first
 
                 // Restore new data
                 const restoreBatch = writeBatch(db);
@@ -2110,7 +2127,7 @@ export default function App() {
         switch (view) {
             case 'dashboard': return <DashboardView transactions={transactions} accounts={accounts} categories={categories} />;
             case 'transactions': return <TransactionsView transactions={transactions} accounts={accounts} categories={categories} payees={payees} onSave={handleSave} onDelete={handleDelete} />;
-            case 'reconciliation': return <ReconciliationView transactions={transactions} accounts={accounts} onSaveTransaction={handleSave} />;
+            case 'reconciliation': return <ReconciliationView transactions={transactions} accounts={accounts} categories={categories} payees={payees} onSaveTransaction={handleSave} />;
             case 'futureEntries': return <FutureEntriesView futureEntries={futureEntries} accounts={accounts} categories={categories} payees={payees} onSave={handleSave} onDelete={(coll, id) => handleDelete(coll, {id})} onReconcile={handleReconcile} />;
             case 'budgets': return <BudgetsView budgets={budgets} categories={categories} transactions={transactions} onSave={handleSave} onDelete={(coll, id) => handleDelete(coll, {id})} />;
             case 'reports': return <ReportsView transactions={transactions} categories={categories} accounts={accounts} />;
