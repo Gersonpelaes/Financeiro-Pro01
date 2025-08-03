@@ -5,9 +5,6 @@ import { getFirestore, collection, doc, addDoc, getDocs, writeBatch, query, onSn
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
 import { PlusCircle, Upload, Trash2, Edit, TrendingUp, TrendingDown, DollarSign, Settings, LayoutDashboard, List, BarChart2, Target, ArrowLeft, ArrowRightLeft, Repeat, CheckCircle, AlertTriangle, Clock, CalendarCheck2, Building, GitCompareArrows, ArrowUp, ArrowDown, Paperclip, FileText, LogOut, Download, UploadCloud, Sun, Moon, FileOutput } from 'lucide-react';
-import jsPDF from "jspdf";
-import autoTable from 'jspdf-autotable';
-
 
 // --- CONFIGURAÇÃO DO FIREBASE (PARA TESTE LOCAL) ---
 const firebaseConfig = {
@@ -959,8 +956,11 @@ const FutureEntriesView = ({ futureEntries, accounts, categories, payees, onSave
 };
 
 // --- NOVA VIEW: DRE ---
-const DREView = ({ transactions, categories }) => {
+const DREView = ({ transactions, categories, accounts, payees, onSave, onDelete }) => {
     const [period, setPeriod] = useState(getYearMonth(new Date().toISOString()));
+    const [detailModalOpen, setDetailModalOpen] = useState(false);
+    const [modalTitle, setModalTitle] = useState('');
+    const [modalTransactions, setModalTransactions] = useState([]);
 
     const dreData = useMemo(() => {
         const filtered = transactions.filter(t => getYearMonth(t.date) === period && !t.isTransfer);
@@ -1006,7 +1006,25 @@ const DREView = ({ transactions, categories }) => {
 
     }, [period, transactions, categories]);
 
+    const handleCategoryClick = (item) => {
+        const filtered = transactions.filter(t => {
+            const isSamePeriod = getYearMonth(t.date) === period;
+            // If it's a parent category, include all subcategories
+            const subIds = categories.filter(c => c.parentId === item.id).map(c => c.id);
+            const isInCategory = t.categoryId === item.id || subIds.includes(t.categoryId);
+            return isSamePeriod && isInCategory;
+        });
+        setModalTransactions(filtered);
+        setModalTitle(`Detalhes de: ${item.name}`);
+        setDetailModalOpen(true);
+    };
+
     const handleExportPDF = () => {
+        if (typeof window.jspdf === 'undefined') {
+            alert("A funcionalidade de PDF não está pronta. Por favor, aguarde um momento e tente novamente.");
+            return;
+        }
+        const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
         doc.text(`DRE - ${period}`, 14, 16);
         
@@ -1033,7 +1051,7 @@ const DREView = ({ transactions, categories }) => {
         // Resultado
         body.push([{ content: '(=) Resultado Líquido do Período', styles: { fontStyle: 'bold', fontSize: 12 } }, { content: formatCurrency(dreData.netResult), styles: { halign: 'right', fontStyle: 'bold', fontSize: 12 } }, { content: `${(dreData.totalRevenue > 0 ? (dreData.netResult / dreData.totalRevenue) * 100 : 0).toFixed(2)}%`, styles: { halign: 'right', fontStyle: 'bold', fontSize: 12 } }]);
 
-        autoTable(doc, {
+        doc.autoTable({
             head: head,
             body: body,
             startY: 22,
@@ -1044,69 +1062,86 @@ const DREView = ({ transactions, categories }) => {
 
     const TableRow = ({ item, isSub = false }) => (
         <tr className={`border-b dark:border-gray-700 ${isSub ? 'bg-gray-50 dark:bg-gray-700/50' : 'bg-white dark:bg-gray-800'}`}>
-            <td className={`p-3 ${isSub ? 'pl-8' : 'font-semibold'}`}>{item.name}</td>
+            <td className={`p-3 ${isSub ? 'pl-8' : 'font-semibold'}`}>
+                <button onClick={() => handleCategoryClick(item)} className="text-left w-full hover:text-blue-600 dark:hover:text-blue-400">
+                    {item.name}
+                </button>
+            </td>
             <td className="p-3 text-right">{formatCurrency(item.value)}</td>
             <td className="p-3 text-right font-mono">{item.percentage.toFixed(2)}%</td>
         </tr>
     );
 
     return (
-        <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg">
-            <div className="flex justify-between items-center mb-6">
-                <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-200">DRE - Demonstrativo de Resultados</h2>
-                <div className="flex items-center gap-4">
-                    <input 
-                        type="month" 
-                        value={period} 
-                        onChange={(e) => setPeriod(e.target.value)}
-                        className="p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300"
-                    />
-                    <Button onClick={handleExportPDF} className="bg-green-600 hover:bg-green-700"><FileOutput size={18}/> Exportar PDF</Button>
+        <>
+            <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg">
+                <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-200">DRE - Demonstrativo de Resultados</h2>
+                    <div className="flex items-center gap-4">
+                        <input 
+                            type="month" 
+                            value={period} 
+                            onChange={(e) => setPeriod(e.target.value)}
+                            className="p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300"
+                        />
+                        <Button onClick={handleExportPDF} className="bg-green-600 hover:bg-green-700"><FileOutput size={18}/> Exportar PDF</Button>
+                    </div>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full">
+                        <thead>
+                            <tr className="border-b-2 dark:border-gray-700 text-left">
+                                <th className="p-3 w-2/3">Descrição</th>
+                                <th className="p-3 text-right">Valor</th>
+                                <th className="p-3 text-right">% Faturamento</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {/* Receitas */}
+                            <tr className="bg-green-50 dark:bg-green-900/20"><td colSpan="3" className="p-2 font-bold text-green-800 dark:text-green-300">Receita Operacional Bruta</td></tr>
+                            {dreData.revenueData.map(item => <TableRow key={item.id} item={item} />)}
+                            <tr className="bg-gray-100 dark:bg-gray-700 font-bold border-y-2 dark:border-gray-600">
+                                <td className="p-3">(=) Total de Receitas</td>
+                                <td className="p-3 text-right">{formatCurrency(dreData.totalRevenue)}</td>
+                                <td className="p-3 text-right font-mono">100.00%</td>
+                            </tr>
+
+                            {/* Despesas */}
+                            <tr className="bg-red-50 dark:bg-red-900/20"><td colSpan="3" className="p-2 font-bold text-red-800 dark:text-red-300 mt-4">Custos e Despesas Operacionais</td></tr>
+                            {dreData.expenseData.map(parent => (
+                                <React.Fragment key={parent.id}>
+                                    <TableRow item={parent} />
+                                    {parent.subItems.map(sub => <TableRow key={sub.id} item={sub} isSub />)}
+                                </React.Fragment>
+                            ))}
+                            <tr className="bg-gray-100 dark:bg-gray-700 font-bold border-y-2 dark:border-gray-600">
+                                <td className="p-3">(-) Total de Despesas</td>
+                                <td className="p-3 text-right">{formatCurrency(dreData.totalExpense)}</td>
+                                <td className="p-3 text-right font-mono">{(dreData.totalRevenue > 0 ? (dreData.totalExpense / dreData.totalRevenue) * 100 : 0).toFixed(2)}%</td>
+                            </tr>
+
+                            {/* Resultado */}
+                            <tr className={`font-extrabold text-lg border-t-4 dark:border-gray-600 ${dreData.netResult >= 0 ? 'bg-green-100 dark:bg-green-900/30 text-green-900 dark:text-green-200' : 'bg-red-100 dark:bg-red-900/30 text-red-900 dark:text-red-200'}`}>
+                                <td className="p-4">(=) Resultado Líquido do Período</td>
+                                <td className="p-4 text-right">{formatCurrency(dreData.netResult)}</td>
+                                <td className="p-4 text-right font-mono">{(dreData.totalRevenue > 0 ? (dreData.netResult / dreData.totalRevenue) * 100 : 0).toFixed(2)}%</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
-            <div className="overflow-x-auto">
-                <table className="w-full">
-                    <thead>
-                        <tr className="border-b-2 dark:border-gray-700 text-left">
-                            <th className="p-3 w-2/3">Descrição</th>
-                            <th className="p-3 text-right">Valor</th>
-                            <th className="p-3 text-right">% Faturamento</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {/* Receitas */}
-                        <tr className="bg-green-50 dark:bg-green-900/20"><td colSpan="3" className="p-2 font-bold text-green-800 dark:text-green-300">Receita Operacional Bruta</td></tr>
-                        {dreData.revenueData.map(item => <TableRow key={item.id} item={item} />)}
-                        <tr className="bg-gray-100 dark:bg-gray-700 font-bold border-y-2 dark:border-gray-600">
-                            <td className="p-3">(=) Total de Receitas</td>
-                            <td className="p-3 text-right">{formatCurrency(dreData.totalRevenue)}</td>
-                            <td className="p-3 text-right font-mono">100.00%</td>
-                        </tr>
-
-                        {/* Despesas */}
-                        <tr className="bg-red-50 dark:bg-red-900/20"><td colSpan="3" className="p-2 font-bold text-red-800 dark:text-red-300 mt-4">Custos e Despesas Operacionais</td></tr>
-                        {dreData.expenseData.map(parent => (
-                            <React.Fragment key={parent.id}>
-                                <TableRow item={parent} />
-                                {parent.subItems.map(sub => <TableRow key={sub.id} item={sub} isSub />)}
-                            </React.Fragment>
-                        ))}
-                         <tr className="bg-gray-100 dark:bg-gray-700 font-bold border-y-2 dark:border-gray-600">
-                            <td className="p-3">(-) Total de Despesas</td>
-                            <td className="p-3 text-right">{formatCurrency(dreData.totalExpense)}</td>
-                            <td className="p-3 text-right font-mono">{(dreData.totalRevenue > 0 ? (dreData.totalExpense / dreData.totalRevenue) * 100 : 0).toFixed(2)}%</td>
-                        </tr>
-
-                        {/* Resultado */}
-                         <tr className={`font-extrabold text-lg border-t-4 dark:border-gray-600 ${dreData.netResult >= 0 ? 'bg-green-100 dark:bg-green-900/30 text-green-900 dark:text-green-200' : 'bg-red-100 dark:bg-red-900/30 text-red-900 dark:text-red-200'}`}>
-                            <td className="p-4">(=) Resultado Líquido do Período</td>
-                            <td className="p-4 text-right">{formatCurrency(dreData.netResult)}</td>
-                            <td className="p-4 text-right font-mono">{(dreData.totalRevenue > 0 ? (dreData.netResult / dreData.totalRevenue) * 100 : 0).toFixed(2)}%</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
+            <TransactionDetailModal 
+                isOpen={detailModalOpen}
+                onClose={() => setDetailModalOpen(false)}
+                title={modalTitle}
+                transactions={modalTransactions}
+                accounts={accounts}
+                categories={categories}
+                payees={payees}
+                onSave={onSave}
+                onDelete={onDelete}
+            />
+        </>
     );
 };
 
@@ -2244,7 +2279,7 @@ export default function App() {
             case 'futureEntries': return <FutureEntriesView futureEntries={futureEntries} accounts={accounts} categories={categories} payees={payees} onSave={handleSave} onDelete={(coll, id) => handleDelete(coll, {id})} onReconcile={handleReconcile} />;
             case 'budgets': return <BudgetsView budgets={budgets} categories={categories} transactions={transactions} onSave={handleSave} onDelete={(coll, id) => handleDelete(coll, {id})} />;
             case 'reports': return <ReportsView transactions={transactions} categories={categories} accounts={accounts} />;
-            case 'dre': return <DREView transactions={transactions} categories={categories} />;
+            case 'dre': return <DREView transactions={transactions} categories={categories} accounts={accounts} payees={payees} onSave={handleSave} onDelete={handleDelete} />;
             case 'settings': return <SettingsView onSaveEntity={handleSave} onDeleteEntity={(coll, id) => handleDelete(coll, {id})} onImportTransactions={handleImportTransactions} {...{ accounts, payees, categories }} />;
             default: return <DashboardView transactions={transactions} accounts={accounts} categories={categories} futureEntries={futureEntries} budgets={budgets} />;
         }
@@ -2294,3 +2329,131 @@ export default function App() {
         </div>
     );
 }
+
+// --- NOVO COMPONENTE: MODAL DE DETALHES DE TRANSAÇÃO ---
+const TransactionDetailModal = ({ isOpen, onClose, title, transactions, accounts, categories, payees, onSave, onDelete }) => {
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [editingTransaction, setEditingTransaction] = useState(null);
+
+    const handleOpenEditModal = (transaction) => {
+        setEditingTransaction(transaction);
+        setIsEditModalOpen(true);
+    };
+
+    const handleCloseEditModal = () => {
+        setEditingTransaction(null);
+        setIsEditModalOpen(false);
+    };
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title={title} size="lg">
+            <div className="max-h-[60vh] overflow-y-auto">
+                <table className="w-full text-left">
+                    <thead>
+                        <tr className="border-b-2 dark:border-gray-700">
+                            <th className="p-2">Data</th>
+                            <th className="p-2">Descrição</th>
+                            <th className="p-2 text-right">Valor</th>
+                            <th className="p-2">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {transactions.map(t => (
+                            <tr key={t.id} className="border-b dark:border-gray-700">
+                                <td className="p-2">{formatDate(t.date)}</td>
+                                <td className="p-2">{t.description}</td>
+                                <td className={`p-2 text-right font-semibold ${t.type === 'revenue' ? 'text-green-500' : 'text-red-500'}`}>
+                                    {formatCurrency(t.amount)}
+                                </td>
+                                <td className="p-2">
+                                    <div className="flex space-x-2">
+                                        <button onClick={() => handleOpenEditModal(t)} className="text-blue-500 hover:text-blue-700"><Edit size={18} /></button>
+                                        <button onClick={() => onDelete('transactions', t)} className="text-red-500 hover:text-red-700"><Trash2 size={18} /></button>
+                                    </div>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+            {editingTransaction && (
+                 <TransactionEditModal
+                    isOpen={isEditModalOpen}
+                    onClose={handleCloseEditModal}
+                    editingTransaction={editingTransaction}
+                    accounts={accounts}
+                    categories={categories}
+                    payees={payees}
+                    onSave={onSave}
+                />
+            )}
+        </Modal>
+    );
+};
+
+// --- NOVO COMPONENTE: MODAL DE EDIÇÃO DE TRANSAÇÃO (REUTILIZÁVEL) ---
+const TransactionEditModal = ({ isOpen, onClose, editingTransaction, accounts, categories, payees, onSave }) => {
+    const [formData, setFormData] = useState({});
+    const [attachmentFile, setAttachmentFile] = useState(null);
+
+    useEffect(() => {
+        if (editingTransaction) {
+            setFormData({ ...editingTransaction, date: editingTransaction.date.substring(0, 10) });
+        }
+    }, [editingTransaction]);
+
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+        setFormData(prev => {
+            const newState = { ...prev, [name]: value };
+            if (name === 'payeeId') {
+                const selectedPayee = payees.find(p => p.id === value);
+                if (selectedPayee?.categoryId) newState.categoryId = selectedPayee.categoryId;
+            }
+            if (name === 'type') newState.categoryId = '';
+            return newState;
+        });
+    };
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        const dataToSave = { ...formData, amount: parseFloat(formData.amount), date: new Date(formData.date).toISOString() };
+        onSave('transactions', dataToSave, editingTransaction?.id, attachmentFile);
+        onClose();
+    };
+
+    const groupedCategories = useMemo(() => {
+        const type = formData.type || 'expense';
+        const parents = categories.filter(c => !c.parentId && c.type === type);
+        return parents.map(parent => ({
+            ...parent,
+            subcategories: categories.filter(sub => sub.parentId === parent.id)
+        })).sort((a, b) => a.name.localeCompare(b.name));
+    }, [categories, formData.type]);
+
+    return (
+         <Modal isOpen={isOpen} onClose={onClose} title="Editar Transação">
+            <form onSubmit={handleSubmit} className="space-y-6">
+                <div><label className="block"><span className="text-gray-700 dark:text-gray-300">Descrição</span><input type="text" name="description" value={formData.description || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required /></label></div>
+                <div className="flex space-x-4">
+                    <label className="flex-1"><span className="text-gray-700 dark:text-gray-300">Valor (R$)</span><input type="number" step="0.01" name="amount" value={formData.amount || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" placeholder="0.00" required /></label>
+                    <label className="flex-1"><span className="text-gray-700 dark:text-gray-300">Data</span><input type="date" name="date" value={formData.date || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required /></label>
+                </div>
+                <div className="flex space-x-4">
+                    <label className="flex-1"><span className="text-gray-700 dark:text-gray-300">Conta</span><select name="accountId" value={formData.accountId || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required>{accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label>
+                    <label className="flex-1"><span className="text-gray-700 dark:text-gray-300">Favorecido</span><select name="payeeId" value={formData.payeeId || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300"><option value="">Nenhum</option>{payees.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
+                </div>
+                <div>
+                    <label className="flex-1"><span className="text-gray-700 dark:text-gray-300">Categoria</span><select name="categoryId" value={formData.categoryId || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required><option value="">Selecione...</option>{groupedCategories.map(parent => (<optgroup key={parent.id} label={parent.name}><option value={parent.id}>{parent.name} (Principal)</option>{parent.subcategories.map(sub => <option key={sub.id} value={sub.id}>{sub.name}</option>)}</optgroup>))}</select></label>
+                </div>
+                <div>
+                    <label className="block"><span className="text-gray-700 dark:text-gray-300">Anexar Comprovativo</span>
+                    <input type="file" onChange={(e) => setAttachmentFile(e.target.files[0])} className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
+                    </label>
+                    {formData.attachmentURL && !attachmentFile && <div className="text-xs mt-1">Anexo atual: <a href={formData.attachmentURL} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Ver anexo</a>. Selecione um novo ficheiro para o substituir.</div>}
+                </div>
+                <div className="flex justify-end pt-4"><Button type="submit"><span>Guardar Alterações</span></Button></div>
+            </form>
+        </Modal>
+    );
+};
