@@ -4,7 +4,7 @@ import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signO
 import { getFirestore, collection, doc, addDoc, getDocs, writeBatch, query, onSnapshot, deleteDoc, setDoc, where } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { PlusCircle, Upload, Trash2, Edit, TrendingUp, TrendingDown, DollarSign, Settings, LayoutDashboard, List, BarChart2, Target, ArrowLeft, ArrowRightLeft, Repeat, CheckCircle, AlertTriangle, Clock, CalendarCheck2, Building, GitCompareArrows, ArrowUp, ArrowDown, Paperclip, FileText, LogOut, Download, UploadCloud, Sun, Moon, FileOutput, CalendarClock, Menu, X } from 'lucide-react';
+import { PlusCircle, Upload, Trash2, Edit, TrendingUp, TrendingDown, DollarSign, Settings, LayoutDashboard, List, BarChart2, Target, ArrowLeft, ArrowRightLeft, Repeat, CheckCircle, AlertTriangle, Clock, CalendarCheck2, Building, GitCompareArrows, ArrowUp, ArrowDown, Paperclip, FileText, LogOut, Download, UploadCloud, Sun, Moon, FileOutput, CalendarClock, Menu, X, User, Save } from 'lucide-react';
 import jsPDF from "jspdf";
 import autoTable from 'jspdf-autotable';
 
@@ -238,6 +238,72 @@ const AuthView = ({ onGoogleSignIn }) => {
                 {error && <p className="text-red-500 text-sm text-center pt-4">{error}</p>}
             </div>
         </div>
+    );
+};
+
+// --- COMPONENTE: MODAL DE IMPORTAÇÃO (NOVO) ---
+const TransactionImportModal = ({ isOpen, onClose, onImport }) => {
+    const [file, setFile] = useState(null);
+    const [error, setError] = useState('');
+
+    const handleFileChange = (e) => {
+        setFile(e.target.files[0]);
+        setError('');
+    };
+
+    const handleImportClick = () => {
+        if (!file) {
+            setError('Por favor, selecione um ficheiro CSV.');
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                const csv = event.target.result;
+                const lines = csv.split('\n').slice(1); // Ignora o cabeçalho
+                const transactions = lines.map((line, index) => {
+                    const [date, description, amountStr] = line.split(',');
+                    if (!date || !description || !amountStr) return null;
+                    
+                    const amount = parseFloat(amountStr);
+                    return {
+                        id: `import-${Date.now()}-${index}`,
+                        date: new Date(date).toISOString(),
+                        description: description.trim(),
+                        amount: Math.abs(amount),
+                        type: amount >= 0 ? 'revenue' : 'expense',
+                    };
+                }).filter(Boolean); // Remove linhas nulas/inválidas
+
+                onImport(transactions);
+            } catch (e) {
+                setError('Erro ao processar o ficheiro. Verifique o formato.');
+                console.error(e);
+            }
+        };
+        reader.readAsText(file);
+    };
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title="Importar Extrato (CSV)">
+            <div className="space-y-4">
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Selecione um ficheiro CSV com as colunas: <strong>Data, Descrição, Valor</strong>.
+                    Valores positivos serão importados como receitas e negativos como despesas.
+                </p>
+                <div>
+                    <input type="file" accept=".csv" onChange={handleFileChange} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
+                </div>
+                {error && <p className="text-red-500 text-sm">{error}</p>}
+                <div className="flex justify-end pt-4">
+                    <Button onClick={handleImportClick} disabled={!file}>
+                        <UploadCloud size={18} />
+                        <span>Importar</span>
+                    </Button>
+                </div>
+            </div>
+        </Modal>
     );
 };
 
@@ -683,7 +749,7 @@ const ReportsView = ({ transactions, categories, accounts }) => {
 };
 
 // --- VIEW DE CONCILIAÇÃO BANCÁRIA ---
-const ReconciliationView = ({ transactions, accounts, categories, payees, onSaveTransaction }) => {
+const ReconciliationView = ({ transactions, accounts, onSaveTransaction }) => {
     const [selectedAccountId, setSelectedAccountId] = useState('');
     const [statementData, setStatementData] = useState([]);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -793,9 +859,6 @@ const ReconciliationView = ({ transactions, accounts, categories, payees, onSave
                 isOpen={isImportModalOpen}
                 onClose={() => setIsImportModalOpen(false)}
                 onImport={handleImport}
-                account={accounts.find(a => a.id === selectedAccountId)}
-                categories={categories}
-                payees={payees}
             />
         </div>
     );
@@ -1440,3 +1503,351 @@ const WeeklyCashFlowView = ({ futureEntries, categories }) => {
         </div>
     );
 };
+
+// --- NOVA VIEW: CONFIGURAÇÕES ---
+const SettingsView = ({ accounts, categories, payees, onSave, onDelete }) => {
+    const [modalConfig, setModalConfig] = useState({ isOpen: false, type: '', item: null });
+    const [formData, setFormData] = useState({});
+
+    const handleOpenModal = (type, item = null) => {
+        setFormData(item || {});
+        setModalConfig({ isOpen: true, type, item });
+    };
+    const handleCloseModal = () => setModalConfig({ isOpen: false, type: '', item: null });
+
+    const handleChange = (e) => setFormData(p => ({ ...p, [e.target.name]: e.target.value }));
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        const dataToSave = { ...formData };
+        if (modalConfig.type === 'accounts') dataToSave.initialBalance = parseFloat(dataToSave.initialBalance || 0);
+        onSave(modalConfig.type, dataToSave, modalConfig.item?.id);
+        handleCloseModal();
+    };
+
+    const renderModalContent = () => {
+        switch (modalConfig.type) {
+            case 'accounts':
+                return (
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        <label className="dark:text-gray-300">Nome da Conta<input type="text" name="name" value={formData.name || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required /></label>
+                        <label className="dark:text-gray-300">Saldo Inicial<input type="number" step="0.01" name="initialBalance" value={formData.initialBalance || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required /></label>
+                        <div className="flex justify-end pt-4"><Button type="submit"><Save size={18}/> Guardar</Button></div>
+                    </form>
+                );
+            case 'categories':
+                 const parentCategories = categories.filter(c => !c.parentId && c.type === (formData.type || 'expense'));
+                return (
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        <label className="dark:text-gray-300">Nome da Categoria<input type="text" name="name" value={formData.name || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required /></label>
+                        <label className="dark:text-gray-300">Tipo<select name="type" value={formData.type || 'expense'} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300"><option value="expense">Despesa</option><option value="revenue">Receita</option></select></label>
+                        <label className="dark:text-gray-300">Categoria Principal (para subcategorias)<select name="parentId" value={formData.parentId || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300"><option value="">Nenhuma (é principal)</option>{parentCategories.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
+                        <div className="flex justify-end pt-4"><Button type="submit"><Save size={18}/> Guardar</Button></div>
+                    </form>
+                );
+            case 'payees':
+                return (
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        <label className="dark:text-gray-300">Nome do Favorecido/Pagador<input type="text" name="name" value={formData.name || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required /></label>
+                         <label className="dark:text-gray-300">Categoria Padrão (Opcional)<select name="categoryId" value={formData.categoryId || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300"><option value="">Nenhuma</option>{categories.map(c => <option key={c.id} value={c.id}>{getCategoryFullName(c.id, categories)}</option>)}</select></label>
+                        <div className="flex justify-end pt-4"><Button type="submit"><Save size={18}/> Guardar</Button></div>
+                    </form>
+                );
+            default: return null;
+        }
+    };
+    
+    const renderList = (title, items, type, renderItem) => (
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg">
+            <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-bold text-gray-800 dark:text-gray-200">{title}</h3>
+                <Button onClick={() => handleOpenModal(type)} className="!py-1 !px-3"><PlusCircle size={16}/> Adicionar</Button>
+            </div>
+            <ul className="space-y-2 max-h-60 overflow-y-auto">
+                {items.map(item => (
+                    <li key={item.id} className="flex justify-between items-center p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+                        {renderItem(item)}
+                        <div className="flex space-x-2">
+                            <button onClick={() => handleOpenModal(type, item)} className="text-blue-500 hover:text-blue-700"><Edit size={16}/></button>
+                            <button onClick={() => onDelete(type, item.id)} className="text-red-500 hover:text-red-700"><Trash2 size={16}/></button>
+                        </div>
+                    </li>
+                ))}
+            </ul>
+        </div>
+    );
+
+    return (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {renderList('Contas Bancárias', accounts, 'accounts', item => <span>{item.name} ({formatCurrency(item.initialBalance)})</span>)}
+            {renderList('Categorias', categories.sort((a,b) => getCategoryFullName(a.id, categories).localeCompare(getCategoryFullName(b.id, categories))), 'categories', item => <span>{getCategoryFullName(item.id, categories)}</span>)}
+            {renderList('Favorecidos/Pagadores', payees, 'payees', item => <span>{item.name}</span>)}
+
+            <Modal isOpen={modalConfig.isOpen} onClose={handleCloseModal} title={`Editar ${modalConfig.type}`}>
+                {renderModalContent()}
+            </Modal>
+        </div>
+    );
+};
+
+
+// --- COMPONENTE PRINCIPAL DA APLICAÇÃO ---
+export default function App() {
+    const [user, setUser] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [view, setView] = useState('dashboard');
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [darkMode, setDarkMode] = useState(false);
+
+    const [transactions, setTransactions] = useState([]);
+    const [accounts, setAccounts] = useState([]);
+    const [categories, setCategories] = useState([]);
+    const [payees, setPayees] = useState([]);
+    const [budgets, setBudgets] = useState([]);
+    const [futureEntries, setFutureEntries] = useState([]);
+
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+            setUser(currentUser);
+            setLoading(false);
+        });
+        return () => unsubscribe();
+    }, []);
+
+    useEffect(() => {
+        if (user) {
+            const collections = ['transactions', 'accounts', 'categories', 'payees', 'budgets', 'futureEntries'];
+            const setters = {
+                transactions: setTransactions,
+                accounts: setAccounts,
+                categories: setCategories,
+                payees: setPayees,
+                budgets: setBudgets,
+                futureEntries: setFutureEntries,
+            };
+
+            const unsubscribes = collections.map(col => {
+                const q = query(collection(db, `users/${user.uid}/${col}`));
+                return onSnapshot(q, (snapshot) => {
+                    const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    if (col === 'transactions') {
+                       data.sort((a, b) => new Date(b.date) - new Date(a.date));
+                    }
+                    setters[col](data);
+                });
+            });
+
+            return () => unsubscribes.forEach(unsub => unsub());
+        }
+    }, [user]);
+    
+     useEffect(() => {
+        if (darkMode) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+    }, [darkMode]);
+
+    const handleGoogleSignIn = () => {
+        const provider = new GoogleAuthProvider();
+        signInWithPopup(auth, provider);
+    };
+
+    const handleSignOut = () => {
+        signOut(auth);
+    };
+
+    const handleSave = async (collectionName, data, id = null, attachmentFile = null) => {
+        if (!user) return;
+        try {
+            const collectionRef = collection(db, `users/${user.uid}/${collectionName}`);
+            
+            if (attachmentFile) {
+                if (data.attachmentURL) { // Delete old file if exists
+                    const oldFileRef = ref(storage, data.attachmentPath);
+                    await deleteObject(oldFileRef).catch(err => console.warn("Old file not found, continuing...", err));
+                }
+                const filePath = `attachments/${user.uid}/${Date.now()}_${attachmentFile.name}`;
+                const fileRef = ref(storage, filePath);
+                await uploadBytes(fileRef, attachmentFile);
+                data.attachmentURL = await getDownloadURL(fileRef);
+                data.attachmentPath = filePath;
+            }
+
+            if (data.type === 'transfer') {
+                const batch = writeBatch(db);
+                const { sourceAccountId, destinationAccountId, amount, date, description } = data;
+                
+                // Expense from source
+                const expenseRef = doc(collection(db, `users/${user.uid}/transactions`));
+                batch.set(expenseRef, { type: 'expense', accountId: sourceAccountId, amount, date, description: `Transfer to ${accounts.find(a=>a.id===destinationAccountId)?.name}: ${description || ''}`, isTransfer: true, transferId: expenseRef.id });
+
+                // Revenue to destination
+                const revenueRef = doc(collection(db, `users/${user.uid}/transactions`));
+                batch.set(revenueRef, { type: 'revenue', accountId: destinationAccountId, amount, date, description: `Transfer from ${accounts.find(a=>a.id===sourceAccountId)?.name}: ${description || ''}`, isTransfer: true, transferId: expenseRef.id });
+
+                await batch.commit();
+
+            } else {
+                 if (id) {
+                    await setDoc(doc(db, `users/${user.uid}/${collectionName}`, id), data);
+                } else {
+                    await addDoc(collectionRef, data);
+                }
+            }
+        } catch (error) {
+            console.error("Error saving document: ", error);
+        }
+    };
+    
+    const handleDelete = async (collectionName, itemOrId) => {
+        if (!user) return;
+        const id = typeof itemOrId === 'string' ? itemOrId : itemOrId.id;
+        
+        try {
+            if (collectionName === 'transactions' && itemOrId.isTransfer) {
+                // Delete both parts of a transfer
+                const q = query(collection(db, `users/${user.uid}/transactions`), where("transferId", "==", itemOrId.transferId));
+                const querySnapshot = await getDocs(q);
+                const batch = writeBatch(db);
+                querySnapshot.forEach((doc) => {
+                    batch.delete(doc.ref);
+                });
+                await batch.commit();
+            } else {
+                 await deleteDoc(doc(db, `users/${user.uid}/${collectionName}`, id));
+            }
+
+            // If deleting an item with an attachment, delete the file from storage
+            if (itemOrId.attachmentPath) {
+                const fileRef = ref(storage, itemOrId.attachmentPath);
+                await deleteObject(fileRef);
+            }
+
+        } catch (error) {
+            console.error("Error deleting document: ", error);
+        }
+    };
+    
+    const handleReconcile = async (reconcileData) => {
+        if (!user) return;
+        const { originalEntry, finalAmount, paymentDate, accountId, notes } = reconcileData;
+        
+        const batch = writeBatch(db);
+
+        // 1. Create the actual transaction
+        const transactionRef = doc(collection(db, `users/${user.uid}/transactions`));
+        batch.set(transactionRef, {
+            description: originalEntry.description,
+            amount: finalAmount,
+            date: new Date(paymentDate).toISOString(),
+            type: originalEntry.type,
+            accountId: accountId,
+            categoryId: originalEntry.categoryId,
+            payeeId: originalEntry.payeeId,
+            notes: notes,
+            reconciledFrom: originalEntry.id,
+        });
+
+        // 2. Update the future entry
+        const futureEntryRef = doc(db, `users/${user.uid}/futureEntries`, originalEntry.id);
+        if (originalEntry.entryType === 'recorrente') {
+            const nextDueDate = new Date(originalEntry.dueDate);
+            switch (originalEntry.frequency) {
+                case 'daily': nextDueDate.setDate(nextDueDate.getDate() + 1); break;
+                case 'weekly': nextDueDate.setDate(nextDueDate.getDate() + 7); break;
+                case 'monthly': nextDueDate.setMonth(nextDueDate.getMonth() + 1); break;
+                case 'yearly': nextDueDate.setFullYear(nextDueDate.getFullYear() + 1); break;
+            }
+            batch.update(futureEntryRef, { dueDate: nextDueDate.toISOString() });
+        } else {
+            batch.update(futureEntryRef, {
+                status: 'reconciled',
+                reconciliation: { finalAmount, paymentDate, accountId, notes }
+            });
+        }
+        
+        await batch.commit();
+    };
+
+    if (loading) {
+        return <div className="w-screen h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">Carregando...</div>;
+    }
+
+    if (!user) {
+        return <AuthView onGoogleSignIn={handleGoogleSignIn} />;
+    }
+
+    const NavItem = ({ icon, label, viewName }) => (
+        <button onClick={() => { setView(viewName); setIsSidebarOpen(false); }} className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${view === viewName ? 'bg-blue-600 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>
+            {icon}
+            <span className="font-semibold">{label}</span>
+        </button>
+    );
+
+    const renderCurrentView = () => {
+        const props = { transactions, accounts, categories, payees, budgets, futureEntries, onSave, onDelete, onReconcile };
+        switch (view) {
+            case 'dashboard': return <DashboardView {...props} />;
+            case 'transactions': return <TransactionsView {...props} />;
+            case 'reports': return <ReportsView {...props} />;
+            case 'budgets': return <BudgetsView {...props} />;
+            case 'future_entries': return <FutureEntriesView {...props} />;
+            case 'reconciliation': return <ReconciliationView {...props} onSaveTransaction={handleSave} />;
+            case 'dre_cash': return <DREView {...props} />;
+            case 'dre_competence': return <DRECompetenciaView {...props} />;
+            case 'weekly_cash_flow': return <WeeklyCashFlowView {...props} />;
+            case 'settings': return <SettingsView {...props} />;
+            default: return <DashboardView {...props} />;
+        }
+    };
+
+    return (
+        <div className={`flex h-screen bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200 ${darkMode ? 'dark' : ''}`}>
+            {/* Sidebar */}
+            <aside className={`absolute lg:relative w-64 h-full bg-white dark:bg-gray-800 shadow-xl z-20 transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 transition-transform duration-300 ease-in-out`}>
+                <div className="p-5 border-b dark:border-gray-700">
+                    <h1 className="text-2xl font-bold text-blue-600">Financeiro PRO</h1>
+                </div>
+                <nav className="p-4 space-y-2">
+                    <NavItem icon={<LayoutDashboard size={20} />} label="Dashboard" viewName="dashboard" />
+                    <NavItem icon={<List size={20} />} label="Transações" viewName="transactions" />
+                    <NavItem icon={<CalendarClock size={20} />} label="Lançamentos Futuros" viewName="future_entries" />
+                    <NavItem icon={<Target size={20} />} label="Orçamentos" viewName="budgets" />
+                    <NavItem icon={<BarChart2 size={20} />} label="Relatórios" viewName="reports" />
+                    <NavItem icon={<FileText size={20} />} label="DRE (Caixa)" viewName="dre_cash" />
+                    <NavItem icon={<FileText size={20} />} label="DRE (Competência)" viewName="dre_competence" />
+                    <NavItem icon={<CalendarCheck2 size={20} />} label="Fluxo de Caixa Semanal" viewName="weekly_cash_flow" />
+                    <NavItem icon={<GitCompareArrows size={20} />} label="Conciliação" viewName="reconciliation" />
+                    <NavItem icon={<Settings size={20} />} label="Configurações" viewName="settings" />
+                </nav>
+                 <div className="absolute bottom-0 w-full p-4 border-t dark:border-gray-700">
+                    <div className="flex items-center space-x-3 mb-4">
+                        <img src={user.photoURL} alt="User" className="w-10 h-10 rounded-full" />
+                        <div>
+                            <p className="font-semibold text-sm">{user.displayName}</p>
+                            <p className="text-xs text-gray-500">{user.email}</p>
+                        </div>
+                    </div>
+                    <Button onClick={handleSignOut} className="w-full bg-red-500 hover:bg-red-600"><LogOut size={16}/> Sair</Button>
+                </div>
+            </aside>
+
+            {/* Main Content */}
+            <main className="flex-1 flex flex-col h-screen overflow-y-auto">
+                 <header className="flex justify-between items-center p-4 bg-white dark:bg-gray-800 shadow-md lg:shadow-none">
+                    <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="lg:hidden text-gray-600 dark:text-gray-300">
+                        {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
+                    </button>
+                    <div className="flex-1" />
+                    <button onClick={() => setDarkMode(!darkMode)} className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700">
+                        {darkMode ? <Sun /> : <Moon />}
+                    </button>
+                </header>
+                <div className="p-4 md:p-8">
+                    {renderCurrentView()}
+                </div>
+            </main>
+        </div>
+    );
+}
