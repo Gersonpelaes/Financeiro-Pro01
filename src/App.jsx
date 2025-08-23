@@ -1786,7 +1786,12 @@ export default function App() {
     );
 
     const renderCurrentView = () => {
-        const props = { transactions, accounts, categories, payees, budgets, futureEntries, onSave, onDelete, onReconcile };
+        const props = { 
+            transactions, accounts, categories, payees, budgets, futureEntries, 
+            onSave: handleSave, 
+            onDelete: handleDelete, 
+            onReconcile: handleReconcile 
+        };
         switch (view) {
             case 'dashboard': return <DashboardView {...props} />;
             case 'transactions': return <TransactionsView {...props} />;
