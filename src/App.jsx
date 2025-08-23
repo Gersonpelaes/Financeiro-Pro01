@@ -4,7 +4,7 @@ import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signO
 import { getFirestore, collection, doc, addDoc, getDocs, writeBatch, query, onSnapshot, deleteDoc, setDoc, where } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { PlusCircle, Upload, Trash2, Edit, TrendingUp, TrendingDown, DollarSign, Settings, LayoutDashboard, List, BarChart2, Target, ArrowLeft, ArrowRightLeft, Repeat, CheckCircle, AlertTriangle, Clock, CalendarCheck2, Building, GitCompareArrows, ArrowUp, ArrowDown, Paperclip, FileText, LogOut, Download, UploadCloud, Sun, Moon, FileOutput, CalendarClock, Menu, X } from 'lucide-react';
+import { PlusCircle, Upload, Trash2, Edit, TrendingUp, TrendingDown, DollarSign, Settings, LayoutDashboard, List, BarChart2, Target, ArrowLeft, ArrowRightLeft, Repeat, CheckCircle, AlertTriangle, Clock, CalendarCheck2, Building, GitCompareArrows, ArrowUp, ArrowDown, Paperclip, FileText, LogOut, Download, UploadCloud, Sun, Moon, FileOutput, CalendarClock, Menu, X, Wand2 } from 'lucide-react';
 import jsPDF from "jspdf";
 import autoTable from 'jspdf-autotable';
 
@@ -38,6 +38,67 @@ const getCategoryFullName = (categoryId, categories) => {
     }
     return category.name;
 };
+
+// --- NOVA FUNÇÃO DE FORMATAÇÃO INTELIGENTE DE CSV ---
+const formatBankStatementCSV = (rawData) => {
+    const lines = rawData.trim().split('\n');
+    const formattedLines = [];
+
+    for (const line of lines) {
+        if (!line.trim()) continue;
+
+        // 1. Encontrar a data
+        let dateMatch = line.match(/(\d{2}\/\d{2}\/\d{4})|(\d{4}-\d{2}-\d{2})/);
+        let date = null;
+        if (dateMatch) {
+            let dateStr = dateMatch[0];
+            if (dateStr.includes('/')) {
+                const [day, month, year] = dateStr.split('/');
+                if (day && month && year && year.length === 4) {
+                   date = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+                }
+            } else {
+                date = dateStr;
+            }
+        }
+
+        // 2. Encontrar o valor (mais complexo)
+        // Procura por valores monetários, geralmente no final da linha.
+        const valueRegex = /(-?R?\$\s?)?(\d{1,3}(\.\d{3})*,\d{2})|(-?\d+,\d{2})|(-?\d+\.\d{2})/;
+        let valueMatches = line.match(new RegExp(valueRegex, 'g'));
+        let value = null;
+        let valueStr = '';
+
+        if (valueMatches) {
+            // Pega o último valor numérico encontrado na linha, que é o mais provável de ser o valor da transação.
+            valueStr = valueMatches[valueMatches.length - 1];
+            // Limpa e converte para o formato numérico padrão (ex: -50.00)
+            const cleanedValueStr = valueStr.replace(/R?\$\s?/g, '').replace(/\./g, '').replace(',', '.');
+            const parsedValue = parseFloat(cleanedValueStr);
+            if (!isNaN(parsedValue)) {
+                value = parsedValue;
+            }
+        }
+        
+        // 3. O resto é a descrição
+        let description = line;
+        if (dateMatch) description = description.replace(dateMatch[0], '');
+        if (valueMatches) {
+            valueMatches.forEach(v => {
+                description = description.replace(v, '');
+            });
+        }
+        description = description.replace(/\s\s+/g, ' ').trim(); // Limpa espaços extras
+
+        // 4. Verifica se temos todas as partes e formata a linha
+        if (date && value !== null && description) {
+            formattedLines.push(`${date},${description},${value.toFixed(2)}`);
+        }
+    }
+
+    return formattedLines.join('\n');
+};
+
 
 // --- COMPONENTES DE UI REUTILIZÁVEIS ---
 const Modal = ({ isOpen, onClose, title, children, size = 'md' }) => {
