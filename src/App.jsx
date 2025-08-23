@@ -4,7 +4,7 @@ import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signO
 import { getFirestore, collection, doc, addDoc, getDocs, writeBatch, query, onSnapshot, deleteDoc, setDoc, where } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { PlusCircle, Upload, Trash2, Edit, TrendingUp, TrendingDown, DollarSign, Settings, LayoutDashboard, List, BarChart2, Target, ArrowLeft, ArrowRightLeft, Repeat, CheckCircle, AlertTriangle, Clock, CalendarCheck2, Building, GitCompareArrows, ArrowUp, ArrowDown, Paperclip, FileText, LogOut, Download, UploadCloud, Sun, Moon, FileOutput, CalendarClock } from 'lucide-react';
+import { PlusCircle, Upload, Trash2, Edit, TrendingUp, TrendingDown, DollarSign, Settings, LayoutDashboard, List, BarChart2, Target, ArrowLeft, ArrowRightLeft, Repeat, CheckCircle, AlertTriangle, Clock, CalendarCheck2, Building, GitCompareArrows, ArrowUp, ArrowDown, Paperclip, FileText, LogOut, Download, UploadCloud, Sun, Moon, FileOutput, CalendarClock, Menu, X } from 'lucide-react';
 import jsPDF from "jspdf";
 import autoTable from 'jspdf-autotable';
 
@@ -71,6 +71,134 @@ const StatCard = ({ title, value, icon, color }) => (
         </div>
     </div>
 );
+
+// --- COMPONENTE: MODAL DE EDIÇÃO DE TRANSAÇÃO (REUTILIZÁVEL) ---
+const TransactionEditModal = ({ isOpen, onClose, editingTransaction, accounts, categories, payees, onSave }) => {
+    const [formData, setFormData] = useState({});
+    const [attachmentFile, setAttachmentFile] = useState(null);
+
+    useEffect(() => {
+        if (editingTransaction) {
+            setFormData({ ...editingTransaction, date: editingTransaction.date.substring(0, 10) });
+        }
+    }, [editingTransaction]);
+
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+        setFormData(prev => {
+            const newState = { ...prev, [name]: value };
+            if (name === 'payeeId') {
+                const selectedPayee = payees.find(p => p.id === value);
+                if (selectedPayee?.categoryId) newState.categoryId = selectedPayee.categoryId;
+            }
+            if (name === 'type') newState.categoryId = '';
+            return newState;
+        });
+    };
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        const dataToSave = { ...formData, amount: parseFloat(formData.amount), date: new Date(formData.date).toISOString() };
+        onSave('transactions', dataToSave, editingTransaction?.id, attachmentFile);
+        onClose();
+    };
+
+    const groupedCategories = useMemo(() => {
+        const type = formData.type || 'expense';
+        const parents = categories.filter(c => !c.parentId && c.type === type);
+        return parents.map(parent => ({
+            ...parent,
+            subcategories: categories.filter(sub => sub.parentId === parent.id)
+        })).sort((a, b) => a.name.localeCompare(b.name));
+    }, [categories, formData.type]);
+
+    return (
+         <Modal isOpen={isOpen} onClose={onClose} title="Editar Transação">
+            <form onSubmit={handleSubmit} className="space-y-6">
+                <div><label className="block"><span className="text-gray-700 dark:text-gray-300">Descrição</span><input type="text" name="description" value={formData.description || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required /></label></div>
+                <div className="flex space-x-4">
+                    <label className="flex-1"><span className="text-gray-700 dark:text-gray-300">Valor (R$)</span><input type="number" step="0.01" name="amount" value={formData.amount || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" placeholder="0.00" required /></label>
+                    <label className="flex-1"><span className="text-gray-700 dark:text-gray-300">Data</span><input type="date" name="date" value={formData.date || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required /></label>
+                </div>
+                <div className="flex space-x-4">
+                    <label className="flex-1"><span className="text-gray-700 dark:text-gray-300">Conta</span><select name="accountId" value={formData.accountId || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required>{accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label>
+                    <label className="flex-1"><span className="text-gray-700 dark:text-gray-300">Favorecido</span><select name="payeeId" value={formData.payeeId || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300"><option value="">Nenhum</option>{payees.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
+                </div>
+                <div>
+                    <label className="flex-1"><span className="text-gray-700 dark:text-gray-300">Categoria</span><select name="categoryId" value={formData.categoryId || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required><option value="">Selecione...</option>{groupedCategories.map(parent => (<optgroup key={parent.id} label={parent.name}><option value={parent.id}>{parent.name} (Principal)</option>{parent.subcategories.map(sub => <option key={sub.id} value={sub.id}>{sub.name}</option>)}</optgroup>))}</select></label>
+                </div>
+                <div>
+                    <label className="block"><span className="text-gray-700 dark:text-gray-300">Anexar Comprovativo</span>
+                    <input type="file" onChange={(e) => setAttachmentFile(e.target.files[0])} className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
+                    </label>
+                    {formData.attachmentURL && !attachmentFile && <div className="text-xs mt-1">Anexo atual: <a href={formData.attachmentURL} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Ver anexo</a>. Selecione um novo ficheiro para o substituir.</div>}
+                </div>
+                <div className="flex justify-end pt-4"><Button type="submit"><span>Guardar Alterações</span></Button></div>
+            </form>
+        </Modal>
+    );
+};
+
+// --- COMPONENTE: MODAL DE DETALHES DE TRANSAÇÃO ---
+const TransactionDetailModal = ({ isOpen, onClose, title, transactions, accounts, categories, payees, onSave, onDelete }) => {
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [editingTransaction, setEditingTransaction] = useState(null);
+
+    const handleOpenEditModal = (transaction) => {
+        setEditingTransaction(transaction);
+        setIsEditModalOpen(true);
+    };
+
+    const handleCloseEditModal = () => {
+        setEditingTransaction(null);
+        setIsEditModalOpen(false);
+    };
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title={title} size="lg">
+            <div className="max-h-[60vh] overflow-y-auto">
+                <table className="w-full text-left">
+                    <thead>
+                        <tr className="border-b-2 dark:border-gray-700">
+                            <th className="p-2">Data</th>
+                            <th className="p-2">Descrição</th>
+                            <th className="p-2 text-right">Valor</th>
+                            <th className="p-2">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {transactions.map(t => (
+                            <tr key={t.id} className="border-b dark:border-gray-700">
+                                <td className="p-2">{formatDate(t.date)}</td>
+                                <td className="p-2">{t.description}</td>
+                                <td className={`p-2 text-right font-semibold ${t.type === 'revenue' ? 'text-green-500' : 'text-red-500'}`}>
+                                    {formatCurrency(t.amount)}
+                                </td>
+                                <td className="p-2">
+                                    <div className="flex space-x-2">
+                                        <button onClick={() => handleOpenEditModal(t)} className="text-blue-500 hover:text-blue-700"><Edit size={18} /></button>
+                                        <button onClick={() => onDelete('transactions', t)} className="text-red-500 hover:text-red-700"><Trash2 size={18} /></button>
+                                    </div>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+            {editingTransaction && (
+                 <TransactionEditModal
+                    isOpen={isEditModalOpen}
+                    onClose={handleCloseEditModal}
+                    editingTransaction={editingTransaction}
+                    accounts={accounts}
+                    categories={categories}
+                    payees={payees}
+                    onSave={onSave}
+                />
+            )}
+        </Modal>
+    );
+};
 
 // --- NOVA VIEW DE AUTENTICAÇÃO ---
 const AuthView = ({ onGoogleSignIn }) => {
@@ -1079,7 +1207,7 @@ const DREView = ({ transactions, categories, accounts, payees, onSave, onDelete 
         <>
             <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg">
                 <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-200">DRE - Demonstrativo de Resultados</h2>
+                    <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-200">DRE (Caixa)</h2>
                     <div className="flex items-center gap-4">
                         <input 
                             type="month" 
@@ -1148,1318 +1276,98 @@ const DREView = ({ transactions, categories, accounts, payees, onSave, onDelete 
     );
 };
 
+// --- NOVA VIEW: DRE POR COMPETÊNCIA ---
+const DRECompetenciaView = ({ futureEntries, categories }) => {
+    const [period, setPeriod] = useState(getYearMonth(new Date().toISOString()));
 
-// --- COMPONENTES DE GESTÃO (REUTILIZÁVEIS) ---
-const CompaniesManager = ({ companies, onSave, onDelete }) => {
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [editingCompany, setEditingCompany] = useState(null);
-    const [formData, setFormData] = useState({});
-
-    const handleOpenModal = (company = null) => {
-        setEditingCompany(company);
-        setFormData(company || { name: '' });
-        setIsModalOpen(true);
-    };
-
-    const handleCloseModal = () => setIsModalOpen(false);
-    const handleChange = (e) => setFormData(p => ({ ...p, [e.target.name]: e.target.value }));
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        onSave('companies', formData, editingCompany?.id);
-        handleCloseModal();
-    };
-
-    return (
-        <>
-            <div className="flex justify-between items-center mb-6">
-                <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-200">Gerir Empresas</h2>
-                <Button onClick={() => handleOpenModal()}><PlusCircle size={18}/><span>Nova Empresa</span></Button>
-            </div>
-            <ul className="space-y-3">
-                {companies.map(c => (
-                    <li key={c.id} className="flex justify-between items-center p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg border dark:border-gray-700">
-                        <p className="font-semibold text-gray-700 dark:text-gray-300">{c.name}</p>
-                        <div className="flex items-center space-x-2">
-                            <button onClick={() => handleOpenModal(c)} className="text-blue-500 hover:text-blue-700 p-1" title="Renomear Empresa"><Edit size={16}/></button>
-                            <button onClick={() => onDelete('companies', c.id)} className="text-red-500 hover:text-red-700 p-1" title="Excluir Empresa"><Trash2 size={16}/></button>
-                        </div>
-                    </li>
-                ))}
-                {companies.length === 0 && <p className="text-gray-500 dark:text-gray-400 text-center py-8">Nenhuma empresa criada.</p>}
-            </ul>
-             <Modal isOpen={isModalOpen} onClose={handleCloseModal} title={editingCompany ? 'Renomear Empresa' : 'Nova Empresa'}>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <label className="block dark:text-gray-300"><span className="text-gray-700 dark:text-gray-300">Nome da Empresa</span><input type="text" name="name" value={formData.name || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required /></label>
-                    <div className="flex justify-end pt-4"><Button type="submit"><span>Guardar</span></Button></div>
-                </form>
-            </Modal>
-        </>
-    );
-};
-
-const CategoryManager = ({ categories, onSave, onDelete }) => {
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [editingCategory, setEditingCategory] = useState(null);
-    const [preselectedParent, setPreselectedParent] = useState(null);
-    const [formData, setFormData] = useState({});
-
-    const { revenueCategories, expenseCategories } = useMemo(() => {
-        const revenue = categories.filter(c => c.type === 'revenue');
-        const expense = categories.filter(c => c.type === 'expense');
+    const dreData = useMemo(() => {
+        const filtered = futureEntries.filter(e => getYearMonth(e.dueDate) === period);
         
-        const buildHierarchy = (list) => {
-            const parents = list.filter(c => !c.parentId);
-            return parents.map(p => ({
-                ...p,
-                subcategories: list.filter(sub => sub.parentId === p.id)
-            })).sort((a,b) => a.name.localeCompare(b.name));
-        };
-        
-        return {
-            revenueCategories: buildHierarchy(revenue),
-            expenseCategories: buildHierarchy(expense),
-        };
-    }, [categories]);
+        const revenues = filtered.filter(e => e.type === 'revenue');
+        const expenses = filtered.filter(e => e.type === 'expense');
 
-    const handleOpenModal = ({ category = null, parent = null, type = 'expense' }) => {
-        setEditingCategory(category);
-        setPreselectedParent(parent);
+        const totalRevenue = revenues.reduce((sum, e) => sum + e.amount, 0);
 
-        if (category) {
-            setFormData(category);
-        } else {
-            setFormData({
-                name: '',
-                type: parent ? parent.type : type,
-                parentId: parent ? parent.id : null,
-            });
-        }
-        setIsModalOpen(true);
-    };
-
-    const handleCloseModal = () => {
-        setIsModalOpen(false);
-        setEditingCategory(null);
-        setPreselectedParent(null);
-        setFormData({});
-    };
-
-    const handleChange = (e) => {
-        const { name, value } = e.target;
-        setFormData(p => ({ ...p, [name]: value }));
-    };
-
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        onSave('categories', formData, editingCategory?.id);
-        handleCloseModal();
-    };
-    
-    const handleDelete = (id) => {
-        if (window.confirm('Tem a certeza? Se for uma categoria principal, as suas subcategorias tornar-se-ão categorias principais.')) {
-            onDelete('categories', id);
-        }
-    };
-
-    const CategorySection = ({ title, categoryList, type }) => (
-        <div>
-            <div className="flex justify-between items-center mb-4">
-                <h3 className="text-2xl font-bold text-gray-700 dark:text-gray-200">{title}</h3>
-                <Button onClick={() => handleOpenModal({ type })} className="bg-blue-600 hover:bg-blue-700">
-                    <PlusCircle size={18}/>
-                    <span>Nova Categoria</span>
-                </Button>
-            </div>
-            <div className="space-y-4">
-                {categoryList.length === 0 && <p className="text-gray-500 dark:text-gray-400 text-center py-4">Nenhuma categoria encontrada.</p>}
-                {categoryList.map(parent => (
-                    <div key={parent.id} className="bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
-                        <div className="flex justify-between items-center">
-                            <span className="font-bold text-lg text-gray-800 dark:text-gray-200">{parent.name}</span>
-                            <div className="flex items-center space-x-2">
-                                <Button onClick={() => handleOpenModal({ parent })} className="bg-green-500 hover:bg-green-600 !p-2" title="Adicionar Subcategoria">
-                                    <PlusCircle size={16}/>
-                                </Button>
-                                <button onClick={() => handleOpenModal({ category: parent })} className="text-blue-500 hover:text-blue-700 p-2" title="Editar Categoria"><Edit size={18}/></button>
-                                <button onClick={() => handleDelete(parent.id)} className="text-red-500 hover:text-red-700 p-2" title="Excluir Categoria"><Trash2 size={18}/></button>
-                            </div>
-                        </div>
-                        <ul className="mt-3 space-y-2 pl-4">
-                            {parent.subcategories.map(sub => (
-                                <li key={sub.id} className="flex justify-between items-center bg-white dark:bg-gray-800 p-2 rounded-lg border dark:border-gray-600">
-                                    <span className="text-gray-700 dark:text-gray-300">{sub.name}</span>
-                                    <div className="flex items-center space-x-2">
-                                        <button onClick={() => handleOpenModal({ category: sub })} className="text-blue-500 hover:text-blue-700 p-1" title="Editar Subcategoria"><Edit size={16}/></button>
-                                        <button onClick={() => handleDelete(sub.id)} className="text-red-500 hover:text-red-700 p-1" title="Excluir Subcategoria"><Trash2 size={16}/></button>
-                                    </div>
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
-
-    return (
-        <>
-            <h2 className="text-3xl font-extrabold text-gray-800 dark:text-gray-200 mb-8">Gerenciador de Categorias</h2>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-                <CategorySection title="Despesas" categoryList={expenseCategories} type="expense"/>
-                <CategorySection title="Receitas" categoryList={revenueCategories} type="revenue"/>
-            </div>
-            <Modal isOpen={isModalOpen} onClose={handleCloseModal} title={editingCategory ? 'Editar Categoria' : 'Nova Categoria'}>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    {preselectedParent && <div className="bg-gray-100 dark:bg-gray-700 p-3 rounded-lg"><p className="text-sm text-gray-600 dark:text-gray-400">Subcategoria de: <span className="font-bold">{preselectedParent.name}</span></p></div>}
-                    <label className="block dark:text-gray-300"><span className="text-gray-700 dark:text-gray-300">Nome</span><input type="text" name="name" value={formData.name || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required /></label>
-                    <label className="block dark:text-gray-300"><span className="text-gray-700 dark:text-gray-300">Tipo</span><select name="type" value={formData.type || 'expense'} onChange={handleChange} disabled={!!formData.parentId || !!preselectedParent} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700 dark:text-gray-300 disabled:cursor-not-allowed"><option value="expense">Despesa</option><option value="revenue">Receita</option></select></label>
-                    <div className="flex justify-end pt-4"><Button type="submit"><span>Guardar</span></Button></div>
-                </form>
-            </Modal>
-        </>
-    );
-};
-
-const AccountsManager = ({ accounts, onSave, onDelete, onImport }) => {
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [editingAccount, setEditingAccount] = useState(null);
-    const [formData, setFormData] = useState({});
-
-    const handleOpenModal = (account = null) => {
-        if (account) {
-            setEditingAccount(account);
-            setFormData(account);
-        } else {
-            setEditingAccount(null);
-            setFormData({ name: '', initialBalance: 0, accountType: 'corrente', closingDay: '', paymentDay: '' });
-        }
-        setIsModalOpen(true);
-    };
-
-    const handleCloseModal = () => setIsModalOpen(false);
-    const handleChange = (e) => setFormData(p => ({ ...p, [e.target.name]: e.target.value }));
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        const dataToSave = { ...formData, initialBalance: parseFloat(formData.initialBalance || 0) };
-        onSave('accounts', dataToSave, editingAccount?.id);
-        handleCloseModal();
-    };
-
-    return (
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg h-full">
-            <div className="flex justify-between items-center mb-4">
-                <h3 className="text-2xl font-bold text-gray-700 dark:text-gray-200">Contas</h3>
-                <Button onClick={() => handleOpenModal()}><PlusCircle size={18}/><span>Nova Conta</span></Button>
-            </div>
-            <ul className="space-y-3">
-                {accounts.map(acc => (
-                    <li key={acc.id} className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                        <div>
-                            <p className="font-semibold">{acc.name}</p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">{(acc.accountType || 'corrente').replace(/_/g, ' ')}</p>
-                            {acc.accountType === 'cartao_credito' && (
-                                <p className="text-xs text-gray-500 dark:text-gray-400">Fecha dia {acc.closingDay}, Paga dia {acc.paymentDay}</p>
-                            )}
-                        </div>
-                        <div className="flex items-center space-x-2">
-                             <span className="font-bold text-gray-800 dark:text-gray-200">{formatCurrency(acc.initialBalance)}</span>
-                             {acc.accountType === 'dinheiro' && (
-                                <button onClick={() => onImport(acc)} className="text-teal-500 hover:text-teal-700 p-1" title="Importar extrato para esta conta"><Upload size={16}/></button>
-                             )}
-                            <button onClick={() => handleOpenModal(acc)} className="text-blue-500 hover:text-blue-700 p-1" title="Editar Conta"><Edit size={16}/></button>
-                            <button onClick={() => onDelete('accounts', acc.id)} className="text-red-500 hover:text-red-700 p-1" title="Excluir Conta"><Trash2 size={16}/></button>
-                        </div>
-                    </li>
-                ))}
-            </ul>
-             <Modal isOpen={isModalOpen} onClose={handleCloseModal} title={editingAccount ? 'Editar Conta' : 'Nova Conta'}>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <label className="block dark:text-gray-300"><span className="text-gray-700 dark:text-gray-300">Nome da Conta</span><input type="text" name="name" value={formData.name || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required /></label>
-                     <label className="block dark:text-gray-300">
-                        <span className="text-gray-700 dark:text-gray-300">Tipo de Conta</span>
-                        <select name="accountType" value={formData.accountType || 'corrente'} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300">
-                            <option value="corrente">Conta Corrente</option>
-                            <option value="cartao_credito">Cartão de Crédito</option>
-                            <option value="lancamentos_futuros">Lançamentos Futuros</option>
-                            <option value="dinheiro">Dinheiro (Importação)</option>
-                        </select>
-                    </label>
-                    {formData.accountType === 'cartao_credito' && (
-                        <div className="flex space-x-4">
-                            <label className="block flex-1 dark:text-gray-300"><span className="text-gray-700 dark:text-gray-300">Dia de Fecho</span><input type="number" name="closingDay" value={formData.closingDay || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" min="1" max="31" /></label>
-                            <label className="block flex-1 dark:text-gray-300"><span className="text-gray-700 dark:text-gray-300">Dia de Pagamento</span><input type="number" name="paymentDay" value={formData.paymentDay || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" min="1" max="31" /></label>
-                        </div>
-                    )}
-                    <label className="block dark:text-gray-300"><span className="text-gray-700 dark:text-gray-300">Saldo Inicial</span><input type="number" step="0.01" name="initialBalance" value={formData.initialBalance || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required /></label>
-                    <div className="flex justify-end pt-4"><Button type="submit"><span>Guardar</span></Button></div>
-                </form>
-            </Modal>
-        </div>
-    );
-};
-
-const PayeesManager = ({ payees, categories, onSave, onDelete }) => {
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [editingPayee, setEditingPayee] = useState(null);
-    const [formData, setFormData] = useState({});
-
-    const groupedCategories = useMemo(() => {
-        if (!categories) return [];
-        const parents = categories.filter(c => !c.parentId);
-        return parents.map(parent => ({
-            ...parent,
-            subcategories: categories.filter(sub => sub.parentId === parent.id)
-        })).sort((a, b) => a.name.localeCompare(b.name));
-    }, [categories]);
-
-    const handleOpenModal = (payee = null) => {
-        if (payee) {
-            setEditingPayee(payee);
-            setFormData(payee);
-        } else {
-            setEditingPayee(null);
-            setFormData({ name: '', categoryId: '' });
-        }
-        setIsModalOpen(true);
-    };
-    const handleCloseModal = () => setIsModalOpen(false);
-    const handleChange = (e) => setFormData(p => ({ ...p, [e.target.name]: e.target.value }));
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        const dataToSave = { ...formData };
-        if (!dataToSave.categoryId) delete dataToSave.categoryId;
-        onSave('payees', dataToSave, editingPayee?.id);
-        handleCloseModal();
-    };
-
-    return (
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg h-full">
-            <div className="flex justify-between items-center mb-4">
-                <h3 className="text-2xl font-bold text-gray-700 dark:text-gray-200">Favorecidos</h3>
-                <Button onClick={() => handleOpenModal()}><PlusCircle size={18}/><span>Novo Favorecido</span></Button>
-            </div>
-             <ul className="space-y-3">
-                {payees.map(p => (
-                    <li key={p.id} className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                        <div>
-                            <p className="font-semibold">{p.name}</p>
-                            {p.categoryId && <p className="text-xs text-gray-500 dark:text-gray-400">{getCategoryFullName(p.categoryId, categories)}</p>}
-                        </div>
-                        <div className="flex items-center space-x-2">
-                            <button onClick={() => handleOpenModal(p)} className="text-blue-500 hover:text-blue-700 p-1" title="Editar Favorecido"><Edit size={16}/></button>
-                            <button onClick={() => onDelete('payees', p.id)} className="text-red-500 hover:text-red-700 p-1" title="Excluir Favorecido"><Trash2 size={16}/></button>
-                        </div>
-                    </li>
-                ))}
-            </ul>
-             <Modal isOpen={isModalOpen} onClose={handleCloseModal} title={editingPayee ? 'Editar Favorecido' : 'Novo Favorecido'}>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                     <label className="block dark:text-gray-300"><span className="text-gray-700 dark:text-gray-300">Nome do Favorecido</span><input type="text" name="name" value={formData.name || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required /></label>
-                    <label className="block dark:text-gray-300">
-                        <span className="text-gray-700 dark:text-gray-300">Categoria Padrão (Opcional)</span>
-                        <select name="categoryId" value={formData.categoryId || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300">
-                            <option value="">Nenhuma</option>
-                            {groupedCategories.map(parent => (
-                                <optgroup key={parent.id} label={parent.name}>
-                                    <option value={parent.id}>{parent.name} (Principal)</option>
-                                    {parent.subcategories.map(sub => <option key={sub.id} value={sub.id}>{sub.name}</option>)}
-                                </optgroup>
-                            ))}
-                        </select>
-                    </label>
-                    <div className="flex justify-end pt-4"><Button type="submit"><span>Guardar</span></Button></div>
-                </form>
-            </Modal>
-        </div>
-    );
-};
-
-// --- NOVO MODAL DE IMPORTAÇÃO ---
-const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories, payees }) => {
-    const [step, setStep] = useState(1); // 1: paste, 2: edit
-    const [csvData, setCsvData] = useState('');
-    const [transactions, setTransactions] = useState([]);
-    const [error, setError] = useState('');
-
-    const groupedCategories = useMemo(() => {
-        const buildHierarchy = (type) => {
-            const allCats = categories.filter(c => c.type === type);
-            const parents = allCats.filter(c => !c.parentId);
-            return parents.map(p => ({
-                ...p,
-                subcategories: allCats.filter(sub => sub.parentId === p.id)
-            })).sort((a, b) => a.name.localeCompare(b.name));
-        };
-        return {
-            expense: buildHierarchy('expense'),
-            revenue: buildHierarchy('revenue'),
-        };
-    }, [categories]);
-
-    useEffect(() => {
-        if (!isOpen) {
-            // Reset state on close
-            setStep(1);
-            setCsvData('');
-            setTransactions([]);
-            setError('');
-        }
-    }, [isOpen]);
-
-    const handleParse = () => {
-        setError('');
-        if (!csvData.trim()) {
-            setError('A área de texto está vazia.');
-            return;
-        }
-        try {
-            const lines = csvData.trim().split('\n');
-            const parsed = lines.map((line, index) => {
-                const parts = line.split(',');
-                if (parts.length !== 3) {
-                     throw new Error(`Linha ${index + 1} inválida. Use o formato exato: data,descrição,valor. A descrição não pode conter vírgulas.`);
-                }
-                const [dateStr, description, amountStr] = parts.map(p => p.trim());
+        const groupByCategory = (entries, type) => {
+            const parentCategories = categories.filter(c => !c.parentId && c.type === type);
+            return parentCategories.map(parent => {
+                const subcategories = categories.filter(sub => sub.parentId === parent.id);
+                const childIds = [parent.id, ...subcategories.map(s => s.id)];
                 
-                const amount = parseFloat(amountStr.replace(',', '.'));
-                if (isNaN(amount)) {
-                    throw new Error(`Valor inválido na linha ${index + 1}: "${amountStr}"`);
-                }
-                 let date;
-                if (dateStr.includes('/')) {
-                    const [day, month, year] = dateStr.split('/');
-                    if (!day || !month || !year || year.length < 4) {
-                        throw new Error(`Formato de data inválido na linha ${index + 1}. Use DD/MM/YYYY.`);
-                    }
-                    date = new Date(`${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T12:00:00.000Z`);
-                } else {
-                    date = new Date(dateStr + "T12:00:00.000Z");
-                }
-                if (isNaN(date.getTime())) {
-                    throw new Error(`Data inválida na linha ${index + 1}: "${dateStr}"`);
-                }
+                const total = entries.filter(e => childIds.includes(e.categoryId)).reduce((sum, e) => sum + e.amount, 0);
 
                 return {
-                    id: crypto.randomUUID(),
-                    date: date.toISOString(),
-                    description: description,
-                    amount: Math.abs(amount),
-                    type: amount >= 0 ? 'revenue' : 'expense',
-                    categoryId: '',
-                    payeeId: '',
+                    id: parent.id,
+                    name: parent.name,
+                    value: total,
+                    percentage: totalRevenue > 0 ? (total / totalRevenue) * 100 : 0,
                 };
-            });
-            setTransactions(parsed);
-            setStep(2);
-        } catch (e) {
-            setError(`Erro ao processar: ${e.message}`);
-        }
-    };
-
-    const handleRowChange = (id, field, value) => {
-        setTransactions(prev => prev.map(t => (t.id === id ? { ...t, [field]: value } : t)));
-    };
-
-    const handleConfirmImport = () => {
-        onImport(transactions);
-        onClose();
-    };
-
-    return (
-        <Modal isOpen={isOpen} onClose={onClose} title={`Importar Transações para ${account?.name}`} size="xl">
-            {step === 1 && (
-                <div className="space-y-4">
-                    <p className="text-sm text-gray-600 dark:text-gray-400">Cole os seus dados no formato CSV. Cada linha deve ter 3 colunas separadas por vírgula: <strong>data,descrição,valor</strong>. A descrição não pode conter vírgulas.</p>
-                    <textarea
-                        value={csvData}
-                        onChange={(e) => setCsvData(e.target.value)}
-                        rows="10"
-                        className="w-full p-2 border dark:border-gray-600 rounded-lg font-mono text-sm dark:bg-gray-700 dark:text-gray-300"
-                        placeholder="2025-07-10,Supermercado,-150.75&#10;2025-07-09,Salário,5000.00"
-                    ></textarea>
-                    {error && <p className="text-red-500 text-sm bg-red-50 dark:bg-red-900/20 p-2 rounded-md">{error}</p>}
-                    <Button onClick={handleParse} className="w-full bg-blue-600 hover:bg-blue-700">Analisar Dados</Button>
-                </div>
-            )}
-            {step === 2 && (
-                <div className="space-y-4">
-                    <h3 className="text-lg font-semibold">Verifique e categorize as transações</h3>
-                    <div className="max-h-[60vh] overflow-auto">
-                        <table className="w-full text-left text-sm">
-                            <thead className="bg-gray-100 dark:bg-gray-700 sticky top-0">
-                                <tr>
-                                    <th className="p-2">Data</th>
-                                    <th className="p-2 w-1/3">Descrição</th>
-                                    <th className="p-2">Valor</th>
-                                    <th className="p-2 w-1/4">Categoria</th>
-                                    <th className="p-2 w-1/4">Favorecido</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {transactions.map(t => (
-                                    <tr key={t.id} className="border-b dark:border-gray-700">
-                                        <td className="p-2">{formatDate(t.date)}</td>
-                                        <td className="p-2">
-                                            <input type="text" value={t.description} onChange={e => handleRowChange(t.id, 'description', e.target.value)} className="w-full p-1 border dark:border-gray-600 rounded-md dark:bg-gray-800" />
-                                        </td>
-                                        <td className={`p-2 font-semibold ${t.type === 'revenue' ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(t.amount)}</td>
-                                        <td className="p-2">
-                                            <select value={t.categoryId} onChange={e => handleRowChange(t.id, 'categoryId', e.target.value)} className="w-full p-1 border dark:border-gray-600 rounded-md bg-white dark:bg-gray-800">
-                                                <option value="">Selecione...</option>
-                                                {(groupedCategories[t.type] || []).map(parent => (
-                                                    <optgroup key={parent.id} label={parent.name}>
-                                                        <option value={parent.id}>{parent.name} (Principal)</option>
-                                                        {parent.subcategories.map(sub => <option key={sub.id} value={sub.id}>{sub.name}</option>)}
-                                                    </optgroup>
-                                                ))}
-                                            </select>
-                                        </td>
-                                        <td className="p-2">
-                                            <select value={t.payeeId} onChange={e => handleRowChange(t.id, 'payeeId', e.target.value)} className="w-full p-1 border dark:border-gray-600 rounded-md bg-white dark:bg-gray-800">
-                                                <option value="">Nenhum</option>
-                                                {payees.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                                            </select>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                    <div className="flex justify-between items-center pt-4">
-                        <Button onClick={() => setStep(1)} className="bg-gray-600 hover:bg-gray-700">Voltar</Button>
-                        <Button onClick={handleConfirmImport} className="bg-green-600 hover:bg-green-700">Confirmar e Importar {transactions.length} Transações</Button>
-                    </div>
-                </div>
-            )}
-        </Modal>
-    );
-};
-
-
-const SettingsView = ({ onSaveEntity, onDeleteEntity, onImportTransactions, accounts, payees, categories }) => {
-    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-    const [accountToImport, setAccountToImport] = useState(null);
-
-    const handleOpenImportModal = (account) => {
-        setAccountToImport(account);
-        setIsImportModalOpen(true);
-    };
-    
-    const handleImportConfirm = (transactions) => {
-        onImportTransactions(transactions, accountToImport.id);
-    };
-
-    return (
-        <div className="space-y-8">
-            <h2 className="text-4xl font-bold text-gray-800 dark:text-gray-200">Configurações da Empresa</h2>
-            
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <AccountsManager accounts={accounts} onSave={onSaveEntity} onDelete={onDeleteEntity} onImport={handleOpenImportModal} />
-                <PayeesManager payees={payees} categories={categories} onSave={onSaveEntity} onDelete={onDeleteEntity} />
-            </div>
-            
-            <TransactionImportModal 
-                isOpen={isImportModalOpen} 
-                onClose={() => setIsImportModalOpen(false)} 
-                onImport={handleImportConfirm} 
-                account={accountToImport}
-                categories={categories}
-                payees={payees}
-            />
-        </div>
-    );
-};
-
-const ConsolidatedReportsView = ({ allCompaniesData, companies, onBack }) => {
-    const chartData = useMemo(() => {
-        return companies.map(company => {
-            const data = allCompaniesData[company.id] || { revenue: 0, expense: 0, balance: 0 };
-            return {
-                name: company.name,
-                Receita: data.revenue,
-                Despesa: data.expense,
-                Saldo: data.balance,
-            };
-        });
-    }, [allCompaniesData, companies]);
-
-    const totalConsolidatedBalance = useMemo(() => {
-        return Object.values(allCompaniesData).reduce((sum, data) => sum + data.balance, 0);
-    }, [allCompaniesData]);
-
-    return (
-        <div className="p-8 space-y-8 bg-gray-100 dark:bg-gray-900 min-h-screen">
-            <div className="flex items-center justify-between">
-                 <h1 className="text-4xl font-bold text-gray-800 dark:text-gray-200">Relatório Consolidado</h1>
-                 <Button onClick={onBack} className="bg-gray-600 hover:bg-gray-700"><ArrowLeft size={18}/> Voltar</Button>
-            </div>
-
-            <StatCard title="Saldo Total Consolidado" value={formatCurrency(totalConsolidatedBalance)} icon={<DollarSign className="text-white" />} color="bg-purple-600" />
-
-            <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg">
-                <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-200 mb-6">Receita vs. Despesa por Empresa</h2>
-                <ResponsiveContainer width="100%" height={400}>
-                    <BarChart data={chartData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" />
-                        <YAxis tickFormatter={formatCurrency} />
-                        <Tooltip formatter={(value) => formatCurrency(value)} />
-                        <Legend />
-                        <Bar dataKey="Receita" fill="#22c55e" />
-                        <Bar dataKey="Despesa" fill="#ef4444" />
-                    </BarChart>
-                </ResponsiveContainer>
-            </div>
-
-            <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg">
-                <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-200 mb-6">Saldo por Empresa</h2>
-                <ResponsiveContainer width="100%" height={400}>
-                     <BarChart data={chartData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" />
-                        <YAxis tickFormatter={formatCurrency} />
-                        <Tooltip formatter={(value) => formatCurrency(value)} />
-                        <Legend />
-                        <Bar dataKey="Saldo" fill="#3b82f6" />
-                    </BarChart>
-                </ResponsiveContainer>
-            </div>
-        </div>
-    );
-};
-
-// --- NOVA VIEW: CONFIGURAÇÕES GLOBAIS ---
-const GlobalSettingsView = ({ companies, categories, onSave, onDelete, onBack, onBackup, onRestore }) => {
-    const [activeTab, setActiveTab] = useState('empresas');
-
-    const TabButton = ({ tabName, label, active }) => (
-        <button
-            onClick={() => setActiveTab(tabName)}
-            className={`px-6 py-3 font-semibold rounded-t-lg transition-colors focus:outline-none ${
-                active
-                    ? 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 border-b-0'
-                    : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-600'
-            }`}
-        >
-            {label}
-        </button>
-    );
-
-    return (
-        <div className="p-8 space-y-8 bg-gray-100 dark:bg-gray-900 min-h-screen">
-            <div className="flex items-center justify-between">
-                <h1 className="text-4xl font-bold text-gray-800 dark:text-gray-200">Configurações Globais</h1>
-                <Button onClick={onBack} className="bg-gray-600 hover:bg-gray-700"><ArrowLeft size={18}/> Voltar ao Hub</Button>
-            </div>
-
-            <div>
-                <div className="border-b border-gray-300 dark:border-gray-700">
-                    <TabButton tabName="empresas" label="Empresas" active={activeTab === 'empresas'} />
-                    <TabButton tabName="categorias" label="Categorias" active={activeTab === 'categorias'} />
-                    <TabButton tabName="backup" label="Backup / Restauração" active={activeTab === 'backup'} />
-                </div>
-
-                <div className="bg-white dark:bg-gray-800 p-8 rounded-b-2xl rounded-r-2xl shadow-lg">
-                    {activeTab === 'empresas' && (
-                        <CompaniesManager companies={companies} onSave={onSave} onDelete={onDelete} />
-                    )}
-                    {activeTab === 'categorias' && (
-                        <CategoryManager categories={categories} onSave={onSave} onDelete={onDelete} />
-                    )}
-                    {activeTab === 'backup' && (
-                        <BackupManager onBackup={onBackup} onRestore={onRestore} />
-                    )}
-                </div>
-            </div>
-        </div>
-    );
-};
-
-const BackupManager = ({ onBackup, onRestore }) => {
-    const [isLoading, setIsLoading] = useState(false);
-    const fileInputRef = React.useRef(null);
-
-    const handleBackup = async () => {
-        setIsLoading(true);
-        await onBackup();
-        setIsLoading(false);
-    };
-
-    const handleRestoreClick = () => {
-        fileInputRef.current.click();
-    };
-
-    const handleFileChange = (event) => {
-        const file = event.target.files[0];
-        if (file) {
-            if (window.confirm("Tem a certeza que deseja restaurar este backup? TODOS os seus dados atuais serão apagados e substituídos. Esta ação não pode ser desfeita.")) {
-                setIsLoading(true);
-                onRestore(file).finally(() => setIsLoading(false));
-            }
-        }
-    };
-
-    return (
-        <div>
-            <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-200 mb-6">Backup e Restauração</h2>
-            <div className="space-y-6">
-                <div className="p-4 border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                    <h3 className="font-bold text-blue-800 dark:text-blue-300">Criar Backup</h3>
-                    <p className="text-sm text-blue-700 dark:text-blue-400 mt-1 mb-3">Guarde todos os seus dados (empresas, contas, transações, etc.) num único ficheiro seguro.</p>
-                    <Button onClick={handleBackup} disabled={isLoading} className="bg-blue-600 hover:bg-blue-700">
-                        <Download size={18} />
-                        <span>{isLoading ? 'A criar...' : 'Criar Backup'}</span>
-                    </Button>
-                </div>
-                <div className="p-4 border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 rounded-lg">
-                    <h3 className="font-bold text-red-800 dark:text-red-300">Restaurar Backup</h3>
-                    <p className="text-sm text-red-700 dark:text-red-400 mt-1 mb-3">Substitua todos os dados atuais por um ficheiro de backup. Esta ação é irreversível.</p>
-                    <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".json" className="hidden" />
-                    <Button onClick={handleRestoreClick} disabled={isLoading} className="bg-red-600 hover:bg-red-700">
-                        <UploadCloud size={18} />
-                        <span>{isLoading ? 'A restaurar...' : 'Restaurar Backup'}</span>
-                    </Button>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-
-const HubScreen = ({ companies, onSelect, onShowReports, onManageCompanies }) => {
-    return (
-        <div className="w-full h-screen flex flex-col justify-center items-center bg-gray-800 bg-cover bg-center" style={{backgroundImage: "url(https://images.unsplash.com/photo-1555396273-367ea4eb4db5?q=80&w=2574&auto=format&fit=crop)"}}>
-            <div className="absolute inset-0 bg-black/60"></div>
-            <div className="relative z-10 w-full max-w-4xl text-center p-8">
-                <button onClick={onManageCompanies} className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors" title="Gerir Empresas e Categorias">
-                    <Settings size={24} />
-                </button>
-                <h1 className="text-5xl font-extrabold text-white mb-4">Bem-vindo ao Financeiro PRO</h1>
-                <p className="text-xl text-white/80 mb-12">Selecione uma empresa para começar ou veja os seus relatórios consolidados.</p>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {companies.map(company => (
-                        <button key={company.id} onClick={() => onSelect(company.id)} className="group bg-white/10 hover:bg-white/20 backdrop-blur-md p-6 rounded-2xl text-white text-left transition-all transform hover:scale-105">
-                            <Building size={32} className="mb-4 text-blue-300 group-hover:text-white transition-colors" />
-                            <h2 className="text-xl font-bold">{company.name}</h2>
-                            <p className="text-sm text-white/70">Aceder ao painel</p>
-                        </button>
-                    ))}
-                </div>
-
-                {companies.length > 0 && (
-                     <div className="mt-12">
-                        <Button onClick={onShowReports} className="bg-purple-600 hover:bg-purple-700">
-                            <BarChart2 size={20} />
-                            <span>Ver Relatório Consolidado</span>
-                        </Button>
-                    </div>
-                )}
-            </div>
-        </div>
-    );
-};
-
-// --- COMPONENTE PRINCIPAL ---
-export default function App() {
-    const [view, setView] = useState('dashboard');
-    const [user, setUser] = useState(null);
-    const [isAuthReady, setIsAuthReady] = useState(false);
-    const [loading, setLoading] = useState(true);
-    const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
-
-    const [companies, setCompanies] = useState([]);
-    const [activeCompanyId, setActiveCompanyId] = useState(null);
-    const [hubView, setHubView] = useState('selector'); // selector, reports, global_settings
-    
-    const [accounts, setAccounts] = useState([]);
-    const [categories, setCategories] = useState([]);
-    const [payees, setPayees] = useState([]);
-    const [transactions, setTransactions] = useState([]);
-    const [budgets, setBudgets] = useState([]);
-    const [futureEntries, setFutureEntries] = useState([]);
-    
-    const [allCompaniesData, setAllCompaniesData] = useState({});
-
-    useEffect(() => {
-        if (theme === 'dark') {
-            document.documentElement.classList.add('dark');
-        } else {
-            document.documentElement.classList.remove('dark');
-        }
-        localStorage.setItem('theme', theme);
-    }, [theme]);
-
-    const toggleTheme = () => {
-        setTheme(prevTheme => (prevTheme === 'light' ? 'dark' : 'light'));
-    };
-
-    // Autenticação
-    useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-            setUser(currentUser);
-            setIsAuthReady(true);
-            if (!currentUser) {
-                // Limpar estados quando o utilizador faz logout
-                setCompanies([]);
-                setActiveCompanyId(null);
-                setAccounts([]);
-                setCategories([]);
-                setPayees([]);
-                setTransactions([]);
-                setBudgets([]);
-                setFutureEntries([]);
-            }
-        });
-        return () => unsubscribe();
-    }, []);
-    
-    // eslint-disable-next-line no-undef
-    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-    const userId = user?.uid;
-
-    // Carregar lista de empresas e categorias globais
-    useEffect(() => {
-        if (!isAuthReady || !userId) {
-            setLoading(false);
-            return;
+            }).filter(p => p.value > 0);
         };
         
-        setLoading(true);
-        const qCompanies = query(collection(db, `artifacts/${appId}/users/${userId}/companies`));
-        const unsubCompanies = onSnapshot(qCompanies, (snapshot) => {
-            const companyList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            setCompanies(companyList);
-            setLoading(false);
-        }, () => setLoading(false));
+        const revenueData = groupByCategory(revenues, 'revenue');
+        const expenseData = groupByCategory(expenses, 'expense');
+        const totalExpense = expenses.reduce((sum, e) => sum + e.amount, 0);
+        const netResult = totalRevenue - totalExpense;
 
-        const qCategories = query(collection(db, `artifacts/${appId}/users/${userId}/categories`));
-        const unsubCategories = onSnapshot(qCategories, (snapshot) => {
-            const categoryList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            setCategories(categoryList);
-        });
+        return { revenueData, expenseData, totalRevenue, totalExpense, netResult };
 
-        return () => {
-            unsubCompanies();
-            unsubCategories();
-        };
-    }, [isAuthReady, userId, appId]);
+    }, [period, futureEntries, categories]);
 
-    // Carregar dados consolidados para relatórios
-    useEffect(() => {
-        if (companies.length === 0 || !isAuthReady || !userId) return;
-
-        const fetchAllData = async () => {
-            const data = {};
-            for (const company of companies) {
-                const basePath = `artifacts/${appId}/users/${userId}/companies/${company.id}`;
-                const accountsQuery = query(collection(db, `${basePath}/accounts`));
-                const transactionsQuery = query(collection(db, `${basePath}/transactions`));
-
-                const [accountsSnap, transactionsSnap] = await Promise.all([
-                    getDocs(accountsQuery),
-                    getDocs(transactionsQuery)
-                ]);
-                
-                const companyAccounts = accountsSnap.docs.map(d => d.data());
-                const companyTransactions = transactionsSnap.docs.map(d => d.data());
-
-                const revenue = companyTransactions.filter(t => t.type === 'revenue').reduce((s, t) => s + t.amount, 0);
-                const expense = companyTransactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
-                const balance = companyAccounts.reduce((s, a) => s + (a.initialBalance || 0), 0) + revenue - expense;
-
-                data[company.id] = { revenue, expense, balance };
-            }
-            setAllCompaniesData(data);
-        };
-
-        fetchAllData();
-    }, [companies, userId, appId, isAuthReady]);
-
-
-    // Carregar dados da empresa ativa
-    useEffect(() => {
-        if (!activeCompanyId || !userId) {
-            setAccounts([]); setPayees([]); setTransactions([]); setBudgets([]); setFutureEntries([]);
-            return;
-        };
-        const companyDataPath = `artifacts/${appId}/users/${userId}/companies/${activeCompanyId}`;
-        const collections = { accounts: setAccounts, payees: setPayees, transactions: setTransactions, budgets: setBudgets, futureEntries: setFutureEntries };
-        const unsubscribes = Object.entries(collections).map(([name, setter]) => {
-            const q = query(collection(db, `${companyDataPath}/${name}`));
-            return onSnapshot(q, (snapshot) => {
-                let items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                if (name === 'transactions') items.sort((a, b) => new Date(b.date) - new Date(a.date));
-                setter(items);
-            });
-        });
-        return () => unsubscribes.forEach(unsub => unsub());
-    }, [activeCompanyId, userId, appId]);
-
-    const handleSave = async (collectionName, data, id, file = null) => {
-        if (!userId) return;
-        const isGlobal = ['companies', 'categories'].includes(collectionName);
-        const basePath = `artifacts/${appId}/users/${userId}`;
-        let path = isGlobal ? `${basePath}/${collectionName}` : `${basePath}/companies/${activeCompanyId}/${collectionName}`;
-        
-        if (collectionName === 'transactions' && data.type === 'transfer') {
-            const { sourceAccountId, destinationAccountId, amount, date, description } = data;
-            const transferId = crypto.randomUUID();
-            const batch = writeBatch(db);
-            const fullPath = `${basePath}/companies/${activeCompanyId}/transactions`;
-
-            // Saída da conta de origem
-            const sourceAccountName = accounts.find(a => a.id === destinationAccountId)?.name || 'outra conta';
-            const expenseData = {
-                amount, date, description: `Transferência para ${sourceAccountName}${description ? ` - ${description}` : ''}`,
-                type: 'expense', accountId: sourceAccountId, isTransfer: true, transferId
-            };
-            const expenseRef = doc(collection(db, fullPath));
-            batch.set(expenseRef, expenseData);
-
-            // Entrada na conta de destino
-            const destAccountName = accounts.find(a => a.id === sourceAccountId)?.name || 'outra conta';
-            const revenueData = {
-                amount, date, description: `Transferência de ${destAccountName}${description ? ` - ${description}` : ''}`,
-                type: 'revenue', accountId: destinationAccountId, isTransfer: true, transferId
-            };
-            const revenueRef = doc(collection(db, fullPath));
-            batch.set(revenueRef, revenueData);
-            
-            await batch.commit();
-
-        } else if (collectionName === 'transactions') {
-            const docRef = id ? doc(db, path, id) : doc(collection(db, path));
-            const docId = docRef.id;
-            let attachmentURL = data.attachmentURL || null;
-
-            if (file) {
-                const storageRef = ref(storage, `attachments/${userId}/${activeCompanyId}/${docId}/${file.name}`);
-                await uploadBytes(storageRef, file);
-                attachmentURL = await getDownloadURL(storageRef);
-            }
-            
-            const dataToSave = { ...data, attachmentURL };
-            delete dataToSave.id; // Remover ID temporário se existir
-            await setDoc(docRef, dataToSave);
-
-        } else {
-            const dataToSave = { ...data };
-            if (dataToSave.parentId === null || dataToSave.parentId === '') delete dataToSave.parentId;
-            if (dataToSave.categoryId === null || dataToSave.categoryId === '') delete dataToSave.categoryId;
-            try {
-                await (id ? setDoc(doc(db, path, id), dataToSave) : addDoc(collection(db, path), dataToSave));
-            } catch (error) { console.error(`Error saving to ${collectionName}:`, error); }
-        }
-    };
-    
-    const handleDelete = async (collectionName, item) => {
-        if (!userId || !window.confirm('Tem a certeza que deseja apagar este item? Esta ação não pode ser desfeita.')) return;
-
-        const isGlobal = ['companies', 'categories'].includes(collectionName);
-        const basePath = `artifacts/${appId}/users/${userId}`;
-        const path = isGlobal ? `${basePath}/${collectionName}` : `${basePath}/companies/${activeCompanyId}/${collectionName}`;
-
-        if (collectionName === 'transactions' && item.isTransfer) {
-            const batch = writeBatch(db);
-            const q = query(collection(db, path), where("transferId", "==", item.transferId));
-            const querySnapshot = await getDocs(q);
-            querySnapshot.forEach((doc) => batch.delete(doc.ref));
-            await batch.commit();
-        } else {
-            if (collectionName === 'transactions' && item.attachmentURL) {
-                try {
-                    const storageRef = ref(storage, item.attachmentURL);
-                    await deleteObject(storageRef);
-                } catch (error) {
-                    console.error("Error deleting attachment:", error);
-                }
-            }
-            if (isGlobal && collectionName === 'companies' && item.id === activeCompanyId) setActiveCompanyId(null);
-            try { await deleteDoc(doc(db, path, item.id)); } catch (error) { console.error(`Error deleting from ${collectionName}:`, error); }
-        }
-    };
-    
-    const handleImportTransactions = async (transactionsToImport, accountId) => {
-        if (!userId) return;
-        const path = `artifacts/${appId}/users/${userId}/companies/${activeCompanyId}/transactions`;
-        const batch = writeBatch(db);
-        transactionsToImport.forEach(t => {
-            const docRef = doc(collection(db, path));
-            // Remove o id temporário usado para o React key
-            const { id, ...transactionData } = t; 
-            batch.set(docRef, { ...transactionData, accountId });
-        });
-        await batch.commit();
-    };
-    
-    const handleReconcile = async (reconciliationData) => {
-        if (!userId) return;
-        const { id, finalAmount, paymentDate, accountId, notes, originalEntry } = reconciliationData;
-        
-        const batch = writeBatch(db);
-        const companyPath = `artifacts/${appId}/users/${userId}/companies/${activeCompanyId}`;
-
-        // 1. Criar a transação real
-        const newTransaction = {
-            description: originalEntry.description + (notes ? ` (${notes})` : ''),
-            amount: finalAmount,
-            date: new Date(paymentDate).toISOString(),
-            type: originalEntry.type,
-            accountId: accountId,
-            categoryId: originalEntry.categoryId,
-            payeeId: originalEntry.payeeId,
-            isReconciled: true,
-        };
-        const transRef = doc(collection(db, `${companyPath}/transactions`));
-        batch.set(transRef, newTransaction);
-
-        // 2. Atualizar o lançamento futuro
-        const entryRef = doc(db, `${companyPath}/futureEntries`, id);
-        const updateData = {
-            status: 'reconciled',
-            reconciliation: {
-                paymentDate: new Date(paymentDate).toISOString(),
-                finalAmount: finalAmount,
-                accountId: accountId,
-                notes: notes,
-                transactionId: transRef.id
-            }
-        };
-
-        // Se for recorrente, calcular o próximo vencimento
-        if (originalEntry.entryType === 'recorrente') {
-            const nextDueDate = new Date(originalEntry.dueDate);
-            switch (originalEntry.frequency) {
-                case 'daily': nextDueDate.setDate(nextDueDate.getDate() + 1); break;
-                case 'weekly': nextDueDate.setDate(nextDueDate.getDate() + 7); break;
-                case 'monthly': nextDueDate.setMonth(nextDueDate.getMonth() + 1); break;
-                case 'yearly': nextDueDate.setFullYear(nextDueDate.getFullYear() + 1); break;
-                default: break;
-            }
-            updateData.dueDate = nextDueDate.toISOString();
-            updateData.status = 'pending'; // Volta a ficar pendente para o próximo ciclo
-        }
-        
-        batch.update(entryRef, updateData);
-
-        try {
-            await batch.commit();
-        } catch(error) {
-            console.error("Error during reconciliation:", error);
-        }
-    };
-
-    const handleGoogleSignIn = async () => {
-        const provider = new GoogleAuthProvider();
-        await signInWithPopup(auth, provider);
-    };
-
-    const handleBackup = async () => {
-        if (!userId) return;
-        const userPath = `artifacts/${appId}/users/${userId}`;
-        const backupData = {
-            backupDate: new Date().toISOString(),
-            data: {
-                categories: [],
-                companies: []
-            }
-        };
-
-        // Backup categories
-        const categoriesQuery = query(collection(db, `${userPath}/categories`));
-        const categoriesSnap = await getDocs(categoriesQuery);
-        backupData.data.categories = categoriesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-
-        // Backup companies and their subcollections
-        const companiesQuery = query(collection(db, `${userPath}/companies`));
-        const companiesSnap = await getDocs(companiesQuery);
-        for (const companyDoc of companiesSnap.docs) {
-            const companyData = { id: companyDoc.id, ...companyDoc.data(), subcollections: {} };
-            const subcollections = ['accounts', 'transactions', 'payees', 'budgets', 'futureEntries'];
-            for (const sub of subcollections) {
-                const subQuery = query(collection(db, `${userPath}/companies/${companyDoc.id}/${sub}`));
-                const subSnap = await getDocs(subQuery);
-                companyData.subcollections[sub] = subSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-            }
-            backupData.data.companies.push(companyData);
-        }
-        
-        const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(backupData, null, 2))}`;
-        const link = document.createElement("a");
-        link.href = jsonString;
-        link.download = `financeiro_pro_backup_${new Date().toISOString().slice(0,10)}.json`;
-        link.click();
-    };
-
-    const handleRestore = async (file) => {
-        if (!userId) return;
-        const reader = new FileReader();
-        reader.onload = async (event) => {
-            try {
-                const backupData = JSON.parse(event.target.result);
-                if (!backupData.data || !backupData.data.companies || !backupData.data.categories) {
-                    throw new Error("Formato de backup inválido.");
-                }
-
-                const userPath = `artifacts/${appId}/users/${userId}`;
-                
-                // Delete all existing data for the user
-                const collectionsToDelete = ['categories', 'companies'];
-                for (const collName of collectionsToDelete) {
-                    const batch = writeBatch(db);
-                    const collQuery = query(collection(db, `${userPath}/${collName}`));
-                    const collSnap = await getDocs(collQuery);
-                    for(const docToDelete of collSnap.docs) {
-                        if (collName === 'companies') {
-                            const subcollections = ['accounts', 'transactions', 'payees', 'budgets', 'futureEntries'];
-                            for (const sub of subcollections) {
-                                const subQuery = query(collection(db, `${userPath}/companies/${docToDelete.id}/${sub}`));
-                                const subSnap = await getDocs(subQuery);
-                                subSnap.forEach(subDoc => batch.delete(subDoc.ref));
-                            }
-                        }
-                        batch.delete(docToDelete.ref);
-                    }
-                    await batch.commit();
-                }
-
-                // Restore new data
-                const restoreBatch = writeBatch(db);
-                backupData.data.categories.forEach(cat => {
-                    const { id, ...data } = cat;
-                    restoreBatch.set(doc(db, `${userPath}/categories`, id), data);
-                });
-
-                backupData.data.companies.forEach(comp => {
-                    const { id, subcollections, ...data } = comp;
-                    restoreBatch.set(doc(db, `${userPath}/companies`, id), data);
-                    Object.keys(subcollections).forEach(subName => {
-                        subcollections[subName].forEach(subDoc => {
-                            const { id: subId, ...subData } = subDoc;
-                            restoreBatch.set(doc(db, `${userPath}/companies/${id}/${subName}`, subId), subData);
-                        });
-                    });
-                });
-
-                await restoreBatch.commit();
-                alert("Backup restaurado com sucesso!");
-                window.location.reload();
-
-            } catch (error) {
-                console.error("Erro ao restaurar backup:", error);
-                alert("Erro ao restaurar backup. Verifique o ficheiro e tente novamente.");
-            }
-        };
-        reader.readAsText(file);
-    };
-    
-    if (!isAuthReady || loading) {
-        return <div className="flex justify-center items-center h-screen w-screen bg-gray-100 dark:bg-gray-900"><p className="text-lg dark:text-gray-300">A carregar o sistema financeiro...</p></div>;
-    }
-    
-    if (!user) {
-        return <AuthView onGoogleSignIn={handleGoogleSignIn} />;
-    }
-
-    if (!activeCompanyId) {
-        switch (hubView) {
-            case 'reports':
-                return <ConsolidatedReportsView allCompaniesData={allCompaniesData} companies={companies} onBack={() => setHubView('selector')} />;
-            case 'global_settings':
-                return <GlobalSettingsView companies={companies} categories={categories} onSave={handleSave} onDelete={(coll, item) => handleDelete(coll, {id: item})} onBack={() => setHubView('selector')} onBackup={handleBackup} onRestore={handleRestore} />;
-            case 'selector':
-            default:
-                return <HubScreen companies={companies} onSelect={setActiveCompanyId} onShowReports={() => setHubView('reports')} onManageCompanies={() => setHubView('global_settings')} />;
-        }
-    }
-
-    const renderView = () => {
-        switch (view) {
-            case 'dashboard': return <DashboardView transactions={transactions} accounts={accounts} categories={categories} futureEntries={futureEntries} budgets={budgets} />;
-            case 'transactions': return <TransactionsView transactions={transactions} accounts={accounts} categories={categories} payees={payees} onSave={handleSave} onDelete={handleDelete} />;
-            case 'reconciliation': return <ReconciliationView transactions={transactions} accounts={accounts} categories={categories} payees={payees} onSaveTransaction={handleSave} />;
-            case 'futureEntries': return <FutureEntriesView futureEntries={futureEntries} accounts={accounts} categories={categories} payees={payees} onSave={handleSave} onDelete={(coll, id) => handleDelete(coll, {id})} onReconcile={handleReconcile} />;
-            case 'budgets': return <BudgetsView budgets={budgets} categories={categories} transactions={transactions} onSave={handleSave} onDelete={(coll, id) => handleDelete(coll, {id})} />;
-            case 'reports': return <ReportsView transactions={transactions} categories={categories} accounts={accounts} />;
-            case 'dre': return <DREView transactions={transactions} categories={categories} accounts={accounts} payees={payees} onSave={handleSave} onDelete={handleDelete} />;
-            case 'weeklyCashFlow': return <WeeklyCashFlowView futureEntries={futureEntries} categories={categories} />;
-            case 'settings': return <SettingsView onSaveEntity={handleSave} onDeleteEntity={(coll, id) => handleDelete(coll, {id})} onImportTransactions={handleImportTransactions} {...{ accounts, payees, categories }} />;
-            default: return <DashboardView transactions={transactions} accounts={accounts} categories={categories} futureEntries={futureEntries} budgets={budgets} />;
-        }
-    };
-
-    const NavItem = ({ icon, label, active, onClick }) => (
-        <button onClick={onClick} className={`flex items-center space-x-3 w-full text-left px-4 py-3 rounded-lg transition-colors ${active ? 'bg-blue-600 text-white shadow-md' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>
-            {icon}<span className="font-medium">{label}</span>
-        </button>
+    const TableRow = ({ item }) => (
+        <tr className="border-b dark:border-gray-700 bg-white dark:bg-gray-800">
+            <td className="p-3 font-semibold">{item.name}</td>
+            <td className="p-3 text-right">{formatCurrency(item.value)}</td>
+            <td className="p-3 text-right font-mono">{item.percentage.toFixed(2)}%</td>
+        </tr>
     );
-    
-    const activeCompany = companies.find(c => c.id === activeCompanyId);
 
     return (
-        <div className={`flex h-screen bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200 font-sans`}>
-            <aside className="w-72 bg-white dark:bg-gray-800 p-6 flex-shrink-0 flex flex-col shadow-lg">
-                <div>
-                    <h1 className="text-2xl font-bold text-blue-700 dark:text-blue-400 mb-4">Financeiro PRO</h1>
-                    <div className="mb-8 p-3 bg-gray-100 dark:bg-gray-700/50 rounded-lg">
-                        <p className="text-sm text-gray-500 dark:text-gray-400">Empresa Ativa</p>
-                        <p className="font-bold text-lg text-gray-800 dark:text-gray-200">{activeCompany?.name}</p>
-                        <button onClick={() => setActiveCompanyId(null)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline mt-1">Trocar de empresa</button>
-                    </div>
-                    <nav className="space-y-2">
-                        <NavItem icon={<LayoutDashboard />} label="Dashboard" active={view === 'dashboard'} onClick={() => setView('dashboard')} />
-                        <NavItem icon={<List />} label="Transações" active={view ==='transactions'} onClick={() => setView('transactions')} />
-                        <NavItem icon={<CalendarClock />} label="Fluxo de Caixa Semanal" active={view === 'weeklyCashFlow'} onClick={() => setView('weeklyCashFlow')} />
-                        <NavItem icon={<GitCompareArrows />} label="Conciliação" active={view === 'reconciliation'} onClick={() => setView('reconciliation')} />
-                        <NavItem icon={<CalendarCheck2 />} label="Lançamentos Futuros" active={view === 'futureEntries'} onClick={() => setView('futureEntries')} />
-                        <NavItem icon={<Target />} label="Orçamentos" active={view === 'budgets'} onClick={() => setView('budgets')} />
-                        <NavItem icon={<BarChart2 />} label="Relatórios" active={view === 'reports'} onClick={() => setView('reports')} />
-                        <NavItem icon={<FileText />} label="DRE" active={view === 'dre'} onClick={() => setView('dre')} />
-                        <NavItem icon={<Settings />} label="Configurações" active={view === 'settings'} onClick={() => setView('settings')} />
-                    </nav>
-                </div>
-                <div className="mt-auto pt-4 border-t dark:border-gray-700">
-                    <button onClick={toggleTheme} className="flex items-center space-x-3 w-full text-left px-4 py-3 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 font-medium">
-                        {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
-                        <span>Mudar para tema {theme === 'light' ? 'Escuro' : 'Claro'}</span>
-                    </button>
-                     <button onClick={() => signOut(auth)} className="flex items-center space-x-3 w-full text-left px-4 py-3 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 font-medium">
-                        <LogOut size={20} />
-                        <span>Terminar Sessão</span>
-                    </button>
-                </div>
-            </aside>
-            <main className="flex-1 p-8 overflow-y-auto">{renderView()}</main>
-        </div>
-    );
-}
-
-// --- NOVO COMPONENTE: MODAL DE DETALHES DE TRANSAÇÃO ---
-const TransactionDetailModal = ({ isOpen, onClose, title, transactions, accounts, categories, payees, onSave, onDelete }) => {
-    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-    const [editingTransaction, setEditingTransaction] = useState(null);
-
-    const handleOpenEditModal = (transaction) => {
-        setEditingTransaction(transaction);
-        setIsEditModalOpen(true);
-    };
-
-    const handleCloseEditModal = () => {
-        setEditingTransaction(null);
-        setIsEditModalOpen(false);
-    };
-
-    return (
-        <Modal isOpen={isOpen} onClose={onClose} title={title} size="lg">
-            <div className="max-h-[60vh] overflow-y-auto">
-                <table className="w-full text-left">
+        <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg">
+            <div className="flex justify-between items-center mb-6">
+                <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-200">DRE (Competência)</h2>
+                <input 
+                    type="month" 
+                    value={period} 
+                    onChange={(e) => setPeriod(e.target.value)}
+                    className="p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300"
+                />
+            </div>
+            <div className="overflow-x-auto">
+                <table className="w-full">
                     <thead>
-                        <tr className="border-b-2 dark:border-gray-700">
-                            <th className="p-2">Data</th>
-                            <th className="p-2">Descrição</th>
-                            <th className="p-2 text-right">Valor</th>
-                            <th className="p-2">Ações</th>
+                        <tr className="border-b-2 dark:border-gray-700 text-left">
+                            <th className="p-3 w-2/3">Descrição</th>
+                            <th className="p-3 text-right">Valor</th>
+                            <th className="p-3 text-right">% Faturamento</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {transactions.map(t => (
-                            <tr key={t.id} className="border-b dark:border-gray-700">
-                                <td className="p-2">{formatDate(t.date)}</td>
-                                <td className="p-2">{t.description}</td>
-                                <td className={`p-2 text-right font-semibold ${t.type === 'revenue' ? 'text-green-500' : 'text-red-500'}`}>
-                                    {formatCurrency(t.amount)}
-                                </td>
-                                <td className="p-2">
-                                    <div className="flex space-x-2">
-                                        <button onClick={() => handleOpenEditModal(t)} className="text-blue-500 hover:text-blue-700"><Edit size={18} /></button>
-                                        <button onClick={() => onDelete('transactions', t)} className="text-red-500 hover:text-red-700"><Trash2 size={18} /></button>
-                                    </div>
-                                </td>
-                            </tr>
-                        ))}
+                        <tr className="bg-green-50 dark:bg-green-900/20"><td colSpan="3" className="p-2 font-bold text-green-800 dark:text-green-300">Receitas por Competência</td></tr>
+                        {dreData.revenueData.map(item => <TableRow key={item.id} item={item} />)}
+                        <tr className="bg-gray-100 dark:bg-gray-700 font-bold border-y-2 dark:border-gray-600">
+                            <td className="p-3">(=) Total de Receitas</td>
+                            <td className="p-3 text-right">{formatCurrency(dreData.totalRevenue)}</td>
+                            <td className="p-3 text-right font-mono">100.00%</td>
+                        </tr>
+
+                        <tr className="bg-red-50 dark:bg-red-900/20"><td colSpan="3" className="p-2 font-bold text-red-800 dark:text-red-300 mt-4">Despesas por Competência</td></tr>
+                        {dreData.expenseData.map(item => <TableRow key={item.id} item={item} />)}
+                         <tr className="bg-gray-100 dark:bg-gray-700 font-bold border-y-2 dark:border-gray-600">
+                            <td className="p-3">(-) Total de Despesas</td>
+                            <td className="p-3 text-right">{formatCurrency(dreData.totalExpense)}</td>
+                            <td className="p-3 text-right font-mono">{(dreData.totalRevenue > 0 ? (dreData.totalExpense / dreData.totalRevenue) * 100 : 0).toFixed(2)}%</td>
+                        </tr>
+
+                         <tr className={`font-extrabold text-lg border-t-4 dark:border-gray-600 ${dreData.netResult >= 0 ? 'bg-green-100 dark:bg-green-900/30 text-green-900 dark:text-green-200' : 'bg-red-100 dark:bg-red-900/30 text-red-900 dark:text-red-200'}`}>
+                            <td className="p-4">(=) Resultado por Competência</td>
+                            <td className="p-4 text-right">{formatCurrency(dreData.netResult)}</td>
+                            <td className="p-4 text-right font-mono">{(dreData.totalRevenue > 0 ? (dreData.netResult / dreData.totalRevenue) * 100 : 0).toFixed(2)}%</td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
-            {editingTransaction && (
-                 <TransactionEditModal
-                    isOpen={isEditModalOpen}
-                    onClose={handleCloseEditModal}
-                    editingTransaction={editingTransaction}
-                    accounts={accounts}
-                    categories={categories}
-                    payees={payees}
-                    onSave={onSave}
-                />
-            )}
-        </Modal>
-    );
-};
-
-// --- NOVO COMPONENTE: MODAL DE EDIÇÃO DE TRANSAÇÃO (REUTILIZÁVEL) ---
-const TransactionEditModal = ({ isOpen, onClose, editingTransaction, accounts, categories, payees, onSave }) => {
-    const [formData, setFormData] = useState({});
-    const [attachmentFile, setAttachmentFile] = useState(null);
-
-    useEffect(() => {
-        if (editingTransaction) {
-            setFormData({ ...editingTransaction, date: editingTransaction.date.substring(0, 10) });
-        }
-    }, [editingTransaction]);
-
-    const handleChange = (e) => {
-        const { name, value } = e.target;
-        setFormData(prev => {
-            const newState = { ...prev, [name]: value };
-            if (name === 'payeeId') {
-                const selectedPayee = payees.find(p => p.id === value);
-                if (selectedPayee?.categoryId) newState.categoryId = selectedPayee.categoryId;
-            }
-            if (name === 'type') newState.categoryId = '';
-            return newState;
-        });
-    };
-
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        const dataToSave = { ...formData, amount: parseFloat(formData.amount), date: new Date(formData.date).toISOString() };
-        onSave('transactions', dataToSave, editingTransaction?.id, attachmentFile);
-        onClose();
-    };
-
-    const groupedCategories = useMemo(() => {
-        const type = formData.type || 'expense';
-        const parents = categories.filter(c => !c.parentId && c.type === type);
-        return parents.map(parent => ({
-            ...parent,
-            subcategories: categories.filter(sub => sub.parentId === parent.id)
-        })).sort((a, b) => a.name.localeCompare(b.name));
-    }, [categories, formData.type]);
-
-    return (
-         <Modal isOpen={isOpen} onClose={onClose} title="Editar Transação">
-            <form onSubmit={handleSubmit} className="space-y-6">
-                <div><label className="block"><span className="text-gray-700 dark:text-gray-300">Descrição</span><input type="text" name="description" value={formData.description || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required /></label></div>
-                <div className="flex space-x-4">
-                    <label className="flex-1"><span className="text-gray-700 dark:text-gray-300">Valor (R$)</span><input type="number" step="0.01" name="amount" value={formData.amount || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" placeholder="0.00" required /></label>
-                    <label className="flex-1"><span className="text-gray-700 dark:text-gray-300">Data</span><input type="date" name="date" value={formData.date || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required /></label>
-                </div>
-                <div className="flex space-x-4">
-                    <label className="flex-1"><span className="text-gray-700 dark:text-gray-300">Conta</span><select name="accountId" value={formData.accountId || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required>{accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label>
-                    <label className="flex-1"><span className="text-gray-700 dark:text-gray-300">Favorecido</span><select name="payeeId" value={formData.payeeId || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300"><option value="">Nenhum</option>{payees.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
-                </div>
-                <div>
-                    <label className="flex-1"><span className="text-gray-700 dark:text-gray-300">Categoria</span><select name="categoryId" value={formData.categoryId || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required><option value="">Selecione...</option>{groupedCategories.map(parent => (<optgroup key={parent.id} label={parent.name}><option value={parent.id}>{parent.name} (Principal)</option>{parent.subcategories.map(sub => <option key={sub.id} value={sub.id}>{sub.name}</option>)}</optgroup>))}</select></label>
-                </div>
-                <div>
-                    <label className="block"><span className="text-gray-700 dark:text-gray-300">Anexar Comprovativo</span>
-                    <input type="file" onChange={(e) => setAttachmentFile(e.target.files[0])} className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
-                    </label>
-                    {formData.attachmentURL && !attachmentFile && <div className="text-xs mt-1">Anexo atual: <a href={formData.attachmentURL} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Ver anexo</a>. Selecione um novo ficheiro para o substituir.</div>}
-                </div>
-                <div className="flex justify-end pt-4"><Button type="submit"><span>Guardar Alterações</span></Button></div>
-            </form>
-        </Modal>
+        </div>
     );
 };
 
@@ -2482,7 +1390,7 @@ const WeeklyCashFlowView = ({ futureEntries, categories }) => {
 
             const entries = futureEntries.filter(e => {
                 const dueDate = new Date(e.dueDate);
-                return e.status !== 'reconciled' && dueDate >= weekStart && dueDate <= weekEnd;
+                return e.status !== 'reconciled' && dueDate >= weekStart && dueDate <= weekEnd && e.type === 'expense';
             });
 
             const total = entries.reduce((sum, e) => sum + e.amount, 0);
