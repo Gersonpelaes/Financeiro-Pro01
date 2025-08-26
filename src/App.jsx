@@ -1,13 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { getFirestore, collection, doc, addDoc, getDocs, writeBatch, query, onSnapshot, deleteDoc, setDoc, where } from 'firebase/firestore';
+import { getFirestore, collection, doc, addDoc, getDocs, writeBatch, query, onSnapshot, deleteDoc, setDoc, where, getDoc } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { PlusCircle, Upload, Trash2, Edit, TrendingUp, TrendingDown, DollarSign, Settings, LayoutDashboard, List, BarChart2, Target, ArrowLeft, ArrowRightLeft, Repeat, CheckCircle, AlertTriangle, Clock, CalendarCheck2, Building, GitCompareArrows, ArrowUp, ArrowDown, Paperclip, FileText, LogOut, Download, UploadCloud, Sun, Moon, FileOutput, CalendarClock } from 'lucide-react';
-import jsPDF from "jspdf";
-import autoTable from 'jspdf-autotable';
-
+import { PlusCircle, Upload, Trash2, Edit, TrendingUp, TrendingDown, DollarSign, Settings, LayoutDashboard, List, BarChart2, Target, ArrowLeft, ArrowRightLeft, Repeat, CheckCircle, AlertTriangle, Clock, CalendarCheck2, Building, GitCompareArrows, ArrowUp, ArrowDown, Paperclip, FileText, LogOut, Download, UploadCloud, Sun, Moon, FileOutput, CalendarClock, Menu, X, ShieldCheck, CreditCard } from 'lucide-react';
 
 // --- CONFIGURAÇÃO DO FIREBASE (PARA TESTE LOCAL) ---
 const firebaseConfig = {
@@ -72,7 +69,7 @@ const StatCard = ({ title, value, icon, color }) => (
     </div>
 );
 
-// --- NOVA VIEW DE AUTENTICAÇÃO ---
+// --- VIEW DE AUTENTICAÇÃO ---
 const AuthView = ({ onGoogleSignIn }) => {
     const [error, setError] = useState('');
 
@@ -99,7 +96,7 @@ const AuthView = ({ onGoogleSignIn }) => {
         <div className="w-full h-screen flex justify-center items-center bg-gray-100">
             <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-2xl shadow-lg text-center">
                 <h2 className="text-3xl font-bold text-gray-800">Bem-vindo ao Financeiro PRO</h2>
-                <p className="text-gray-600">Entre com a sua conta Google para continuar.</p>
+                <p className="text-gray-600">Entre com a sua conta Google para continuar e aproveite 30 dias grátis.</p>
                 <button
                     onClick={handleSignIn}
                     className="w-full flex items-center justify-center space-x-3 bg-white border border-gray-300 text-gray-700 font-semibold py-3 px-4 rounded-lg shadow-sm transition-all transform hover:scale-105 hover:bg-gray-50"
@@ -751,7 +748,7 @@ const BudgetsView = ({ budgets, categories, transactions, onSave, onDelete }) =>
                         </div>
                     );
                 })}
-                 {budgets.length === 0 && <p className="text-gray-500 dark:text-gray-400 col-span-full text-center py-8">Nenhum orçamento definido.</p>}
+                 {budgets.length === 0 && <p className="text-center text-gray-500 dark:text-gray-400 col-span-full text-center py-8">Nenhum orçamento definido.</p>}
             </div>
             <Modal isOpen={isModalOpen} onClose={handleCloseModal} title="Novo Orçamento">
                 <form onSubmit={handleSubmit} className="space-y-4">
@@ -1860,6 +1857,41 @@ const HubScreen = ({ companies, onSelect, onShowReports, onManageCompanies }) =>
     );
 };
 
+// --- NOVA VIEW: ASSINATURA ---
+const SubscriptionView = ({ subscription, onSubscribe }) => {
+    const isActive = subscription?.status === 'active' || subscription?.status === 'trialing';
+    const endDate = subscription?.trial_end?.toDate ? formatDate(subscription.trial_end.toDate()) : 'N/A';
+
+    return (
+        <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg max-w-2xl mx-auto">
+            <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-200 mb-6">A Minha Assinatura</h2>
+            
+            <div className={`p-6 rounded-lg border ${isActive ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800' : 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800'}`}>
+                <div className="flex items-center space-x-4">
+                    {isActive ? <ShieldCheck className="text-green-500" size={32}/> : <AlertTriangle className="text-red-500" size={32}/>}
+                    <div>
+                        <p className="text-lg font-semibold">{isActive ? 'Assinatura Ativa' : 'Assinatura Expirada'}</p>
+                        {subscription?.status === 'trialing' && <p className="text-sm">O seu período de teste termina em: <strong>{endDate}</strong></p>}
+                        {subscription?.status === 'active' && <p className="text-sm">A sua assinatura é válida até: <strong>{endDate}</strong></p>}
+                        {!isActive && <p className="text-sm">O seu acesso às funcionalidades está limitado. Renove a sua assinatura para continuar.</p>}
+                    </div>
+                </div>
+            </div>
+
+            <div className="mt-8 text-center">
+                <h3 className="text-xl font-semibold mb-4">Plano PRO</h3>
+                <p className="text-4xl font-bold mb-2">R$ 49,90<span className="text-lg font-normal">/mês</span></p>
+                <p className="text-gray-600 dark:text-gray-400 mb-6">Acesso ilimitado a todas as funcionalidades.</p>
+                <Button onClick={onSubscribe} className="bg-green-600 hover:bg-green-700 w-full max-w-xs mx-auto">
+                    <CreditCard size={20}/>
+                    <span>{isActive ? 'Gerir Assinatura' : 'Assinar Agora'}</span>
+                </Button>
+                 <p className="text-xs text-gray-500 mt-4">Pagamentos seguros processados pelo Mercado Pago.</p>
+            </div>
+        </div>
+    );
+};
+
 // --- COMPONENTE PRINCIPAL ---
 export default function App() {
     const [view, setView] = useState('dashboard');
@@ -1880,6 +1912,8 @@ export default function App() {
     const [futureEntries, setFutureEntries] = useState([]);
     
     const [allCompaniesData, setAllCompaniesData] = useState({});
+    const [subscription, setSubscription] = useState(null);
+    const isSubscribed = subscription?.status === 'active' || subscription?.status === 'trialing';
 
     useEffect(() => {
         if (theme === 'dark') {
@@ -1894,12 +1928,24 @@ export default function App() {
         setTheme(prevTheme => (prevTheme === 'light' ? 'dark' : 'light'));
     };
 
-    // Autenticação
+    // Autenticação e criação de trial
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+        const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
             setUser(currentUser);
-            setIsAuthReady(true);
-            if (!currentUser) {
+            if (currentUser) {
+                const subRef = doc(db, `users/${currentUser.uid}/subscription`, 'current');
+                const subDoc = await getDoc(subRef);
+
+                if (!subDoc.exists()) {
+                    const trialEndDate = new Date();
+                    trialEndDate.setDate(trialEndDate.getDate() + 30);
+                    await setDoc(subRef, {
+                        status: 'trialing',
+                        trial_end: trialEndDate,
+                        plan: 'PRO',
+                    });
+                }
+            } else {
                 // Limpar estados quando o utilizador faz logout
                 setCompanies([]);
                 setActiveCompanyId(null);
@@ -1909,7 +1955,9 @@ export default function App() {
                 setTransactions([]);
                 setBudgets([]);
                 setFutureEntries([]);
+                setSubscription(null);
             }
+            setIsAuthReady(true);
         });
         return () => unsubscribe();
     }, []);
@@ -1917,6 +1965,24 @@ export default function App() {
     // eslint-disable-next-line no-undef
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
     const userId = user?.uid;
+    
+    // Listener da subscrição
+    useEffect(() => {
+        if (!userId) return;
+        const subRef = doc(db, `users/${userId}/subscription`, 'current');
+        const unsub = onSnapshot(subRef, (doc) => {
+            if (doc.exists()) {
+                const data = doc.data();
+                // Verificar se o trial expirou
+                if (data.status === 'trialing' && new Date() > data.trial_end.toDate()) {
+                    setSubscription({ ...data, status: 'expired' });
+                } else {
+                    setSubscription(data);
+                }
+            }
+        });
+        return () => unsub();
+    }, [userId]);
 
     // Carregar lista de empresas e categorias globais
     useEffect(() => {
@@ -1926,14 +1992,14 @@ export default function App() {
         };
         
         setLoading(true);
-        const qCompanies = query(collection(db, `artifacts/${appId}/users/${userId}/companies`));
+        const qCompanies = query(collection(db, `users/${userId}/companies`));
         const unsubCompanies = onSnapshot(qCompanies, (snapshot) => {
             const companyList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setCompanies(companyList);
             setLoading(false);
         }, () => setLoading(false));
 
-        const qCategories = query(collection(db, `artifacts/${appId}/users/${userId}/categories`));
+        const qCategories = query(collection(db, `users/${userId}/categories`));
         const unsubCategories = onSnapshot(qCategories, (snapshot) => {
             const categoryList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setCategories(categoryList);
@@ -1952,7 +2018,7 @@ export default function App() {
         const fetchAllData = async () => {
             const data = {};
             for (const company of companies) {
-                const basePath = `artifacts/${appId}/users/${userId}/companies/${company.id}`;
+                const basePath = `users/${userId}/companies/${company.id}`;
                 const accountsQuery = query(collection(db, `${basePath}/accounts`));
                 const transactionsQuery = query(collection(db, `${basePath}/transactions`));
 
@@ -1983,7 +2049,7 @@ export default function App() {
             setAccounts([]); setPayees([]); setTransactions([]); setBudgets([]); setFutureEntries([]);
             return;
         };
-        const companyDataPath = `artifacts/${appId}/users/${userId}/companies/${activeCompanyId}`;
+        const companyDataPath = `users/${userId}/companies/${activeCompanyId}`;
         const collections = { accounts: setAccounts, payees: setPayees, transactions: setTransactions, budgets: setBudgets, futureEntries: setFutureEntries };
         const unsubscribes = Object.entries(collections).map(([name, setter]) => {
             const q = query(collection(db, `${companyDataPath}/${name}`));
@@ -1999,7 +2065,7 @@ export default function App() {
     const handleSave = async (collectionName, data, id, file = null) => {
         if (!userId) return;
         const isGlobal = ['companies', 'categories'].includes(collectionName);
-        const basePath = `artifacts/${appId}/users/${userId}`;
+        const basePath = `users/${userId}`;
         let path = isGlobal ? `${basePath}/${collectionName}` : `${basePath}/companies/${activeCompanyId}/${collectionName}`;
         
         if (collectionName === 'transactions' && data.type === 'transfer') {
@@ -2057,7 +2123,7 @@ export default function App() {
         if (!userId || !window.confirm('Tem a certeza que deseja apagar este item? Esta ação não pode ser desfeita.')) return;
 
         const isGlobal = ['companies', 'categories'].includes(collectionName);
-        const basePath = `artifacts/${appId}/users/${userId}`;
+        const basePath = `users/${userId}`;
         const path = isGlobal ? `${basePath}/${collectionName}` : `${basePath}/companies/${activeCompanyId}/${collectionName}`;
 
         if (collectionName === 'transactions' && item.isTransfer) {
@@ -2082,7 +2148,7 @@ export default function App() {
     
     const handleImportTransactions = async (transactionsToImport, accountId) => {
         if (!userId) return;
-        const path = `artifacts/${appId}/users/${userId}/companies/${activeCompanyId}/transactions`;
+        const path = `users/${userId}/companies/${activeCompanyId}/transactions`;
         const batch = writeBatch(db);
         transactionsToImport.forEach(t => {
             const docRef = doc(collection(db, path));
@@ -2098,7 +2164,7 @@ export default function App() {
         const { id, finalAmount, paymentDate, accountId, notes, originalEntry } = reconciliationData;
         
         const batch = writeBatch(db);
-        const companyPath = `artifacts/${appId}/users/${userId}/companies/${activeCompanyId}`;
+        const companyPath = `users/${userId}/companies/${activeCompanyId}`;
 
         // 1. Criar a transação real
         const newTransaction = {
@@ -2157,7 +2223,7 @@ export default function App() {
 
     const handleBackup = async () => {
         if (!userId) return;
-        const userPath = `artifacts/${appId}/users/${userId}`;
+        const userPath = `users/${userId}`;
         const backupData = {
             backupDate: new Date().toISOString(),
             data: {
@@ -2202,7 +2268,7 @@ export default function App() {
                     throw new Error("Formato de backup inválido.");
                 }
 
-                const userPath = `artifacts/${appId}/users/${userId}`;
+                const userPath = `users/${userId}`;
                 
                 // Delete all existing data for the user
                 const collectionsToDelete = ['categories', 'companies'];
@@ -2285,6 +2351,7 @@ export default function App() {
             case 'dre': return <DREView transactions={transactions} categories={categories} accounts={accounts} payees={payees} onSave={handleSave} onDelete={handleDelete} />;
             case 'weeklyCashFlow': return <WeeklyCashFlowView futureEntries={futureEntries} categories={categories} />;
             case 'settings': return <SettingsView onSaveEntity={handleSave} onDeleteEntity={(coll, id) => handleDelete(coll, {id})} onImportTransactions={handleImportTransactions} {...{ accounts, payees, categories }} />;
+            case 'subscription': return <SubscriptionView subscription={subscription} onSubscribe={() => alert('A integração com pagamentos será o próximo passo!')} />;
             default: return <DashboardView transactions={transactions} accounts={accounts} categories={categories} futureEntries={futureEntries} budgets={budgets} />;
         }
     };
@@ -2317,6 +2384,7 @@ export default function App() {
                         <NavItem icon={<BarChart2 />} label="Relatórios" active={view === 'reports'} onClick={() => setView('reports')} />
                         <NavItem icon={<FileText />} label="DRE" active={view === 'dre'} onClick={() => setView('dre')} />
                         <NavItem icon={<Settings />} label="Configurações" active={view === 'settings'} onClick={() => setView('settings')} />
+                        <NavItem icon={<CreditCard />} label="Assinatura" active={view === 'subscription'} onClick={() => setView('subscription')} />
                     </nav>
                 </div>
                 <div className="mt-auto pt-4 border-t dark:border-gray-700">
@@ -2330,7 +2398,22 @@ export default function App() {
                     </button>
                 </div>
             </aside>
-            <main className="flex-1 p-8 overflow-y-auto">{renderView()}</main>
+            <main className="flex-1 p-8 overflow-y-auto relative">
+                {!isSubscribed && (
+                    <div className="absolute inset-0 bg-black/70 z-40 flex flex-col justify-center items-center text-white p-8 text-center">
+                        <AlertTriangle size={64} className="text-yellow-400 mb-4" />
+                        <h2 className="text-3xl font-bold mb-2">O seu período de teste terminou!</h2>
+                        <p className="text-lg mb-6">Para continuar a usar todas as funcionalidades, por favor, ative a sua assinatura.</p>
+                        <Button onClick={() => setView('subscription')} className="bg-green-600 hover:bg-green-700">
+                            <CreditCard size={20}/>
+                            <span>Ver Plano de Assinatura</span>
+                        </Button>
+                    </div>
+                )}
+                <div className={!isSubscribed ? 'blur-sm' : ''}>
+                    {renderView()}
+                </div>
+            </main>
         </div>
     );
 }
@@ -2531,4 +2614,4 @@ const WeeklyCashFlowView = ({ futureEntries, categories }) => {
             </div>
         </div>
     );
-};
+}
