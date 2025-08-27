@@ -1850,7 +1850,7 @@ const BackupManager = ({ onBackup, onRestore }) => {
 };
 
 
-const HubScreen = ({ companies, onSelect, onShowReports, onManageCompanies, needsMigration, onMigrate, isMigrating }) => {
+const HubScreen = ({ companies, onSelect, onShowReports, onManageCompanies }) => {
     return (
         <div className="w-full h-screen flex flex-col justify-center items-center bg-gray-800 bg-cover bg-center" style={{backgroundImage: "url(https://images.unsplash.com/photo-1555396273-367ea4eb4db5?q=80&w=2574&auto=format&fit=crop)"}}>
             <div className="absolute inset-0 bg-black/60"></div>
@@ -1861,18 +1861,6 @@ const HubScreen = ({ companies, onSelect, onShowReports, onManageCompanies, need
                 <h1 className="text-5xl font-extrabold text-white mb-4">Bem-vindo ao Financeiro PRO</h1>
                 <p className="text-xl text-white/80 mb-12">Selecione uma empresa para começar ou veja os seus relatórios consolidados.</p>
                 
-                {needsMigration && (
-                    <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800 p-6 rounded-lg my-8 text-left max-w-2xl mx-auto shadow-lg">
-                        <h3 className="font-bold text-lg">Ação Necessária: Atualização da Conta</h3>
-                        <p className="mt-2">Detetámos dados da versão anterior do sistema. Para continuar, precisamos de os atualizar para o novo formato de multi-empresa. Este processo é rápido e seguro.</p>
-                        <p className="mt-1">Os seus dados serão movidos para uma nova empresa chamada "Minha Empresa Principal (Migrada)".</p>
-                        <Button onClick={onMigrate} disabled={isMigrating} className="mt-4 bg-yellow-500 hover:bg-yellow-600 !text-white">
-                            <RefreshCw className={isMigrating ? 'animate-spin' : ''} size={18} />
-                            <span>{isMigrating ? 'A migrar...' : 'Migrar Meus Dados Agora'}</span>
-                        </Button>
-                    </div>
-                )}
-
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {companies.map(company => (
                         <button key={company.id} onClick={() => onSelect(company.id)} className="group bg-white/10 hover:bg-white/20 backdrop-blur-md p-6 rounded-2xl text-white text-left transition-all transform hover:scale-105">
@@ -2405,7 +2393,7 @@ export default function App() {
             await setDoc(profileRef, { migrationCompleted: true }, { merge: true });
 
             alert("Os seus dados foram migrados com sucesso! A página será recarregada.");
-            setNeedsMigration(false);
+            setMigrationStatus('not_needed');
             window.location.reload();
 
         } catch (error) {
