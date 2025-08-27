@@ -1947,12 +1947,18 @@ export default function App() {
     // Autenticação e criação de trial
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-            setUser(currentUser);
             if (currentUser) {
-                const subRef = doc(db, `users/${currentUser.uid}/subscription`, 'current');
-                const subDoc = await getDoc(subRef);
+                setUser(currentUser);
+                const userId = currentUser.uid;
 
-                if (!subDoc.exists()) {
+                // --- CHECK MIGRATION AND SUBSCRIPTION ---
+                const profileRef = doc(db, `users/${userId}/profile`, 'userProfile');
+                const subRef = doc(db, `users/${userId}/subscription`, 'current');
+                
+                const [profileSnap, subSnap] = await Promise.all([getDoc(profileRef), getDoc(subRef)]);
+
+                // Setup subscription if it doesn't exist
+                if (!subSnap.exists()) {
                     const trialEndDate = new Date();
                     trialEndDate.setDate(trialEndDate.getDate() + 30);
                     await setDoc(subRef, {
@@ -1961,17 +1967,26 @@ export default function App() {
                         plan: 'PRO',
                     });
                 }
+
+                // Check for migration
+                if (!profileSnap.exists() || !profileSnap.data().migrationCompleted) {
+                    const oldTransactionsQuery = query(collection(db, `users/${userId}/transactions`), limit(1));
+                    const oldTransactionsSnap = await getDocs(oldTransactionsQuery);
+                    if (!oldTransactionsSnap.empty) {
+                        setNeedsMigration(true); // Needs migration
+                    } else {
+                        // New user, no old data, mark migration as complete
+                        await setDoc(profileRef, { migrationCompleted: true, createdAt: new Date().toISOString() }, { merge: true });
+                        setNeedsMigration(false);
+                    }
+                } else {
+                    setNeedsMigration(false); // Migration already done
+                }
+                
             } else {
-                // Limpar estados quando o utilizador faz logout
-                setCompanies([]);
-                setActiveCompanyId(null);
-                setAccounts([]);
-                setCategories([]);
-                setPayees([]);
-                setTransactions([]);
-                setBudgets([]);
-                setFutureEntries([]);
-                setSubscription(null);
+                // User is signed out
+                setUser(null);
+                // Clear all state
             }
             setIsAuthReady(true);
         });
@@ -2000,7 +2015,7 @@ export default function App() {
         return () => unsub();
     }, [userId]);
 
-    // Carregar lista de empresas e categorias globais E VERIFICAR MIGRAÇÃO
+    // Carregar lista de empresas e categorias globais
     useEffect(() => {
         if (!isAuthReady || !userId) {
             setLoading(false);
@@ -2012,18 +2027,6 @@ export default function App() {
         const unsubCompanies = onSnapshot(qCompanies, async (snapshot) => {
             const companyList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setCompanies(companyList);
-
-            // Lógica de verificação de migração
-            if (companyList.length === 0) {
-                const oldTransactionsQuery = query(collection(db, `users/${userId}/transactions`), limit(1));
-                const oldTransactionsSnap = await getDocs(oldTransactionsQuery);
-                if (!oldTransactionsSnap.empty) {
-                    setNeedsMigration(true);
-                }
-            } else {
-                setNeedsMigration(false);
-            }
-
             setLoading(false);
         }, () => setLoading(false));
 
@@ -2375,6 +2378,10 @@ export default function App() {
                 }
             }
             
+            // 3. Marcar migração como concluída
+            const profileRef = doc(db, `users/${userId}/profile`, 'userProfile');
+            await setDoc(profileRef, { migrationCompleted: true }, { merge: true });
+
             alert("Os seus dados foram migrados com sucesso! A página será recarregada.");
             setNeedsMigration(false);
             window.location.reload();
