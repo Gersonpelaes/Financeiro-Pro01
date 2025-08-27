@@ -69,6 +69,33 @@ const StatCard = ({ title, value, icon, color }) => (
     </div>
 );
 
+// --- COMPONENTES DE ESTADO DA APLICAÇÃO ---
+const LoadingScreen = ({ message }) => (
+    <div className="flex flex-col justify-center items-center h-screen w-screen bg-gray-100 dark:bg-gray-900">
+        <RefreshCw className="animate-spin text-blue-500 h-12 w-12 mb-4" />
+        <p className="text-lg dark:text-gray-300">{message || 'A carregar...'}</p>
+    </div>
+);
+
+const MigrationScreen = ({ onMigrate, isMigrating }) => (
+    <div className="w-full h-screen flex flex-col justify-center items-center bg-gray-100 dark:bg-gray-900 p-4">
+        <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-lg text-center max-w-2xl">
+            <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-200">Atualização Importante da Conta</h1>
+            <p className="mt-4 text-gray-600 dark:text-gray-400">
+                Olá! Para melhorar a sua experiência e permitir a gestão de múltiplas empresas, atualizámos a estrutura dos seus dados.
+            </p>
+            <p className="mt-2 text-gray-600 dark:text-gray-400">
+                Precisamos de migrar os seus dados existentes para o novo formato. Este é um processo único, rápido e seguro. Os seus dados não serão perdidos.
+            </p>
+            <Button onClick={onMigrate} disabled={isMigrating} className="mt-8 bg-blue-600 hover:bg-blue-700 !text-white text-lg px-8 py-3">
+                <RefreshCw className={isMigrating ? 'animate-spin' : ''} size={20} />
+                <span>{isMigrating ? 'A migrar os seus dados...' : 'Iniciar a Migração'}</span>
+            </Button>
+        </div>
+    </div>
+);
+
+
 // --- VIEW DE AUTENTICAÇÃO ---
 const AuthView = ({ onGoogleSignIn }) => {
     const [error, setError] = useState('');
@@ -1909,7 +1936,6 @@ export default function App() {
     const [view, setView] = useState('dashboard');
     const [user, setUser] = useState(null);
     const [isAuthReady, setIsAuthReady] = useState(false);
-    const [loading, setLoading] = useState(true);
     const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
 
     const [companies, setCompanies] = useState([]);
@@ -1928,7 +1954,7 @@ export default function App() {
     const isSubscribed = subscription?.status === 'active' || subscription?.status === 'trialing';
     
     // --- LÓGICA DE MIGRAÇÃO ---
-    const [needsMigration, setNeedsMigration] = useState(false);
+    const [migrationStatus, setMigrationStatus] = useState('checking'); // checking, needed, not_needed
     const [isMigrating, setIsMigrating] = useState(false);
 
     useEffect(() => {
@@ -1969,24 +1995,23 @@ export default function App() {
                 }
 
                 // Check for migration
-                if (!profileSnap.exists() || !profileSnap.data().migrationCompleted) {
+                if (profileSnap.exists() && profileSnap.data().migrationCompleted) {
+                    setMigrationStatus('not_needed');
+                } else {
                     const oldTransactionsQuery = query(collection(db, `users/${userId}/transactions`), limit(1));
                     const oldTransactionsSnap = await getDocs(oldTransactionsQuery);
                     if (!oldTransactionsSnap.empty) {
-                        setNeedsMigration(true); // Needs migration
+                        setMigrationStatus('needed');
                     } else {
-                        // New user, no old data, mark migration as complete
+                        // New user or user with no old data, mark migration as complete
                         await setDoc(profileRef, { migrationCompleted: true, createdAt: new Date().toISOString() }, { merge: true });
-                        setNeedsMigration(false);
+                        setMigrationStatus('not_needed');
                     }
-                } else {
-                    setNeedsMigration(false); // Migration already done
                 }
                 
             } else {
-                // User is signed out
                 setUser(null);
-                // Clear all state
+                setMigrationStatus('checking');
             }
             setIsAuthReady(true);
         });
@@ -2017,18 +2042,15 @@ export default function App() {
 
     // Carregar lista de empresas e categorias globais
     useEffect(() => {
-        if (!isAuthReady || !userId) {
-            setLoading(false);
+        if (!isAuthReady || !userId || migrationStatus !== 'not_needed') {
             return;
         };
         
-        setLoading(true);
         const qCompanies = query(collection(db, `users/${userId}/companies`));
         const unsubCompanies = onSnapshot(qCompanies, async (snapshot) => {
             const companyList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setCompanies(companyList);
-            setLoading(false);
-        }, () => setLoading(false));
+        });
 
         const qCategories = query(collection(db, `users/${userId}/categories`));
         const unsubCategories = onSnapshot(qCategories, (snapshot) => {
@@ -2040,7 +2062,7 @@ export default function App() {
             unsubCompanies();
             unsubCategories();
         };
-    }, [isAuthReady, userId, appId]);
+    }, [isAuthReady, userId, appId, migrationStatus]);
 
     // Carregar dados consolidados para relatórios
     useEffect(() => {
@@ -2394,12 +2416,20 @@ export default function App() {
         }
     };
     
-    if (!isAuthReady || loading) {
-        return <div className="flex justify-center items-center h-screen w-screen bg-gray-100 dark:bg-gray-900"><p className="text-lg dark:text-gray-300">A carregar o sistema financeiro...</p></div>;
+    if (!isAuthReady) {
+        return <LoadingScreen message="A autenticar..." />;
     }
     
     if (!user) {
         return <AuthView onGoogleSignIn={handleGoogleSignIn} />;
+    }
+
+    if (migrationStatus === 'checking') {
+        return <LoadingScreen message="A verificar a sua conta..." />;
+    }
+
+    if (migrationStatus === 'needed') {
+        return <MigrationScreen onMigrate={handleMigration} isMigrating={isMigrating} />;
     }
 
     if (!activeCompanyId) {
@@ -2410,7 +2440,7 @@ export default function App() {
                 return <GlobalSettingsView companies={companies} categories={categories} onSave={handleSave} onDelete={(coll, item) => handleDelete(coll, {id: item})} onBack={() => setHubView('selector')} onBackup={handleBackup} onRestore={handleRestore} />;
             case 'selector':
             default:
-                return <HubScreen companies={companies} onSelect={setActiveCompanyId} onShowReports={() => setHubView('reports')} onManageCompanies={() => setHubView('global_settings')} needsMigration={needsMigration} onMigrate={handleMigration} isMigrating={isMigrating} />;
+                return <HubScreen companies={companies} onSelect={setActiveCompanyId} onShowReports={() => setHubView('reports')} onManageCompanies={() => setHubView('global_settings')} />;
         }
     }
 
