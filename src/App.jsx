@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { getFirestore, collection, doc, addDoc, getDocs, writeBatch, query, onSnapshot, deleteDoc, setDoc, where, getDoc } from 'firebase/firestore';
+import { getFirestore, collection, doc, addDoc, getDocs, writeBatch, query, onSnapshot, deleteDoc, setDoc, where, getDoc, limit } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { PlusCircle, Upload, Trash2, Edit, TrendingUp, TrendingDown, DollarSign, Settings, LayoutDashboard, List, BarChart2, Target, ArrowLeft, ArrowRightLeft, Repeat, CheckCircle, AlertTriangle, Clock, CalendarCheck2, Building, GitCompareArrows, ArrowUp, ArrowDown, Paperclip, FileText, LogOut, Download, UploadCloud, Sun, Moon, FileOutput, CalendarClock, Menu, X, ShieldCheck, CreditCard } from 'lucide-react';
+import { PlusCircle, Upload, Trash2, Edit, TrendingUp, TrendingDown, DollarSign, Settings, LayoutDashboard, List, BarChart2, Target, ArrowLeft, ArrowRightLeft, Repeat, CheckCircle, AlertTriangle, Clock, CalendarCheck2, Building, GitCompareArrows, ArrowUp, ArrowDown, Paperclip, FileText, LogOut, Download, UploadCloud, Sun, Moon, FileOutput, CalendarClock, Menu, X, ShieldCheck, CreditCard, RefreshCw } from 'lucide-react';
 
 // --- CONFIGURAÇÃO DO FIREBASE (PARA TESTE LOCAL) ---
 const firebaseConfig = {
@@ -1823,7 +1823,7 @@ const BackupManager = ({ onBackup, onRestore }) => {
 };
 
 
-const HubScreen = ({ companies, onSelect, onShowReports, onManageCompanies }) => {
+const HubScreen = ({ companies, onSelect, onShowReports, onManageCompanies, needsMigration, onMigrate, isMigrating }) => {
     return (
         <div className="w-full h-screen flex flex-col justify-center items-center bg-gray-800 bg-cover bg-center" style={{backgroundImage: "url(https://images.unsplash.com/photo-1555396273-367ea4eb4db5?q=80&w=2574&auto=format&fit=crop)"}}>
             <div className="absolute inset-0 bg-black/60"></div>
@@ -1834,6 +1834,18 @@ const HubScreen = ({ companies, onSelect, onShowReports, onManageCompanies }) =>
                 <h1 className="text-5xl font-extrabold text-white mb-4">Bem-vindo ao Financeiro PRO</h1>
                 <p className="text-xl text-white/80 mb-12">Selecione uma empresa para começar ou veja os seus relatórios consolidados.</p>
                 
+                {needsMigration && (
+                    <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800 p-6 rounded-lg my-8 text-left max-w-2xl mx-auto shadow-lg">
+                        <h3 className="font-bold text-lg">Ação Necessária: Atualização da Conta</h3>
+                        <p className="mt-2">Detetámos dados da versão anterior do sistema. Para continuar, precisamos de os atualizar para o novo formato de multi-empresa. Este processo é rápido e seguro.</p>
+                        <p className="mt-1">Os seus dados serão movidos para uma nova empresa chamada "Minha Empresa Principal (Migrada)".</p>
+                        <Button onClick={onMigrate} disabled={isMigrating} className="mt-4 bg-yellow-500 hover:bg-yellow-600 !text-white">
+                            <RefreshCw className={isMigrating ? 'animate-spin' : ''} size={18} />
+                            <span>{isMigrating ? 'A migrar...' : 'Migrar Meus Dados Agora'}</span>
+                        </Button>
+                    </div>
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {companies.map(company => (
                         <button key={company.id} onClick={() => onSelect(company.id)} className="group bg-white/10 hover:bg-white/20 backdrop-blur-md p-6 rounded-2xl text-white text-left transition-all transform hover:scale-105">
@@ -1914,6 +1926,10 @@ export default function App() {
     const [allCompaniesData, setAllCompaniesData] = useState({});
     const [subscription, setSubscription] = useState(null);
     const isSubscribed = subscription?.status === 'active' || subscription?.status === 'trialing';
+    
+    // --- LÓGICA DE MIGRAÇÃO ---
+    const [needsMigration, setNeedsMigration] = useState(false);
+    const [isMigrating, setIsMigrating] = useState(false);
 
     useEffect(() => {
         if (theme === 'dark') {
@@ -1984,7 +2000,7 @@ export default function App() {
         return () => unsub();
     }, [userId]);
 
-    // Carregar lista de empresas e categorias globais
+    // Carregar lista de empresas e categorias globais E VERIFICAR MIGRAÇÃO
     useEffect(() => {
         if (!isAuthReady || !userId) {
             setLoading(false);
@@ -1993,9 +2009,21 @@ export default function App() {
         
         setLoading(true);
         const qCompanies = query(collection(db, `users/${userId}/companies`));
-        const unsubCompanies = onSnapshot(qCompanies, (snapshot) => {
+        const unsubCompanies = onSnapshot(qCompanies, async (snapshot) => {
             const companyList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setCompanies(companyList);
+
+            // Lógica de verificação de migração
+            if (companyList.length === 0) {
+                const oldTransactionsQuery = query(collection(db, `users/${userId}/transactions`), limit(1));
+                const oldTransactionsSnap = await getDocs(oldTransactionsQuery);
+                if (!oldTransactionsSnap.empty) {
+                    setNeedsMigration(true);
+                }
+            } else {
+                setNeedsMigration(false);
+            }
+
             setLoading(false);
         }, () => setLoading(false));
 
@@ -2319,6 +2347,45 @@ export default function App() {
         };
         reader.readAsText(file);
     };
+
+    const handleMigration = async () => {
+        if (!userId) return;
+        setIsMigrating(true);
+        try {
+            const userPath = `users/${userId}`;
+            
+            // 1. Criar a nova empresa
+            const newCompanyRef = doc(collection(db, `${userPath}/companies`));
+            await setDoc(newCompanyRef, { name: "Minha Empresa Principal (Migrada)", createdAt: new Date().toISOString() });
+            
+            // 2. Migrar coleções
+            const collectionsToMigrate = ['accounts', 'transactions', 'payees', 'budgets', 'futureEntries'];
+            for (const collName of collectionsToMigrate) {
+                const oldCollPath = `${userPath}/${collName}`;
+                const newCollPath = `${userPath}/companies/${newCompanyRef.id}/${collName}`;
+                
+                const oldDocsSnap = await getDocs(collection(db, oldCollPath));
+                if (!oldDocsSnap.empty) {
+                    const batch = writeBatch(db);
+                    oldDocsSnap.forEach(oldDoc => {
+                        const newDocRef = doc(db, newCollPath, oldDoc.id);
+                        batch.set(newDocRef, oldDoc.data());
+                    });
+                    await batch.commit();
+                }
+            }
+            
+            alert("Os seus dados foram migrados com sucesso! A página será recarregada.");
+            setNeedsMigration(false);
+            window.location.reload();
+
+        } catch (error) {
+            console.error("Erro durante a migração:", error);
+            alert("Ocorreu um erro ao migrar os seus dados. Por favor, tente novamente.");
+        } finally {
+            setIsMigrating(false);
+        }
+    };
     
     if (!isAuthReady || loading) {
         return <div className="flex justify-center items-center h-screen w-screen bg-gray-100 dark:bg-gray-900"><p className="text-lg dark:text-gray-300">A carregar o sistema financeiro...</p></div>;
@@ -2336,7 +2403,7 @@ export default function App() {
                 return <GlobalSettingsView companies={companies} categories={categories} onSave={handleSave} onDelete={(coll, item) => handleDelete(coll, {id: item})} onBack={() => setHubView('selector')} onBackup={handleBackup} onRestore={handleRestore} />;
             case 'selector':
             default:
-                return <HubScreen companies={companies} onSelect={setActiveCompanyId} onShowReports={() => setHubView('reports')} onManageCompanies={() => setHubView('global_settings')} />;
+                return <HubScreen companies={companies} onSelect={setActiveCompanyId} onShowReports={() => setHubView('reports')} onManageCompanies={() => setHubView('global_settings')} needsMigration={needsMigration} onMigrate={handleMigration} isMigrating={isMigrating} />;
         }
     }
 
