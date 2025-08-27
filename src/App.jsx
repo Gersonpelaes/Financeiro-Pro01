@@ -1753,7 +1753,7 @@ const ConsolidatedReportsView = ({ allCompaniesData, companies, onBack }) => {
 };
 
 // --- NOVA VIEW: CONFIGURAÇÕES GLOBAIS ---
-const GlobalSettingsView = ({ companies, categories, onSave, onDelete, onBack, onBackup, onRestore }) => {
+const GlobalSettingsView = ({ companies, categories, onSave, onDelete, onBack, onBackup, onRestore, subscription, onSubscribe }) => {
     const [activeTab, setActiveTab] = useState('empresas');
 
     const TabButton = ({ tabName, label, active }) => (
@@ -1780,6 +1780,7 @@ const GlobalSettingsView = ({ companies, categories, onSave, onDelete, onBack, o
                 <div className="border-b border-gray-300 dark:border-gray-700">
                     <TabButton tabName="empresas" label="Empresas" active={activeTab === 'empresas'} />
                     <TabButton tabName="categorias" label="Categorias" active={activeTab === 'categorias'} />
+                    <TabButton tabName="assinatura" label="Assinatura" active={activeTab === 'assinatura'} />
                     <TabButton tabName="backup" label="Backup / Restauração" active={activeTab === 'backup'} />
                 </div>
 
@@ -1789,6 +1790,9 @@ const GlobalSettingsView = ({ companies, categories, onSave, onDelete, onBack, o
                     )}
                     {activeTab === 'categorias' && (
                         <CategoryManager categories={categories} onSave={onSave} onDelete={onDelete} />
+                    )}
+                    {activeTab === 'assinatura' && (
+                        <SubscriptionView subscription={subscription} onSubscribe={onSubscribe} />
                     )}
                     {activeTab === 'backup' && (
                         <BackupManager onBackup={onBackup} onRestore={onRestore} />
@@ -2425,7 +2429,7 @@ export default function App() {
             case 'reports':
                 return <ConsolidatedReportsView allCompaniesData={allCompaniesData} companies={companies} onBack={() => setHubView('selector')} />;
             case 'global_settings':
-                return <GlobalSettingsView companies={companies} categories={categories} onSave={handleSave} onDelete={(coll, item) => handleDelete(coll, {id: item})} onBack={() => setHubView('selector')} onBackup={handleBackup} onRestore={handleRestore} />;
+                return <GlobalSettingsView companies={companies} categories={categories} subscription={subscription} onSave={handleSave} onDelete={(coll, id) => handleDelete(coll, {id})} onBack={() => setHubView('selector')} onBackup={handleBackup} onRestore={handleRestore} onSubscribe={() => alert('A integração com pagamentos será o próximo passo!')} />;
             case 'selector':
             default:
                 return <HubScreen companies={companies} onSelect={setActiveCompanyId} onShowReports={() => setHubView('reports')} onManageCompanies={() => setHubView('global_settings')} />;
@@ -2443,7 +2447,6 @@ export default function App() {
             case 'dre': return <DREView transactions={transactions} categories={categories} accounts={accounts} payees={payees} onSave={handleSave} onDelete={handleDelete} />;
             case 'weeklyCashFlow': return <WeeklyCashFlowView futureEntries={futureEntries} categories={categories} />;
             case 'settings': return <SettingsView onSaveEntity={handleSave} onDeleteEntity={(coll, id) => handleDelete(coll, {id})} onImportTransactions={handleImportTransactions} {...{ accounts, payees, categories }} />;
-            case 'subscription': return <SubscriptionView subscription={subscription} onSubscribe={() => alert('A integração com pagamentos será o próximo passo!')} />;
             default: return <DashboardView transactions={transactions} accounts={accounts} categories={categories} futureEntries={futureEntries} budgets={budgets} />;
         }
     };
@@ -2459,7 +2462,7 @@ export default function App() {
     return (
         <div className={`flex h-screen bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200 font-sans`}>
             <aside className="w-72 bg-white dark:bg-gray-800 p-6 flex-shrink-0 flex flex-col shadow-lg">
-                <div>
+                <div className="flex-grow">
                     <h1 className="text-2xl font-bold text-blue-700 dark:text-blue-400 mb-4">Financeiro PRO</h1>
                     <div className="mb-8 p-3 bg-gray-100 dark:bg-gray-700/50 rounded-lg">
                         <p className="text-sm text-gray-500 dark:text-gray-400">Empresa Ativa</p>
@@ -2476,10 +2479,9 @@ export default function App() {
                         <NavItem icon={<BarChart2 />} label="Relatórios" active={view === 'reports'} onClick={() => setView('reports')} />
                         <NavItem icon={<FileText />} label="DRE" active={view === 'dre'} onClick={() => setView('dre')} />
                         <NavItem icon={<Settings />} label="Configurações" active={view === 'settings'} onClick={() => setView('settings')} />
-                        <NavItem icon={<CreditCard />} label="Assinatura" active={view === 'subscription'} onClick={() => setView('subscription')} />
                     </nav>
                 </div>
-                <div className="mt-auto pt-4 border-t dark:border-gray-700">
+                <div className="pt-4 border-t dark:border-gray-700">
                     <button onClick={toggleTheme} className="flex items-center space-x-3 w-full text-left px-4 py-3 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 font-medium">
                         {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
                         <span>Mudar para tema {theme === 'light' ? 'Escuro' : 'Claro'}</span>
@@ -2496,7 +2498,7 @@ export default function App() {
                         <AlertTriangle size={64} className="text-yellow-400 mb-4" />
                         <h2 className="text-3xl font-bold mb-2">O seu período de teste terminou!</h2>
                         <p className="text-lg mb-6">Para continuar a usar todas as funcionalidades, por favor, ative a sua assinatura.</p>
-                        <Button onClick={() => setView('subscription')} className="bg-green-600 hover:bg-green-700">
+                        <Button onClick={() => { setActiveCompanyId(null); setHubView('global_settings'); }} className="bg-green-600 hover:bg-green-700">
                             <CreditCard size={20}/>
                             <span>Ver Plano de Assinatura</span>
                         </Button>
