@@ -6,18 +6,18 @@ const mercadopago = require("mercadopago");
 
 admin.initializeApp();
 
-// Configure o Mercado Pago com o seu Access Token.
-// É ALTAMENTE RECOMENDADO guardar o seu token nas variáveis de ambiente do Firebase.
-// Para configurar, execute no seu terminal:
-// firebase functions:config:set mercadopago.accesstoken="SEU_ACCESS_TOKEN_DE_PRODUCAO"
-mercadopago.configure({
-  access_token: functions.config().mercadopago.accesstoken,
-});
+// Define o parâmetro para a chave secreta. Este é o método mais recente e recomendado.
+const mercadopagoAccessToken = functions.params.defineString("MERCADOPAGO_ACCESS_TOKEN");
 
 /**
  * Cria uma ASSINATURA no Mercado Pago para o plano PRO.
  */
-exports.createSubscription = functions.https.onCall(async (data, context) => {
+exports.createSubscription = functions.runWith({ secrets: ["MERCADOPAGO_ACCESS_TOKEN"] }).https.onCall(async (data, context) => {
+  // Configura o Mercado Pago DENTRO da função, usando o valor do parâmetro
+  mercadopago.configure({
+    access_token: mercadopagoAccessToken.value(),
+  });
+
   if (!context.auth) {
     throw new functions.https.HttpsError("unauthenticated", "A função deve ser chamada por um utilizador autenticado.");
   }
@@ -25,7 +25,6 @@ exports.createSubscription = functions.https.onCall(async (data, context) => {
   const userId = context.auth.uid;
   const userEmail = context.auth.token.email || "email@nao-fornecido.com";
   
-  // 1. SUBSTITUA ABAIXO PELO ID DO PLANO QUE VOCÊ CRIOU NO PAINEL DO MERCADO PAGO
   const planId = "SEU_PLAN_ID_AQUI"; 
 
   if (planId === "SEU_PLAN_ID_AQUI") {
@@ -40,7 +39,6 @@ exports.createSubscription = functions.https.onCall(async (data, context) => {
       transaction_amount: 49.90,
       currency_id: "BRL",
     },
-    // 2. SUBSTITUA pelo URL do seu site
     back_url: "https://seu-site.netlify.app/", 
     payer_email: userEmail,
     external_reference: userId, 
@@ -60,7 +58,11 @@ exports.createSubscription = functions.https.onCall(async (data, context) => {
 /**
  * Webhook para receber notificações de pagamento do Mercado Pago.
  */
-exports.mercadoPagoWebhook = functions.https.onRequest(async (req, res) => {
+exports.mercadoPagoWebhook = functions.runWith({ secrets: ["MERCADOPAGO_ACCESS_TOKEN"] }).https.onRequest(async (req, res) => {
+    mercadopago.configure({
+      access_token: mercadopagoAccessToken.value(),
+    });
+    
     const paymentId = req.query["data.id"];
     const topic = req.query.topic || req.body.topic;
 
@@ -99,7 +101,6 @@ exports.mercadoPagoWebhook = functions.https.onRequest(async (req, res) => {
 
 /**
  * Ativa ou estende manualmente a assinatura de um utilizador (para pagamentos em dinheiro).
- * Apenas pode ser chamada por um utilizador com a permissão de admin.
  */
 exports.manualActivateSubscription = functions.https.onCall(async (data, context) => {
   if (!context.auth || !context.auth.token.admin) {
