@@ -36,9 +36,9 @@ exports.createSubscription = functions.region(region).runWith({ secrets: ["MERCA
   }
 
   // Verifica se o ID do plano foi configurado.
-  if (planId === "SEU_PLAN_ID_AQUI") {
-    console.error("O ID do plano do Mercado Pago não foi configurado na função 'createSubscription'.");
-    throw new functions.https.HttpsError("failed-precondition", "O ID do plano do Mercado Pago não foi configurado na função. Verifique o código.");
+  if (planId === "SEU_PLAN_ID_AQUI" || !planId) {
+    console.error("O ID do plano do Mercado Pago (planId) não foi configurado na função 'createSubscription'.");
+    throw new functions.https.HttpsError("failed-precondition", "O ID do plano do Mercado Pago não foi configurado no back-end. Verifique o código da função.");
   }
   
   // Configura o Mercado Pago DENTRO da função, usando o valor do segredo.
@@ -65,19 +65,22 @@ exports.createSubscription = functions.region(region).runWith({ secrets: ["MERCA
     status: "pending",
   };
 
+  // Log dos dados que serão enviados para o Mercado Pago para facilitar a depuração.
+  console.log("Preparando para criar assinatura com os seguintes dados:", JSON.stringify(subscriptionData, null, 2));
+
   try {
-    console.log(`Criando assinatura para o usuário: ${userId} com o plano: ${planId}`);
     const response = await mercadopago.preapproval.create(subscriptionData);
     
     if (response.body && response.body.init_point) {
       console.log(`Link de assinatura gerado com sucesso para o usuário: ${userId}`);
       return { init_point: response.body.init_point };
     } else {
-       console.error("Resposta do Mercado Pago não contém 'init_point':", response.body);
-       throw new Error("Resposta inválida da API do Mercado Pago.");
+       console.error("Resposta do Mercado Pago não contém 'init_point'. Resposta recebida:", response.body);
+       throw new Error("A resposta da API do Mercado Pago não retornou um link de inicialização (init_point).");
     }
   } catch (error) {
-    console.error(`Erro ao criar assinatura no Mercado Pago para o usuário ${userId}:`, error);
+    // Log do erro completo, incluindo a causa que vem do Mercado Pago.
+    console.error(`Erro detalhado ao criar assinatura no Mercado Pago para o usuário ${userId}:`, JSON.stringify(error, null, 2));
     throw new functions.https.HttpsError("internal", "Não foi possível criar o link da assinatura. Verifique os logs da função para mais detalhes.");
   }
 });
