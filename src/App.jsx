@@ -7,15 +7,19 @@ import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'fire
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
 import { PlusCircle, Upload, Trash2, Edit, TrendingUp, TrendingDown, DollarSign, Settings, LayoutDashboard, List, BarChart2, Target, ArrowLeft, ArrowRightLeft, Repeat, CheckCircle, AlertTriangle, Clock, CalendarCheck2, Building, GitCompareArrows, ArrowUp, ArrowDown, Paperclip, FileText, LogOut, Download, UploadCloud, Sun, Moon, FileOutput, CalendarClock, Menu, X, ShieldCheck, CreditCard, RefreshCw } from 'lucide-react';
 
-// --- CONFIGURAÇÃO DO FIREBASE (PARA TESTE LOCAL) ---
-const firebaseConfig = {
-  apiKey: "AIzaSyAssnm4OKxyI_IMFijKcU1wKDf0iGEFYAw",
-  authDomain: "meu-finaceiro.firebaseapp.com",
-  projectId: "meu-finaceiro",
-  storageBucket: "meu-finaceiro.firebasestorage.app",
-  messagingSenderId: "204846182105",
-  appId: "1:204846182105:web:695589e7181040bf5958c8",
-};
+// --- CONFIGURAÇÃO DO FIREBASE ---
+// As chaves agora são carregadas de forma segura a partir das variáveis de ambiente no Netlify.
+// Para o ambiente de desenvolvimento/pré-visualização, usamos uma configuração de fallback.
+const firebaseConfig = (typeof process !== 'undefined' && process.env.REACT_APP_FIREBASE_CONFIG)
+  ? JSON.parse(process.env.REACT_APP_FIREBASE_CONFIG)
+  : {
+      apiKey: "AIzaSyAssnm4OKxyI_IMFijKcU1wKDf0iGEFYAw",
+      authDomain: "meu-finaceiro.firebaseapp.com",
+      projectId: "meu-finaceiro",
+      storageBucket: "meu-finaceiro.firebasestorage.app",
+      messagingSenderId: "204846182105",
+      appId: "1:204846182105:web:695589e7181040bf5958c8",
+    };
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
