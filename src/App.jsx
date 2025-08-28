@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
 import { getFirestore, collection, doc, addDoc, getDocs, writeBatch, query, onSnapshot, deleteDoc, setDoc, where, getDoc, limit } from 'firebase/firestore';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
 import { PlusCircle, Upload, Trash2, Edit, TrendingUp, TrendingDown, DollarSign, Settings, LayoutDashboard, List, BarChart2, Target, ArrowLeft, ArrowRightLeft, Repeat, CheckCircle, AlertTriangle, Clock, CalendarCheck2, Building, GitCompareArrows, ArrowUp, ArrowDown, Paperclip, FileText, LogOut, Download, UploadCloud, Sun, Moon, FileOutput, CalendarClock, Menu, X, ShieldCheck, CreditCard, RefreshCw } from 'lucide-react';
@@ -20,6 +21,7 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
+const functions = getFunctions(app, 'southamerica-east1'); // Especifique a sua região se não for us-central1
 
 // --- UTILITÁRIOS ---
 const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
@@ -1890,8 +1892,21 @@ const HubScreen = ({ companies, onSelect, onShowReports, onManageCompanies }) =>
 
 // --- NOVA VIEW: ASSINATURA ---
 const SubscriptionView = ({ subscription, onSubscribe }) => {
+    const [isSubscribing, setIsSubscribing] = useState(false);
     const isActive = subscription?.status === 'active' || subscription?.status === 'trialing';
     const endDate = subscription?.trial_end?.toDate ? formatDate(subscription.trial_end.toDate()) : 'N/A';
+
+    const handleSubscriptionClick = async () => {
+        setIsSubscribing(true);
+        try {
+            await onSubscribe();
+        } catch (error) {
+            console.error("Erro ao iniciar assinatura:", error);
+            alert("Não foi possível iniciar o processo de assinatura. Tente novamente.");
+        } finally {
+            setIsSubscribing(false);
+        }
+    };
 
     return (
         <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg max-w-2xl mx-auto">
@@ -1913,9 +1928,9 @@ const SubscriptionView = ({ subscription, onSubscribe }) => {
                 <h3 className="text-xl font-semibold mb-4">Plano PRO</h3>
                 <p className="text-4xl font-bold mb-2">R$ 49,90<span className="text-lg font-normal">/mês</span></p>
                 <p className="text-gray-600 dark:text-gray-400 mb-6">Acesso ilimitado a todas as funcionalidades.</p>
-                <Button onClick={onSubscribe} className="bg-green-600 hover:bg-green-700 w-full max-w-xs mx-auto">
-                    <CreditCard size={20}/>
-                    <span>{isActive ? 'Gerir Assinatura' : 'Assinar Agora'}</span>
+                <Button onClick={handleSubscriptionClick} disabled={isSubscribing} className="bg-green-600 hover:bg-green-700 w-full max-w-xs mx-auto">
+                    {isSubscribing ? <RefreshCw className="animate-spin" /> : <CreditCard size={20}/>}
+                    <span>{isSubscribing ? 'A redirecionar...' : (isActive ? 'Gerir Assinatura' : 'Assinar Agora')}</span>
                 </Button>
                  <p className="text-xs text-gray-500 mt-4">Pagamentos seguros processados pelo Mercado Pago.</p>
             </div>
@@ -2407,6 +2422,18 @@ export default function App() {
             setIsMigrating(false);
         }
     };
+
+    const handleSubscribeClick = async () => {
+        const createSubscription = httpsCallable(functions, 'createSubscription');
+        try {
+            const result = await createSubscription();
+            const { init_point } = result.data;
+            window.location.href = init_point;
+        } catch (error) {
+            console.error("Erro ao criar a preferência de pagamento:", error);
+            alert("Ocorreu um erro ao tentar iniciar a sua assinatura. Tente novamente mais tarde.");
+        }
+    };
     
     if (!isAuthReady) {
         return <LoadingScreen message="A autenticar..." />;
@@ -2429,7 +2456,7 @@ export default function App() {
             case 'reports':
                 return <ConsolidatedReportsView allCompaniesData={allCompaniesData} companies={companies} onBack={() => setHubView('selector')} />;
             case 'global_settings':
-                return <GlobalSettingsView companies={companies} categories={categories} subscription={subscription} onSave={handleSave} onDelete={(coll, id) => handleDelete(coll, {id})} onBack={() => setHubView('selector')} onBackup={handleBackup} onRestore={handleRestore} onSubscribe={() => alert('A integração com pagamentos será o próximo passo!')} />;
+                return <GlobalSettingsView companies={companies} categories={categories} subscription={subscription} onSave={handleSave} onDelete={(coll, id) => handleDelete(coll, {id})} onBack={() => setHubView('selector')} onBackup={handleBackup} onRestore={handleRestore} onSubscribe={handleSubscribeClick} />;
             case 'selector':
             default:
                 return <HubScreen companies={companies} onSelect={setActiveCompanyId} onShowReports={() => setHubView('reports')} onManageCompanies={() => setHubView('global_settings')} />;
