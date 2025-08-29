@@ -8,11 +8,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 import { PlusCircle, Upload, Trash2, Edit, TrendingUp, TrendingDown, DollarSign, Settings, LayoutDashboard, List, BarChart2, Target, ArrowLeft, ArrowRightLeft, Repeat, CheckCircle, AlertTriangle, Clock, CalendarCheck2, Building, GitCompareArrows, ArrowUp, ArrowDown, Paperclip, FileText, LogOut, Download, UploadCloud, Sun, Moon, FileOutput, CalendarClock, Menu, X, ShieldCheck, CreditCard, RefreshCw } from 'lucide-react';
 
 // --- CONFIGURAÇÃO DO FIREBASE ---
-// As chaves agora são carregadas de forma segura a partir das variáveis de ambiente no Netlify.
-// Para o ambiente de desenvolvimento/pré-visualização, usamos uma configuração de fallback.
-const firebaseConfig = (typeof process !== 'undefined' && process.env.REACT_APP_FIREBASE_CONFIG)
-  ? JSON.parse(process.env.REACT_APP_FIREBASE_CONFIG)
-  : {
+const firebaseConfig = {
       apiKey: "AIzaSyAssnm4OKxyI_IMFijKcU1wKDf0iGEFYAw",
       authDomain: "meu-finaceiro.firebaseapp.com",
       projectId: "meu-finaceiro",
@@ -25,7 +21,7 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
-const functions = getFunctions(app, 'southamerica-east1'); // Especifique a sua região se não for us-central1
+const functions = getFunctions(app, 'southamerica-east1'); 
 
 // --- UTILITÁRIOS ---
 const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
@@ -1504,9 +1500,9 @@ const PayeesManager = ({ payees, categories, onSave, onDelete }) => {
     );
 };
 
-// --- NOVO MODAL DE IMPORTAÇÃO ---
+// --- MODAL DE IMPORTAÇÃO DE TRANSAÇÕES (ATUALIZADO) ---
 const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories, payees }) => {
-    const [step, setStep] = useState(1); // 1: paste, 2: edit
+    const [step, setStep] = useState(1);
     const [csvData, setCsvData] = useState('');
     const [transactions, setTransactions] = useState([]);
     const [error, setError] = useState('');
@@ -1529,14 +1525,13 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
 
     useEffect(() => {
         if (!isOpen) {
-            // Reset state on close
             setStep(1);
             setCsvData('');
             setTransactions([]);
             setError('');
         }
     }, [isOpen]);
-
+    
     const handleFormatStatement = async () => {
         setError('');
         if (!csvData.trim()) {
@@ -1546,7 +1541,7 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
         setIsFormatting(true);
 
         const prompt = `
-            Você é um especialista em processar dados financeiros. Sua tarefa é extrair transações de extratos bancários brutos e formatá-las estritamente no seguinte formato CSV: DD/MM/YYYY,Descrição,Valor.
+            Você é um especialista em processar dados financeiros. Sua tarefa é extrair transações de extratos bancários brutos e formatá-las estritamente no seguinte formato CSV, com cada transação em uma nova linha: DD/MM/YYYY,Descrição,Valor.
             
             Regras:
             1. A data DEVE estar no formato DD/MM/YYYY.
@@ -1559,11 +1554,32 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
             ${csvData}
             ---
         `;
+        
+        const payload = {
+            contents: [{ parts: [{ text: prompt }] }],
+        };
+        const apiKey = "";
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
 
         try {
-            const callFormatApi = httpsCallable(functions, 'formatBankStatement');
-            const result = await callFormatApi({ prompt });
-            setCsvData(result.data.formattedStatement);
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                throw new Error(`A API retornou um erro: ${response.statusText}`);
+            }
+
+            const result = await response.json();
+            
+            if (result.candidates && result.candidates[0].content.parts[0].text) {
+                const formattedText = result.candidates[0].content.parts[0].text;
+                setCsvData(formattedText);
+            } else {
+                 throw new Error("A resposta da API não continha o formato esperado.");
+            }
 
         } catch (error) {
             console.error("Erro ao formatar extrato com IA:", error);
