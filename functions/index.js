@@ -1,137 +1,133 @@
-// functions/index.js
-
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const mercadopago = require("mercadopago");
+const cors = require("cors")({ origin: true });
 
 admin.initializeApp();
 
-// Define o parâmetro para a chave secreta. Este é o método mais recente e recomendado.
-const mercadopagoAccessToken = functions.params.defineString("MERCADOPAGO_ACCESS_TOKEN");
+// Configure o Mercado Pago com o seu Access Token
+// É ALTAMENTE RECOMENDADO que guarde o seu Access Token nas variáveis de ambiente do Firebase.
+// Para configurar, use o comando no seu terminal:
+// firebase functions:config:set mercadopago.accesstoken="SEU_ACCESS_TOKEN_DE_PRODUCAO"
+const accessToken = functions.config().mercadopago.accesstoken;
+
+mercadopago.configure({
+  access_token: accessToken,
+});
 
 /**
- * Cria uma ASSINATURA no Mercado Pago para o plano PRO.
+ * Cria uma preferência de pagamento no Mercado Pago para o plano de assinatura.
+ * Esta é uma função "callable", o que significa que pode ser chamada diretamente
+ * pelo seu aplicativo React, garantindo que o utilizador está autenticado.
  */
-exports.createSubscription = functions.runWith({ secrets: ["MERCADOPAGO_ACCESS_TOKEN"] }).https.onCall(async (data, context) => {
-  // Configura o Mercado Pago DENTRO da função, usando o valor do parâmetro
-  mercadopago.configure({
-    access_token: mercadopagoAccessToken.value(),
+exports.createSubscription = functions
+  .region("southamerica-east1") // Certifique-se de que esta é a sua região
+  .https.onCall(async (data, context) => {
+    // Verifica se o utilizador que está a chamar a função está autenticado.
+    if (!context.auth) {
+      throw new functions.https.HttpsError(
+        "unauthenticated",
+        "O utilizador deve estar autenticado para criar uma assinatura."
+      );
+    }
+
+    const userId = context.auth.uid;
+    const userEmail = context.auth.token.email || "email@nao-fornecido.com";
+
+    // Detalhes do plano de assinatura
+    const planDetails = {
+      title: "Financeiro PRO - Assinatura Mensal",
+      description: "Acesso completo a todas as funcionalidades do Financeiro PRO.",
+      price: 49.90, // O preço do seu plano
+    };
+
+    // Cria a preferência de pagamento no Mercado Pago
+    const preference = {
+      items: [
+        {
+          id: "PRO_PLAN_MONTHLY_01",
+          title: planDetails.title,
+          description: planDetails.description,
+          quantity: 1,
+          currency_id: "BRL", // Moeda (Real Brasileiro)
+          unit_price: planDetails.price,
+        },
+      ],
+      payer: {
+        email: userEmail,
+      },
+      back_urls: {https://southamerica-east1-seu-projeto-id.cloudfunctions.net/paymentWebhook
+        // URLs para onde o utilizador será redirecionado após o pagamento
+        success: "https://meu-finaceiro.web.app/", // URL do seu app (onde o utilizador aterra após sucesso)
+        failure: "https://meu-finaceiro.web.app/", // URL em caso de falha
+        pending: "https://meu-finaceiro.web.app/", // URL para pagamentos pendentes (ex: boleto)
+      },
+      auto_return: "approved", // Redireciona automaticamente após pagamento aprovado
+      external_reference: userId, // ID do utilizador no seu sistema para conciliação
+      notification_url: `https://southamerica-east1-meu-finaceiro.cloudfunctions.net/paymentWebhook`, // URL do Webhook para receber notificações
+    };
+
+    try {
+      const response = await mercadopago.preferences.create(preference);
+      const initPoint = response.body.init_point;
+
+      // Retorna o link de checkout para o frontend
+      return { init_point: initPoint };
+    } catch (error) {
+      console.error("Erro ao criar preferência no Mercado Pago:", error);
+      throw new functions.https.HttpsError(
+        "internal",
+        "Não foi possível criar a sua preferência de pagamento."
+      );
+    }
   });
-
-  if (!context.auth) {
-    throw new functions.https.HttpsError("unauthenticated", "A função deve ser chamada por um utilizador autenticado.");
-  }
-
-  const userId = context.auth.uid;
-  const userEmail = context.auth.token.email || "email@nao-fornecido.com";
-  
-  const planId = "SEU_PLAN_ID_AQUI"; 
-
-  if (planId === "SEU_PLAN_ID_AQUI") {
-    throw new functions.https.HttpsError("failed-precondition", "O ID do plano do Mercado Pago não foi configurado na função.");
-  }
-
-  const subscriptionData = {
-    reason: "Assinatura Financeiro PRO",
-    auto_recurring: {
-      frequency: 1,
-      frequency_type: "months",
-      transaction_amount: 49.90,
-      currency_id: "BRL",
-    },
-    back_url: "https://seu-site.netlify.app/", 
-    payer_email: userEmail,
-    external_reference: userId, 
-    preapproval_plan_id: planId,
-    status: "pending",
-  };
-
-  try {
-    const response = await mercadopago.preapproval.create(subscriptionData);
-    return { init_point: response.body.init_point };
-  } catch (error) {
-    console.error("Erro ao criar assinatura no Mercado Pago:", error);
-    throw new functions.https.HttpsError("internal", "Não foi possível criar o link da assinatura.");
-  }
-});
 
 /**
  * Webhook para receber notificações de pagamento do Mercado Pago.
+ * Esta função é acionada pelo Mercado Pago sempre que o estado de um pagamento muda.
  */
-exports.mercadoPagoWebhook = functions.runWith({ secrets: ["MERCADOPAGO_ACCESS_TOKEN"] }).https.onRequest(async (req, res) => {
-    mercadopago.configure({
-      access_token: mercadopagoAccessToken.value(),
-    });
-    
-    const paymentId = req.query["data.id"];
-    const topic = req.query.topic || req.body.topic;
+exports.paymentWebhook = functions
+  .region("southamerica-east1")
+  .https.onRequest((req, res) => {
+    // Usamos o CORS para permitir que o Mercado Pago aceda a esta função
+    cors(req, res, async () => {
+      const { query } = req;
+      
+      // O Mercado Pago envia o ID do pagamento como um parâmetro na query
+      if (query.type === "payment") {
+        const paymentId = query["data.id"];
 
-    if (topic === 'payment' && paymentId) {
         try {
-            const payment = await mercadopago.payment.get(paymentId);
-            if (payment.body.status === 'approved') {
-                const userId = payment.body.external_reference;
-                if (userId) {
-                    const subscriptionRef = admin.firestore().doc(`users/${userId}/subscription/current`);
-                    
-                    const endDate = new Date();
-                    endDate.setMonth(endDate.getMonth() + 1);
+          // Busca os detalhes completos do pagamento na API do Mercado Pago
+          const payment = await mercadopago.payment.get(paymentId);
+          const { status, external_reference: userId } = payment.body;
 
-                    await subscriptionRef.set({
-                        status: 'active',
-                        plan: 'PRO',
-                        paymentId: payment.body.id,
-                        updatedAt: new Date(),
-                        current_period_end: endDate,
-                        mercadoPagoSubscriptionId: payment.body.order?.id,
-                    }, { merge: true });
+          if (userId && status === "approved") {
+            // Se o pagamento foi aprovado, atualizamos a assinatura do utilizador no Firestore
+            const subscriptionRef = admin.firestore()
+              .collection("users")
+              .doc(userId)
+              .collection("subscription")
+              .doc("current");
+            
+            const newEndDate = new Date();
+            newEndDate.setDate(newEndDate.getDate() + 30); // Adiciona 30 dias à assinatura
 
-                    console.log(`Assinatura ativada para o utilizador: ${userId}`);
-                }
-            }
+            await subscriptionRef.set({
+              status: "active",
+              plan: "PRO",
+              last_payment_id: paymentId,
+              updated_at: new Date(),
+              subscription_end: newEndDate, // Define a nova data de expiração
+            }, { merge: true });
+
+            console.log(`Assinatura do utilizador ${userId} atualizada para 'active'.`);
+          }
         } catch (error) {
-            console.error('Erro no webhook do Mercado Pago:', error);
-            res.status(500).send('Erro ao processar o webhook.');
-            return;
+          console.error("Erro ao processar webhook do Mercado Pago:", error);
         }
-    }
-    res.status(200).send('Webhook recebido.');
-});
-
-
-/**
- * Ativa ou estende manualmente a assinatura de um utilizador (para pagamentos em dinheiro).
- */
-exports.manualActivateSubscription = functions.https.onCall(async (data, context) => {
-  if (!context.auth || !context.auth.token.admin) {
-    throw new functions.https.HttpsError("permission-denied", "Apenas administradores podem executar esta função.");
-  }
-
-  const userIdToActivate = data.userId;
-  if (!userIdToActivate) {
-    throw new functions.https.HttpsError("invalid-argument", "O ID do utilizador é obrigatório.");
-  }
-
-  const subscriptionRef = admin.firestore().doc(`users/${userIdToActivate}/subscription/current`);
-    
-  const endDate = new Date();
-  endDate.setMonth(endDate.getMonth() + 1);
-
-  const subscriptionData = {
-    status: 'active',
-    plan: 'PRO',
-    paymentMethod: 'manual',
-    activatedBy: context.auth.uid,
-    updatedAt: new Date(),
-    current_period_end: endDate,
-  };
-
-  try {
-    await subscriptionRef.set(subscriptionData, { merge: true });
-    console.log(`Assinatura ativada manualmente para o utilizador: ${userIdToActivate} pelo admin: ${context.auth.uid}`);
-    return { success: true, message: "Assinatura ativada com sucesso!" };
-  } catch (error) {
-    console.error("Erro ao ativar assinatura manualmente:", error);
-    throw new functions.https.HttpsError("internal", "Não foi possível ativar a assinatura.");
-  }
-});
+      }
+      // Responde ao Mercado Pago com status 200 para confirmar o recebimento da notificação
+      res.status(200).send("OK");
+    });
+  });

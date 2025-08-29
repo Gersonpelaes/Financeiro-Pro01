@@ -781,7 +781,7 @@ const BudgetsView = ({ budgets, categories, transactions, onSave, onDelete }) =>
                         </div>
                     );
                 })}
-                 {budgets.length === 0 && <p className="text-center text-gray-500 dark:text-gray-400 col-span-full text-center py-8">Nenhum orçamento definido.</p>}
+                 {budgets.length === 0 && <p className="text-gray-500 dark:text-gray-400 col-span-full text-center py-8">Nenhum orçamento definido.</p>}
             </div>
             <Modal isOpen={isModalOpen} onClose={handleCloseModal} title="Novo Orçamento">
                 <form onSubmit={handleSubmit} className="space-y-4">
@@ -1510,6 +1510,7 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
     const [csvData, setCsvData] = useState('');
     const [transactions, setTransactions] = useState([]);
     const [error, setError] = useState('');
+    const [isFormatting, setIsFormatting] = useState(false);
 
     const groupedCategories = useMemo(() => {
         const buildHierarchy = (type) => {
@@ -1535,6 +1536,43 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
             setError('');
         }
     }, [isOpen]);
+
+    const handleFormatStatement = async () => {
+        setError('');
+        if (!csvData.trim()) {
+            setError('A área de texto está vazia. Cole o seu extrato primeiro.');
+            return;
+        }
+        setIsFormatting(true);
+
+        const prompt = `
+            Você é um especialista em processar dados financeiros. Sua tarefa é extrair transações de extratos bancários brutos e formatá-las estritamente no seguinte formato CSV: DD/MM/YYYY,Descrição,Valor.
+            
+            Regras:
+            1. A data DEVE estar no formato DD/MM/YYYY.
+            2. A descrição deve ser concisa e NÃO PODE conter vírgulas.
+            3. O valor deve ser um número, usando ponto como separador decimal. Despesas devem ter um sinal de negativo (ex: -150.75). Receitas devem ser positivas.
+            4. Ignore qualquer linha que não seja uma transação clara, como saldos, cabeçalhos, rodapés, "Saldo Anterior", etc.
+            
+            Texto do extrato para formatar:
+            ---
+            ${csvData}
+            ---
+        `;
+
+        try {
+            const callFormatApi = httpsCallable(functions, 'formatBankStatement');
+            const result = await callFormatApi({ prompt });
+            setCsvData(result.data.formattedStatement);
+
+        } catch (error) {
+            console.error("Erro ao formatar extrato com IA:", error);
+            setError("Não foi possível formatar o extrato. Verifique o texto ou tente novamente.");
+        } finally {
+            setIsFormatting(false);
+        }
+    };
+
 
     const handleParse = () => {
         setError('');
@@ -1599,16 +1637,22 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
         <Modal isOpen={isOpen} onClose={onClose} title={`Importar Transações para ${account?.name}`} size="xl">
             {step === 1 && (
                 <div className="space-y-4">
-                    <p className="text-sm text-gray-600 dark:text-gray-400">Cole os seus dados no formato CSV. Cada linha deve ter 3 colunas separadas por vírgula: <strong>data,descrição,valor</strong>. A descrição não pode conter vírgulas.</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Cole o seu extrato de qualquer banco abaixo. Depois, clique em "Formatar Extrato com IA" para converter os dados automaticamente.</p>
                     <textarea
                         value={csvData}
                         onChange={(e) => setCsvData(e.target.value)}
                         rows="10"
                         className="w-full p-2 border dark:border-gray-600 rounded-lg font-mono text-sm dark:bg-gray-700 dark:text-gray-300"
-                        placeholder="2025-07-10,Supermercado,-150.75&#10;2025-07-09,Salário,5000.00"
+                        placeholder="Cole o seu extrato bancário bruto aqui..."
                     ></textarea>
                     {error && <p className="text-red-500 text-sm bg-red-50 dark:bg-red-900/20 p-2 rounded-md">{error}</p>}
-                    <Button onClick={handleParse} className="w-full bg-blue-600 hover:bg-blue-700">Analisar Dados</Button>
+                    <div className="flex flex-col sm:flex-row gap-4">
+                         <Button onClick={handleFormatStatement} disabled={isFormatting} className="w-full bg-purple-600 hover:bg-purple-700">
+                             {isFormatting ? <RefreshCw className="animate-spin" /> : '✨'}
+                             <span>{isFormatting ? 'A formatar...' : 'Formatar Extrato com IA'}</span>
+                         </Button>
+                         <Button onClick={handleParse} className="w-full bg-blue-600 hover:bg-blue-700">Analisar Dados</Button>
+                    </div>
                 </div>
             )}
             {step === 2 && (
@@ -2740,3 +2784,4 @@ const WeeklyCashFlowView = ({ futureEntries, categories }) => {
         </div>
     );
 }
+
