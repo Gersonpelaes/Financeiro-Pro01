@@ -1540,25 +1540,36 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
         }
         setIsFormatting(true);
 
+        // Prompt aprimorado para garantir clareza e robustez
         const prompt = `
-            Você é um especialista em processar dados financeiros. Sua tarefa é extrair transações de extratos bancários brutos e formatá-las estritamente no seguinte formato CSV, com cada transação em uma nova linha: DD/MM/YYYY,Descrição,Valor.
-            
-            Regras:
-            1. A data DEVE estar no formato DD/MM/YYYY.
-            2. A descrição deve ser concisa e NÃO PODE conter vírgulas.
-            3. O valor deve ser um número, usando ponto como separador decimal. Despesas devem ter um sinal de negativo (ex: -150.75). Receitas devem ser positivas.
-            4. Ignore qualquer linha que não seja uma transação clara, como saldos, cabeçalhos, rodapés, "Saldo Anterior", etc.
-            
-            Texto do extrato para formatar:
-            ---
+            Analise o seguinte texto de um extrato bancário e converta CADA transação encontrada para o formato CSV.
+            O formato de saída OBRIGATÓRIO para cada linha é: DD/MM/YYYY,Descrição Curta,Valor
+
+            REGRAS IMPORTANTES:
+            1.  **DATA**: Use estritamente o formato DD/MM/YYYY.
+            2.  **DESCRIÇÃO**: Crie uma descrição curta e objetiva. NÃO use vírgulas na descrição.
+            3.  **VALOR**: Use ponto como separador decimal. Despesas DEVEM ser negativas (ex: -50.25). Receitas DEVEM ser positivas (ex: 1200.00).
+            4.  **IGNORAR**: Ignore completamente linhas que não são transações, como saldos, informações de cabeçalho, rodapés, etc.
+            5.  **SAÍDA**: Retorne apenas as linhas CSV, sem nenhum texto ou explicação adicional.
+
+            Texto do extrato para processar:
+            \`\`\`
             ${csvData}
-            ---
+            \`\`\`
         `;
         
         const payload = {
             contents: [{ parts: [{ text: prompt }] }],
+            // Adicionar configuração de segurança para evitar bloqueios desnecessários
+            safetySettings: [
+                { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+                { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+                { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+                { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+            ],
         };
-        const apiKey = "";
+
+        const apiKey = ""; // Deixar vazio para o ambiente Canvas injetar a chave
         const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
 
         try {
@@ -1568,22 +1579,32 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
                 body: JSON.stringify(payload)
             });
 
-            if (!response.ok) {
-                throw new Error(`A API retornou um erro: ${response.statusText}`);
-            }
-
             const result = await response.json();
-            
-            if (result.candidates && result.candidates[0].content.parts[0].text) {
-                const formattedText = result.candidates[0].content.parts[0].text;
-                setCsvData(formattedText);
-            } else {
-                 throw new Error("A resposta da API não continha o formato esperado.");
+
+            if (!response.ok) {
+                console.error("Erro na API:", result);
+                throw new Error(result.error?.message || `A API retornou o status ${response.status}`);
             }
 
+            const candidate = result.candidates?.[0];
+            const text = candidate?.content?.parts?.[0]?.text;
+
+            if (text) {
+                // Limpa o texto de possíveis blocos de código markdown que a IA possa adicionar
+                const cleanedText = text.replace(/```csv/g, '').replace(/```/g, '').trim();
+                setCsvData(cleanedText);
+            } else {
+                console.error("Resposta inesperada da API:", result);
+                // Verifica se a resposta foi bloqueada por segurança
+                if (candidate?.finishReason === 'SAFETY') {
+                    setError("A solicitação foi bloqueada por motivos de segurança. Tente reformular o texto do extrato.");
+                } else {
+                    throw new Error("A resposta da API não continha o texto esperado. Verifique o console para mais detalhes.");
+                }
+            }
         } catch (error) {
-            console.error("Erro ao formatar extrato com IA:", error);
-            setError("Não foi possível formatar o extrato. Verifique o texto ou tente novamente.");
+            console.error("Falha ao formatar extrato com IA:", error);
+            setError(`Erro: ${error.message}. Tente novamente ou verifique o console.`);
         } finally {
             setIsFormatting(false);
         }

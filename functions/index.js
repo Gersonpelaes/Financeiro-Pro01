@@ -1,13 +1,14 @@
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
-const { MercadoPagoConfig, Preference } = require("mercadopago");
+const { MercadoPagoConfig, Preference, Payment } = require("mercadopago");
 const cors = require("cors")({ origin: true });
+const fetch = require("node-fetch"); // Usando require com a versão 2 do node-fetch
 
 admin.initializeApp();
 
 // --- CONFIGURAÇÃO DOS CLIENTES DE API ---
 const mercadoPagoAccessToken = functions.config().mercadopago.accesstoken;
-const geminiApiKey = functions.config().gemini.apikey; // Chave da API Gemini
+const geminiApiKey = functions.config().gemini.apikey;
 
 const mercadoPagoClient = new MercadoPagoConfig({
   accessToken: mercadoPagoAccessToken,
@@ -16,15 +17,13 @@ const mercadoPagoClient = new MercadoPagoConfig({
 
 /**
  * Função para formatar o extrato bancário usando a API Gemini.
- * É uma função onRequest para gerir o CORS manualmente e de forma fiável.
  */
 exports.formatBankStatement = functions
   .region("southamerica-east1")
   .https.onRequest((req, res) => {
-    // Envolve a lógica da função com o middleware CORS
     cors(req, res, async () => {
       if (req.method !== "POST") {
-        return res.status(405).send("Method Not Allowed");
+        return res.status(405).send({ error: "Método não permitido." });
       }
 
       const { prompt } = req.body.data;
@@ -36,7 +35,6 @@ exports.formatBankStatement = functions
       const payload = { contents: [{ parts: [{ text: prompt }] }] };
 
       try {
-        const fetch = (await import('node-fetch')).default;
         const geminiResponse = await fetch(apiUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -55,7 +53,8 @@ exports.formatBankStatement = functions
           const formattedStatement = result.candidates[0].content.parts[0].text;
           return res.status(200).send({ data: { formattedStatement } });
         } else {
-          return res.status(500).send({ error: "Resposta inválida da API Gemini." });
+            console.error("Resposta inválida da API Gemini:", JSON.stringify(result));
+            return res.status(500).send({ error: "Resposta inválida da API Gemini." });
         }
 
       } catch (error) {
@@ -75,7 +74,6 @@ exports.createSubscription = functions
     if (!context.auth) {
       throw new functions.https.HttpsError("unauthenticated", "Utilizador não autenticado.");
     }
-    // ... (resto do código da função de assinatura permanece igual)
     const userId = context.auth.uid;
     const userEmail = context.auth.token.email || "email@nao-fornecido.com";
 
@@ -131,7 +129,6 @@ exports.paymentWebhook = functions
       if (query.type === "payment") {
         const paymentId = query["data.id"];
         try {
-          const { Payment } = require("mercadopago");
           const payment = new Payment(mercadoPagoClient);
           const paymentDetails = await payment.get({ id: paymentId });
           const { status, external_reference: userId } = paymentDetails;
