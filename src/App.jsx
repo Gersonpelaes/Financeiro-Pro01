@@ -636,7 +636,7 @@ const ReportsView = ({ transactions, categories, accounts }) => {
 };
 
 // --- VIEW DE CONCILIAÇÃO BANCÁRIA ---
-const ReconciliationView = ({ transactions, accounts, categories, payees, onSaveTransaction }) => {
+const ReconciliationView = ({ transactions, accounts, categories, payees, onSaveTransaction, allTransactions }) => {
     const [selectedAccountId, setSelectedAccountId] = useState('');
     const [statementData, setStatementData] = useState([]);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -749,6 +749,7 @@ const ReconciliationView = ({ transactions, accounts, categories, payees, onSave
                 account={accounts.find(a => a.id === selectedAccountId)}
                 categories={categories}
                 payees={payees}
+                allTransactions={allTransactions}
             />
         </div>
     );
@@ -1457,7 +1458,7 @@ const CategoryManager = ({ categories, onSave, onDelete }) => {
     );
 };
 
-const AccountsManager = ({ accounts, onSave, onDelete, onImport }) => {
+const AccountsManager = ({ accounts, onSave, onDelete, onImport, allTransactions }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingAccount, setEditingAccount] = useState(null);
     const [formData, setFormData] = useState({});
@@ -1612,12 +1613,13 @@ const PayeesManager = ({ payees, categories, onSave, onDelete }) => {
 };
 
 // --- MODAL DE IMPORTAÇÃO DE TRANSAÇÕES (ATUALIZADO) ---
-const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories, payees }) => {
+const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories, payees, allTransactions }) => {
     const [step, setStep] = useState(1);
     const [csvData, setCsvData] = useState('');
     const [transactions, setTransactions] = useState([]);
     const [error, setError] = useState('');
     const [isFormatting, setIsFormatting] = useState(false);
+    const [isCategorizingAI, setIsCategorizingAI] = useState(false);
 
     const groupedCategories = useMemo(() => {
         const buildHierarchy = (type) => {
@@ -1651,7 +1653,6 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
         }
         setIsFormatting(true);
 
-        // Prompt aprimorado para garantir clareza e robustez
         const prompt = `
             Analise o seguinte texto de um extrato bancário e converta CADA transação encontrada para o formato CSV.
             O formato de saída OBRIGATÓRIO para cada linha é: DD/MM/YYYY,Descrição Curta,Valor
@@ -1671,7 +1672,6 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
         
         const payload = {
             contents: [{ parts: [{ text: prompt }] }],
-            // Adicionar configuração de segurança para evitar bloqueios desnecessários
             safetySettings: [
                 { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
                 { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
@@ -1683,7 +1683,7 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
         const apiKey = process.env.REACT_APP_GEMINI_API_KEY;
         const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
 
-try {
+        try {
             const response = await fetch(apiUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1701,16 +1701,14 @@ try {
             const text = candidate?.content?.parts?.[0]?.text;
 
             if (text) {
-                // Limpa o texto de possíveis blocos de código markdown que a IA possa adicionar
                 const cleanedText = text.replace(/```csv/g, '').replace(/```/g, '').trim();
                 setCsvData(cleanedText);
             } else {
                 console.error("Resposta inesperada da API:", result);
-                // Verifica se a resposta foi bloqueada por segurança
                 if (candidate?.finishReason === 'SAFETY') {
                     setError("A solicitação foi bloqueada por motivos de segurança. Tente reformular o texto do extrato.");
                 } else {
-                    throw new Error("A resposta da API não continha o texto esperado. Verifique o console para mais detalhes.");
+                     throw new Error(result.error?.message || "A resposta da API não continha o texto esperado.");
                 }
             }
         } catch (error) {
@@ -1754,6 +1752,30 @@ try {
                 if (isNaN(date.getTime())) {
                     throw new Error(`Data inválida na linha ${index + 1}: "${dateStr}"`);
                 }
+                
+                let guessedPayeeId = '';
+                let guessedCategoryId = '';
+                const lowerCaseDescription = description.toLowerCase();
+
+                for (const payee of payees) {
+                    if (lowerCaseDescription.includes(payee.name.toLowerCase())) {
+                        guessedPayeeId = payee.id;
+                        if (payee.categoryId) {
+                            guessedCategoryId = payee.categoryId;
+                        }
+                        break; 
+                    }
+                }
+
+                if (!guessedCategoryId) {
+                     for (const category of categories) {
+                        const categoryNamePattern = new RegExp(`\\b${category.name.toLowerCase()}\\b`);
+                        if (categoryNamePattern.test(lowerCaseDescription)) {
+                            guessedCategoryId = category.id;
+                            break;
+                        }
+                    }
+                }
 
                 return {
                     id: crypto.randomUUID(),
@@ -1761,8 +1783,8 @@ try {
                     description: description,
                     amount: Math.abs(amount),
                     type: amount >= 0 ? 'revenue' : 'expense',
-                    categoryId: '',
-                    payeeId: '',
+                    categoryId: guessedCategoryId,
+                    payeeId: guessedPayeeId,
                 };
             });
             setTransactions(parsed);
@@ -1771,6 +1793,109 @@ try {
             setError(`Erro ao processar: ${e.message}`);
         }
     };
+    
+    const handleCategorizeAllWithAI = async () => {
+        if (transactions.length === 0) return;
+        setIsCategorizingAI(true);
+        setError('');
+
+        try {
+            const examples = allTransactions
+                .filter(t => t.categoryId && t.payeeId)
+                .slice(0, 15)
+                .map(t => {
+                    const categoryName = getCategoryFullName(t.categoryId, categories);
+                    const payeeName = payees.find(p => p.id === t.payeeId)?.name;
+                    return `- Descrição: "${t.description}", Categoria: "${categoryName}", Favorecido: "${payeeName}"`;
+                })
+                .join('\n');
+
+            const expenseCategoriesList = categories.filter(c => c.type === 'expense').map(c => `- ${getCategoryFullName(c.id, categories)} (ID: ${c.id})`).join('\n');
+            const revenueCategoriesList = categories.filter(c => c.type === 'revenue').map(c => `- ${getCategoryFullName(c.id, categories)} (ID: ${c.id})`).join('\n');
+
+            const payeeList = payees.map(p => `- ${p.name} (ID: ${p.id})`).join('\n');
+
+            const newTransactionsList = transactions.map((t, index) => `${index + 1}. (${t.type === 'expense' ? 'Despesa' : 'Receita'}) ${t.description}`).join('\n');
+
+            const prompt = `
+                Você é um assistente financeiro especialista. Sua tarefa é analisar novas transações e sugerir o 'categoryId' e o 'payeeId' mais prováveis.
+
+                **Regras Cruciais:**
+                1.  **Tipo é Prioridade:** Analise se a transação é (Despesa) ou (Receita). Use a lista de categorias correspondente.
+                2.  **Aprenda com o Histórico:** Os exemplos do utilizador são a sua referência principal. Imite os padrões de categorização dele.
+                3.  **Use os IDs:** Forneça o 'categoryId' e 'payeeId' exatos das listas abaixo.
+
+                **Exemplos do Histórico do Utilizador:**
+                ${examples || "Nenhum exemplo disponível."}
+
+                **Listas Disponíveis:**
+                **Categorias de Despesa:**
+                ${expenseCategoriesList}
+                **Categorias de Receita:**
+                ${revenueCategoriesList}
+                **Favorecidos:**
+                ${payeeList}
+
+                **Novas Transações para Analisar:**
+                ${newTransactionsList}
+
+                **Formato de Resposta OBRIGATÓRIO:**
+                Responda APENAS com um objeto JSON com uma chave "sugestoes", que é um array de objetos. Cada objeto deve ter "index", "categoryId" e "payeeId". Se não tiver certeza, use uma string vazia ("").
+            `;
+
+            const apiKey = process.env.REACT_APP_GEMINI_API_KEY;
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+            
+            const payload = {
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: {
+                    responseMimeType: "application/json",
+                },
+                safetySettings: [
+                    { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+                    { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+                    { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+                    { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+                ],
+            };
+            
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const result = await response.json();
+
+            if (!response.ok) throw new Error(result.error?.message || `API Error: ${response.status}`);
+            
+            const textResponse = result.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (!textResponse) throw new Error("A API retornou uma resposta vazia.");
+            
+            const parsedResponse = JSON.parse(textResponse);
+            const suggestions = parsedResponse.sugestoes;
+
+            if (!suggestions || !Array.isArray(suggestions)) throw new Error("Formato de resposta da IA inválido.");
+
+            setTransactions(currentTransactions => {
+                const updatedTransactions = [...currentTransactions];
+                suggestions.forEach(suggestion => {
+                    const index = suggestion.index - 1;
+                    if (updatedTransactions[index]) {
+                        if(suggestion.categoryId) updatedTransactions[index].categoryId = suggestion.categoryId;
+                        if(suggestion.payeeId) updatedTransactions[index].payeeId = suggestion.payeeId;
+                    }
+                });
+                return updatedTransactions;
+            });
+
+        } catch (e) {
+            console.error("Erro na categorização por IA:", e);
+            setError(`Erro na categorização por IA: ${e.message}`);
+        } finally {
+            setIsCategorizingAI(false);
+        }
+    };
+
 
     const handleRowChange = (id, field, value) => {
         setTransactions(prev => prev.map(t => (t.id === id ? { ...t, [field]: value } : t)));
@@ -1805,7 +1930,14 @@ try {
             )}
             {step === 2 && (
                 <div className="space-y-4">
-                    <h3 className="text-lg font-semibold">Verifique e categorize as transações</h3>
+                    <div className="flex justify-between items-center">
+                         <h3 className="text-lg font-semibold">Verifique e categorize as transações</h3>
+                         <Button onClick={handleCategorizeAllWithAI} disabled={isCategorizingAI} className="bg-purple-600 hover:bg-purple-700">
+                            {isCategorizingAI ? <RefreshCw className="animate-spin" /> : '🤖'}
+                            <span>{isCategorizingAI ? 'A sugerir...' : 'Sugerir com IA'}</span>
+                        </Button>
+                    </div>
+                     {error && <p className="text-red-500 text-sm bg-red-50 dark:bg-red-900/20 p-2 rounded-md">{error}</p>}
                     <div className="max-h-[60vh] overflow-auto">
                         <table className="w-full text-left text-sm">
                             <thead className="bg-gray-100 dark:bg-gray-700 sticky top-0">
@@ -1858,7 +1990,7 @@ try {
 };
 
 
-const SettingsView = ({ onSaveEntity, onDeleteEntity, onImportTransactions, accounts, payees, categories }) => {
+const SettingsView = ({ onSaveEntity, onDeleteEntity, onImportTransactions, accounts, payees, categories, allTransactions }) => {
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [accountToImport, setAccountToImport] = useState(null);
 
@@ -1876,7 +2008,7 @@ const SettingsView = ({ onSaveEntity, onDeleteEntity, onImportTransactions, acco
             <h2 className="text-4xl font-bold text-gray-800 dark:text-gray-200">Configurações da Empresa</h2>
             
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <AccountsManager accounts={accounts} onSave={onSaveEntity} onDelete={onDeleteEntity} onImport={handleOpenImportModal} />
+                <AccountsManager accounts={accounts} onSave={onSaveEntity} onDelete={onDeleteEntity} onImport={handleOpenImportModal} allTransactions={allTransactions} />
                 <PayeesManager payees={payees} categories={categories} onSave={onSaveEntity} onDelete={onDeleteEntity} />
             </div>
             
@@ -1887,6 +2019,7 @@ const SettingsView = ({ onSaveEntity, onDeleteEntity, onImportTransactions, acco
                 account={accountToImport}
                 categories={categories}
                 payees={payees}
+                allTransactions={allTransactions}
             />
         </div>
     );
@@ -2663,13 +2796,13 @@ export default function App() {
         switch (view) {
             case 'dashboard': return <DashboardView transactions={transactions} accounts={accounts} categories={categories} futureEntries={futureEntries} budgets={budgets} />;
             case 'transactions': return <TransactionsView transactions={transactions} accounts={accounts} categories={categories} payees={payees} onSave={handleSave} onDelete={handleDelete} />;
-            case 'reconciliation': return <ReconciliationView transactions={transactions} accounts={accounts} categories={categories} payees={payees} onSaveTransaction={handleSave} />;
+            case 'reconciliation': return <ReconciliationView transactions={transactions} accounts={accounts} categories={categories} payees={payees} onSaveTransaction={handleSave} allTransactions={transactions} />;
             case 'futureEntries': return <FutureEntriesView futureEntries={futureEntries} accounts={accounts} categories={categories} payees={payees} onSave={handleSave} onDelete={(coll, id) => handleDelete(coll, {id})} onReconcile={handleReconcile} />;
             case 'budgets': return <BudgetsView budgets={budgets} categories={categories} transactions={transactions} onSave={handleSave} onDelete={(coll, id) => handleDelete(coll, {id})} />;
             case 'reports': return <ReportsView transactions={transactions} categories={categories} accounts={accounts} />;
             case 'dre': return <DREView transactions={transactions} categories={categories} accounts={accounts} payees={payees} onSave={handleSave} onDelete={handleDelete} />;
             case 'weeklyCashFlow': return <WeeklyCashFlowView futureEntries={futureEntries} categories={categories} />;
-            case 'settings': return <SettingsView onSaveEntity={handleSave} onDeleteEntity={(coll, id) => handleDelete(coll, {id})} onImportTransactions={handleImportTransactions} {...{ accounts, payees, categories }} />;
+            case 'settings': return <SettingsView onSaveEntity={handleSave} onDeleteEntity={(coll, id) => handleDelete(coll, {id})} onImportTransactions={handleImportTransactions} {...{ accounts, payees, categories }} allTransactions={transactions} />;
             default: return <DashboardView transactions={transactions} accounts={accounts} categories={categories} futureEntries={futureEntries} budgets={budgets} />;
         }
     };
