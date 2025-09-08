@@ -1569,10 +1569,10 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
             ],
         };
 
-        const apiKey = ""; // Deixar vazio para o ambiente Canvas injetar a chave
+        const apiKey = process.env.REACT_APP_GEMINI_API_KEY;
         const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
 
-        try {
+try {
             const response = await fetch(apiUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
