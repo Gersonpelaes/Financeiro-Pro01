@@ -277,11 +277,28 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
     const [formData, setFormData] = useState({});
     const [attachmentFile, setAttachmentFile] = useState(null);
 
+    // Estados para o modal de adicionar favorecido
+    const [isAddPayeeModalOpen, setIsAddPayeeModalOpen] = useState(false);
+    const [newPayeeName, setNewPayeeName] = useState('');
+    const [newlyAddedPayeeName, setNewlyAddedPayeeName] = useState(null);
+
     useEffect(() => {
         if (accounts.length > 0 && !selectedAccountId) {
             setSelectedAccountId(accounts[0].id);
         }
     }, [accounts, selectedAccountId]);
+    
+    // Efeito para auto-selecionar o novo favorecido
+    useEffect(() => {
+        if (newlyAddedPayeeName && payees.length > 0) {
+            const newPayee = payees.find(p => p.name === newlyAddedPayeeName);
+            if (newPayee) {
+                setFormData(prev => ({ ...prev, payeeId: newPayee.id }));
+                setNewlyAddedPayeeName(null); // Reset after setting
+            }
+        }
+    }, [payees, newlyAddedPayeeName]);
+
 
     const selectedAccount = useMemo(() => accounts.find(a => a.id === selectedAccountId), [accounts, selectedAccountId]);
 
@@ -351,6 +368,22 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
         handleCloseModal();
     };
     
+    const handleAddPayee = async () => {
+        const trimmedName = newPayeeName.trim();
+        if (!trimmedName) {
+            alert('O nome do favorecido não pode estar vazio.');
+            return;
+        }
+        if (payees.some(p => p.name.toLowerCase() === trimmedName.toLowerCase())) {
+            alert('Este favorecido já existe.');
+            return;
+        }
+        await onSave('payees', { name: trimmedName });
+        setNewlyAddedPayeeName(trimmedName);
+        setNewPayeeName('');
+        setIsAddPayeeModalOpen(false);
+    };
+
     const groupedCategories = useMemo(() => {
         const type = formData.type || 'expense';
         const parents = categories.filter(c => !c.parentId && c.type === type);
@@ -428,7 +461,18 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
                                 <label className="flex-1"><span className="text-gray-700 dark:text-gray-300">Conta</span><select name="accountId" value={formData.accountId} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required>{accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label>
                             </div>
                             <div className="flex space-x-4">
-                                <label className="flex-1"><span className="text-gray-700 dark:text-gray-300">Favorecido</span><select name="payeeId" value={formData.payeeId} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300"><option value="">Nenhum</option>{payees.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
+                                <label className="flex-1">
+                                    <div className="flex justify-between items-center mb-1">
+                                        <span className="text-gray-700 dark:text-gray-300">Favorecido</span>
+                                        <button type="button" onClick={() => setIsAddPayeeModalOpen(true)} className="text-blue-500 hover:text-blue-700 text-sm flex items-center gap-1">
+                                            <PlusCircle size={14}/> Novo
+                                        </button>
+                                    </div>
+                                    <select name="payeeId" value={formData.payeeId} onChange={handleChange} className="block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300">
+                                        <option value="">Nenhum</option>
+                                        {payees.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                    </select>
+                                </label>
                                 <label className="flex-1"><span className="text-gray-700 dark:text-gray-300">Categoria</span><select name="categoryId" value={formData.categoryId} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required><option value="">Selecione...</option>{groupedCategories.map(parent => (<optgroup key={parent.id} label={parent.name}><option value={parent.id}>{parent.name} (Principal)</option>{parent.subcategories.map(sub => <option key={sub.id} value={sub.id}>{sub.name}</option>)}</optgroup>))}</select></label>
                             </div>
                             <div>
@@ -441,6 +485,17 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
                     )}
                     <div className="flex justify-end pt-4"><Button type="submit"><span>Guardar</span></Button></div>
                 </form>
+            </Modal>
+            <Modal isOpen={isAddPayeeModalOpen} onClose={() => setIsAddPayeeModalOpen(false)} title="Novo Favorecido">
+                <div className="space-y-4">
+                    <label className="block">
+                        <span className="text-gray-700 dark:text-gray-300">Nome do Favorecido</span>
+                        <input type="text" value={newPayeeName} onChange={(e) => setNewPayeeName(e.target.value)} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" autoFocus />
+                    </label>
+                    <div className="flex justify-end pt-2">
+                        <Button onClick={handleAddPayee}>Salvar Favorecido</Button>
+                    </div>
+                </div>
             </Modal>
         </div>
     );
@@ -808,6 +863,23 @@ const FutureEntriesView = ({ futureEntries, accounts, categories, payees, onSave
     const [formData, setFormData] = useState({});
     const [reconcileFormData, setReconcileFormData] = useState({});
     const [filter, setFilter] = useState('a_vencer'); // a_vencer, vencidos, reconciliados
+    
+    // Estados para o modal de adicionar favorecido
+    const [isAddPayeeModalOpen, setIsAddPayeeModalOpen] = useState(false);
+    const [newPayeeName, setNewPayeeName] = useState('');
+    const [newlyAddedPayeeName, setNewlyAddedPayeeName] = useState(null);
+    
+    // Efeito para auto-selecionar o novo favorecido
+    useEffect(() => {
+        if (newlyAddedPayeeName && payees.length > 0) {
+            const newPayee = payees.find(p => p.name === newlyAddedPayeeName);
+            if (newPayee) {
+                setFormData(prev => ({ ...prev, payeeId: newPayee.id }));
+                setNewlyAddedPayeeName(null);
+            }
+        }
+    }, [payees, newlyAddedPayeeName]);
+
 
     const handleOpenModal = (entry = null) => {
         setEditingEntry(entry);
@@ -863,6 +935,22 @@ const FutureEntriesView = ({ futureEntries, accounts, categories, payees, onSave
         e.preventDefault();
         onReconcile({ ...reconcileFormData, finalAmount: parseFloat(reconcileFormData.finalAmount) });
         handleCloseReconcileModal();
+    };
+    
+    const handleAddPayee = async () => {
+        const trimmedName = newPayeeName.trim();
+        if (!trimmedName) {
+            alert('O nome do favorecido não pode estar vazio.');
+            return;
+        }
+        if (payees.some(p => p.name.toLowerCase() === trimmedName.toLowerCase())) {
+            alert('Este favorecido já existe.');
+            return;
+        }
+        await onSave('payees', { name: trimmedName });
+        setNewlyAddedPayeeName(trimmedName);
+        setNewPayeeName('');
+        setIsAddPayeeModalOpen(false);
     };
 
     const groupedCategories = useMemo(() => {
@@ -957,11 +1045,34 @@ const FutureEntriesView = ({ futureEntries, accounts, categories, payees, onSave
                     </div>
                     <label className="dark:text-gray-300">Data de Vencimento {formData.entryType === 'recorrente' && '(próximo vencimento)'}<input type="date" name="dueDate" value={formData.dueDate} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required /></label>
                     <div className="flex gap-4">
-                        <label className="flex-1 dark:text-gray-300">Favorecido (Opcional)<select name="payeeId" value={formData.payeeId} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300"><option value="">Nenhum</option>{payees.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
+                        <label className="flex-1">
+                            <div className="flex justify-between items-center mb-1">
+                                <span className="text-gray-700 dark:text-gray-300">Favorecido (Opcional)</span>
+                                <button type="button" onClick={() => setIsAddPayeeModalOpen(true)} className="text-blue-500 hover:text-blue-700 text-sm flex items-center gap-1">
+                                    <PlusCircle size={14}/> Novo
+                                </button>
+                            </div>
+                            <select name="payeeId" value={formData.payeeId} onChange={handleChange} className="block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300">
+                                <option value="">Nenhum</option>
+                                {payees.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                            </select>
+                        </label>
                         <label className="flex-1 dark:text-gray-300">Categoria<select name="categoryId" value={formData.categoryId} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required><option value="">Selecione...</option>{groupedCategories.map(parent => (<optgroup key={parent.id} label={parent.name}><option value={parent.id}>{parent.name} (Principal)</option>{parent.subcategories.map(sub => <option key={sub.id} value={sub.id}>{sub.name}</option>)}</optgroup>))}</select></label>
                     </div>
                     <div className="flex justify-end pt-4"><Button type="submit">Guardar</Button></div>
                 </form>
+            </Modal>
+            
+            <Modal isOpen={isAddPayeeModalOpen} onClose={() => setIsAddPayeeModalOpen(false)} title="Novo Favorecido">
+                <div className="space-y-4">
+                    <label className="block">
+                        <span className="text-gray-700 dark:text-gray-300">Nome do Favorecido</span>
+                        <input type="text" value={newPayeeName} onChange={(e) => setNewPayeeName(e.target.value)} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" autoFocus />
+                    </label>
+                    <div className="flex justify-end pt-2">
+                        <Button onClick={handleAddPayee}>Salvar Favorecido</Button>
+                    </div>
+                </div>
             </Modal>
 
             {/* Modal de Reconciliação */}
