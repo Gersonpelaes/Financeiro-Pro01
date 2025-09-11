@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
 import { getFirestore, collection, doc, addDoc, getDocs, writeBatch, query, onSnapshot, deleteDoc, setDoc, where, getDoc, limit } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { PlusCircle, Upload, Trash2, Edit, TrendingUp, TrendingDown, DollarSign, Settings, LayoutDashboard, List, BarChart2, Target, ArrowLeft, ArrowRightLeft, Repeat, CheckCircle, AlertTriangle, Clock, CalendarCheck2, Building, GitCompareArrows, ArrowUp, ArrowDown, Paperclip, FileText, LogOut, Download, UploadCloud, Sun, Moon, FileOutput, CalendarClock, Menu, X, ShieldCheck, CreditCard, RefreshCw } from 'lucide-react';
+import { PlusCircle, Upload, Trash2, Edit, TrendingUp, TrendingDown, DollarSign, Settings, LayoutDashboard, List, BarChart2, Target, ArrowLeft, ArrowRightLeft, Repeat, CheckCircle, AlertTriangle, Clock, CalendarCheck2, Building, GitCompareArrows, ArrowUp, ArrowDown, Paperclip, FileText, LogOut, Download, UploadCloud, Sun, Moon, FileOutput, CalendarClock, Menu, X, ShieldCheck, CreditCard, RefreshCw, BookCopy, FileJson } from 'lucide-react';
 
 // --- CONFIGURAÇÃO DO FIREBASE ---
 const firebaseConfig = {
@@ -1088,7 +1088,7 @@ const FutureEntriesView = ({ futureEntries, accounts, categories, payees, onSave
                         <label className="flex-1 dark:text-gray-300">Valor Final Pago (com juros/desconto)<input type="number" step="0.01" name="finalAmount" value={reconcileFormData.finalAmount} onChange={handleReconcileChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required /></label>
                         <label className="flex-1 dark:text-gray-300">Data do Pagamento<input type="date" name="paymentDate" value={reconcileFormData.paymentDate} onChange={handleReconcileChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required /></label>
                     </div>
-                    <label className="dark:text-gray-300">Notas (Opcional)<input type="text" name="notes" value={reconcileFormData.notes} onChange={handleReconcileChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" placeholder="Ex: Juros por atraso" /></label>
+                    <label className="dark:text-gray-300">Notas (Opcional)<input type="text" name="notes" value={reconcileFormData.notes} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" placeholder="Ex: Juros por atraso" /></label>
                     <div className="flex justify-end pt-4"><Button type="submit" className="bg-green-600 hover:bg-green-700">Confirmar Pagamento</Button></div>
                 </form>
             </Modal>
@@ -1335,8 +1335,9 @@ const CompaniesManager = ({ companies, onSave, onDelete }) => {
     );
 };
 
-const CategoryManager = ({ categories, onSave, onDelete }) => {
+const CategoryManager = ({ categories, onSave, onDelete, onApplyTemplate }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
     const [editingCategory, setEditingCategory] = useState(null);
     const [preselectedParent, setPreselectedParent] = useState(null);
     const [formData, setFormData] = useState({});
@@ -1399,15 +1400,9 @@ const CategoryManager = ({ categories, onSave, onDelete }) => {
         }
     };
 
-    const CategorySection = ({ title, categoryList, type }) => (
+    const CategorySection = ({ title, categoryList }) => (
         <div>
-            <div className="flex justify-between items-center mb-4">
-                <h3 className="text-2xl font-bold text-gray-700 dark:text-gray-200">{title}</h3>
-                <Button onClick={() => handleOpenModal({ type })} className="bg-blue-600 hover:bg-blue-700">
-                    <PlusCircle size={18}/>
-                    <span>Nova Categoria</span>
-                </Button>
-            </div>
+            <h3 className="text-2xl font-bold text-gray-700 dark:text-gray-200 mb-4">{title}</h3>
             <div className="space-y-4">
                 {categoryList.length === 0 && <p className="text-gray-500 dark:text-gray-400 text-center py-4">Nenhuma categoria encontrada.</p>}
                 {categoryList.map(parent => (
@@ -1441,11 +1436,33 @@ const CategoryManager = ({ categories, onSave, onDelete }) => {
 
     return (
         <>
-            <h2 className="text-3xl font-extrabold text-gray-800 dark:text-gray-200 mb-8">Gerenciador de Categorias</h2>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-                <CategorySection title="Despesas" categoryList={expenseCategories} type="expense"/>
-                <CategorySection title="Receitas" categoryList={revenueCategories} type="revenue"/>
+            <div className="flex justify-between items-center mb-6">
+                <h2 className="text-3xl font-extrabold text-gray-800 dark:text-gray-200">Gerenciador de Categorias</h2>
+                <Button onClick={() => handleOpenModal({})}><PlusCircle size={18}/><span>Nova Categoria</span></Button>
             </div>
+            
+            <div className="p-6 bg-blue-50 dark:bg-gray-700/50 rounded-xl border-2 border-blue-200 dark:border-blue-800 mb-8">
+                <h3 className="text-xl font-bold text-blue-800 dark:text-blue-300">Plano de Contas</h3>
+                {categories.length > 0 ? (
+                    <p className="mt-2 text-sm text-blue-700 dark:text-blue-400">O seu plano de contas personalizado está ativo. Para usar um modelo ou importar um novo, primeiro precisa de apagar todas as categorias existentes.</p>
+                ) : (
+                    <>
+                        <p className="mt-2 text-sm text-blue-700 dark:text-blue-400">Comece rapidamente usando um modelo pronto ou importe o seu próprio plano de contas.</p>
+                        <div className="mt-4 flex gap-4">
+                             <Button onClick={() => setIsTemplateModalOpen(true)} className="bg-blue-600 hover:bg-blue-700">
+                                <BookCopy size={16} />
+                                <span>Escolher Modelo</span>
+                            </Button>
+                        </div>
+                    </>
+                )}
+            </div>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+                <CategorySection title="Despesas" categoryList={expenseCategories} />
+                <CategorySection title="Receitas" categoryList={revenueCategories} />
+            </div>
+
             <Modal isOpen={isModalOpen} onClose={handleCloseModal} title={editingCategory ? 'Editar Categoria' : 'Nova Categoria'}>
                 <form onSubmit={handleSubmit} className="space-y-4">
                     {preselectedParent && <div className="bg-gray-100 dark:bg-gray-700 p-3 rounded-lg"><p className="text-sm text-gray-600 dark:text-gray-400">Subcategoria de: <span className="font-bold">{preselectedParent.name}</span></p></div>}
@@ -1454,6 +1471,12 @@ const CategoryManager = ({ categories, onSave, onDelete }) => {
                     <div className="flex justify-end pt-4"><Button type="submit"><span>Guardar</span></Button></div>
                 </form>
             </Modal>
+            
+            <TemplateModal 
+                isOpen={isTemplateModalOpen} 
+                onClose={() => setIsTemplateModalOpen(false)} 
+                onApply={onApplyTemplate} 
+            />
         </>
     );
 };
@@ -1990,9 +2013,10 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
 };
 
 
-const SettingsView = ({ onSaveEntity, onDeleteEntity, onImportTransactions, accounts, payees, categories, allTransactions }) => {
+const SettingsView = ({ onSaveEntity, onDeleteEntity, onImportTransactions, accounts, payees, categories, allTransactions, activeCompanyId }) => {
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [accountToImport, setAccountToImport] = useState(null);
+    const [activeTab, setActiveTab] = useState('accounts');
 
     const handleOpenImportModal = (account) => {
         setAccountToImport(account);
@@ -2002,14 +2026,53 @@ const SettingsView = ({ onSaveEntity, onDeleteEntity, onImportTransactions, acco
     const handleImportConfirm = (transactions) => {
         onImportTransactions(transactions, accountToImport.id);
     };
+    
+    const handleApplyTemplate = async (templateData) => {
+        const batch = writeBatch(db);
+        const idMap = new Map();
+
+        const parents = templateData.filter(cat => !cat.parentId);
+        for (const cat of parents) {
+            const { id, ...data } = cat;
+            const docRef = doc(collection(db, `users/${auth.currentUser.uid}/companies/${activeCompanyId}/categories`));
+            idMap.set(id, docRef.id);
+            batch.set(docRef, data);
+        }
+
+        const children = templateData.filter(cat => cat.parentId);
+        for (const child of children) {
+            const { id, ...data } = child;
+            const newParentId = idMap.get(data.parentId);
+            if (newParentId) {
+                data.parentId = newParentId;
+                const docRef = doc(collection(db, `users/${auth.currentUser.uid}/companies/${activeCompanyId}/categories`));
+                batch.set(docRef, data);
+            }
+        }
+        await batch.commit();
+    };
+
+    const TabButton = ({ tab, label }) => (
+        <button
+            onClick={() => setActiveTab(tab)}
+            className={`px-4 py-2 font-semibold rounded-t-lg transition-colors focus:outline-none ${activeTab === tab ? 'bg-white dark:bg-gray-800 border-b-0' : 'bg-gray-100 dark:bg-gray-700'}`}
+        >{label}</button>
+    );
 
     return (
         <div className="space-y-8">
             <h2 className="text-4xl font-bold text-gray-800 dark:text-gray-200">Configurações da Empresa</h2>
             
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <AccountsManager accounts={accounts} onSave={onSaveEntity} onDelete={onDeleteEntity} onImport={handleOpenImportModal} allTransactions={allTransactions} />
-                <PayeesManager payees={payees} categories={categories} onSave={onSaveEntity} onDelete={onDeleteEntity} />
+            <div className="border-b dark:border-gray-700">
+                <TabButton tab="accounts" label="Contas" />
+                <TabButton tab="payees" label="Favorecidos" />
+                <TabButton tab="categories" label="Categorias" />
+            </div>
+
+            <div className="mt-4">
+                {activeTab === 'accounts' && <AccountsManager accounts={accounts} onSave={onSaveEntity} onDelete={onDeleteEntity} onImport={handleOpenImportModal} allTransactions={allTransactions} />}
+                {activeTab === 'payees' && <PayeesManager payees={payees} categories={categories} onSave={onSaveEntity} onDelete={onDeleteEntity} />}
+                {activeTab === 'categories' && <CategoryManager categories={categories} onSave={onSaveEntity} onDelete={onDeleteEntity} onApplyTemplate={handleApplyTemplate} />}
             </div>
             
             <TransactionImportModal 
@@ -2084,7 +2147,7 @@ const ConsolidatedReportsView = ({ allCompaniesData, companies, onBack }) => {
 };
 
 // --- NOVA VIEW: CONFIGURAÇÕES GLOBAIS ---
-const GlobalSettingsView = ({ companies, categories, onSave, onDelete, onBack, onBackup, onRestore, subscription, onSubscribe }) => {
+const GlobalSettingsView = ({ companies, onSave, onDelete, onBack, onBackup, onRestore, subscription, onSubscribe }) => {
     const [activeTab, setActiveTab] = useState('empresas');
 
     const TabButton = ({ tabName, label, active }) => (
@@ -2110,7 +2173,6 @@ const GlobalSettingsView = ({ companies, categories, onSave, onDelete, onBack, o
             <div>
                 <div className="border-b border-gray-300 dark:border-gray-700">
                     <TabButton tabName="empresas" label="Empresas" active={activeTab === 'empresas'} />
-                    <TabButton tabName="categorias" label="Categorias" active={activeTab === 'categorias'} />
                     <TabButton tabName="assinatura" label="Assinatura" active={activeTab === 'assinatura'} />
                     <TabButton tabName="backup" label="Backup / Restauração" active={activeTab === 'backup'} />
                 </div>
@@ -2118,9 +2180,6 @@ const GlobalSettingsView = ({ companies, categories, onSave, onDelete, onBack, o
                 <div className="bg-white dark:bg-gray-800 p-8 rounded-b-2xl rounded-r-2xl shadow-lg">
                     {activeTab === 'empresas' && (
                         <CompaniesManager companies={companies} onSave={onSave} onDelete={onDelete} />
-                    )}
-                    {activeTab === 'categorias' && (
-                        <CategoryManager categories={categories} onSave={onSave} onDelete={onDelete} />
                     )}
                     {activeTab === 'assinatura' && (
                         <SubscriptionView subscription={subscription} onSubscribe={onSubscribe} />
@@ -2136,7 +2195,7 @@ const GlobalSettingsView = ({ companies, categories, onSave, onDelete, onBack, o
 
 const BackupManager = ({ onBackup, onRestore }) => {
     const [isLoading, setIsLoading] = useState(false);
-    const fileInputRef = React.useRef(null);
+    const fileInputRef = useRef(null);
 
     const handleBackup = async () => {
         setIsLoading(true);
@@ -2376,7 +2435,7 @@ export default function App() {
         return () => unsub();
     }, [userId]);
 
-    // Carregar lista de empresas e categorias globais
+    // Carregar lista de empresas
     useEffect(() => {
         if (!isAuthReady || !userId || migrationStatus !== 'not_needed') {
             return;
@@ -2388,15 +2447,8 @@ export default function App() {
             setCompanies(companyList);
         });
 
-        const qCategories = query(collection(db, `users/${userId}/categories`));
-        const unsubCategories = onSnapshot(qCategories, (snapshot) => {
-            const categoryList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            setCategories(categoryList);
-        });
-
         return () => {
             unsubCompanies();
-            unsubCategories();
         };
     }, [isAuthReady, userId, appId, migrationStatus]);
 
@@ -2435,11 +2487,11 @@ export default function App() {
     // Carregar dados da empresa ativa
     useEffect(() => {
         if (!activeCompanyId || !userId) {
-            setAccounts([]); setPayees([]); setTransactions([]); setBudgets([]); setFutureEntries([]);
+            setAccounts([]); setPayees([]); setTransactions([]); setBudgets([]); setFutureEntries([]); setCategories([]);
             return;
         };
         const companyDataPath = `users/${userId}/companies/${activeCompanyId}`;
-        const collections = { accounts: setAccounts, payees: setPayees, transactions: setTransactions, budgets: setBudgets, futureEntries: setFutureEntries };
+        const collections = { accounts: setAccounts, payees: setPayees, transactions: setTransactions, budgets: setBudgets, futureEntries: setFutureEntries, categories: setCategories };
         const unsubscribes = Object.entries(collections).map(([name, setter]) => {
             const q = query(collection(db, `${companyDataPath}/${name}`));
             return onSnapshot(q, (snapshot) => {
@@ -2453,7 +2505,7 @@ export default function App() {
 
     const handleSave = async (collectionName, data, id, file = null) => {
         if (!userId) return;
-        const isGlobal = ['companies', 'categories'].includes(collectionName);
+        const isGlobal = ['companies'].includes(collectionName);
         const basePath = `users/${userId}`;
         let path = isGlobal ? `${basePath}/${collectionName}` : `${basePath}/companies/${activeCompanyId}/${collectionName}`;
         
@@ -2511,9 +2563,11 @@ export default function App() {
     const handleDelete = async (collectionName, item) => {
         if (!userId || !window.confirm('Tem a certeza que deseja apagar este item? Esta ação não pode ser desfeita.')) return;
 
-        const isGlobal = ['companies', 'categories'].includes(collectionName);
+        const isGlobal = ['companies'].includes(collectionName);
         const basePath = `users/${userId}`;
         const path = isGlobal ? `${basePath}/${collectionName}` : `${basePath}/companies/${activeCompanyId}/${collectionName}`;
+        const itemId = typeof item === 'string' ? item : item.id;
+
 
         if (collectionName === 'transactions' && item.isTransfer) {
             const batch = writeBatch(db);
@@ -2530,8 +2584,8 @@ export default function App() {
                     console.error("Error deleting attachment:", error);
                 }
             }
-            if (isGlobal && collectionName === 'companies' && item.id === activeCompanyId) setActiveCompanyId(null);
-            try { await deleteDoc(doc(db, path, item.id)); } catch (error) { console.error(`Error deleting from ${collectionName}:`, error); }
+            if (isGlobal && collectionName === 'companies' && itemId === activeCompanyId) setActiveCompanyId(null);
+            try { await deleteDoc(doc(db, path, itemId)); } catch (error) { console.error(`Error deleting from ${collectionName}:`, error); }
         }
     };
     
@@ -2616,22 +2670,16 @@ export default function App() {
         const backupData = {
             backupDate: new Date().toISOString(),
             data: {
-                categories: [],
                 companies: []
             }
         };
-
-        // Backup categories
-        const categoriesQuery = query(collection(db, `${userPath}/categories`));
-        const categoriesSnap = await getDocs(categoriesQuery);
-        backupData.data.categories = categoriesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
         // Backup companies and their subcollections
         const companiesQuery = query(collection(db, `${userPath}/companies`));
         const companiesSnap = await getDocs(companiesQuery);
         for (const companyDoc of companiesSnap.docs) {
             const companyData = { id: companyDoc.id, ...companyDoc.data(), subcollections: {} };
-            const subcollections = ['accounts', 'transactions', 'payees', 'budgets', 'futureEntries'];
+            const subcollections = ['accounts', 'transactions', 'payees', 'budgets', 'futureEntries', 'categories'];
             for (const sub of subcollections) {
                 const subQuery = query(collection(db, `${userPath}/companies/${companyDoc.id}/${sub}`));
                 const subSnap = await getDocs(subQuery);
@@ -2653,39 +2701,29 @@ export default function App() {
         reader.onload = async (event) => {
             try {
                 const backupData = JSON.parse(event.target.result);
-                if (!backupData.data || !backupData.data.companies || !backupData.data.categories) {
+                if (!backupData.data || !backupData.data.companies) {
                     throw new Error("Formato de backup inválido.");
                 }
 
                 const userPath = `users/${userId}`;
                 
-                // Delete all existing data for the user
-                const collectionsToDelete = ['categories', 'companies'];
-                for (const collName of collectionsToDelete) {
-                    const batch = writeBatch(db);
-                    const collQuery = query(collection(db, `${userPath}/${collName}`));
-                    const collSnap = await getDocs(collQuery);
-                    for(const docToDelete of collSnap.docs) {
-                        if (collName === 'companies') {
-                            const subcollections = ['accounts', 'transactions', 'payees', 'budgets', 'futureEntries'];
-                            for (const sub of subcollections) {
-                                const subQuery = query(collection(db, `${userPath}/companies/${docToDelete.id}/${sub}`));
-                                const subSnap = await getDocs(subQuery);
-                                subSnap.forEach(subDoc => batch.delete(subDoc.ref));
-                            }
-                        }
-                        batch.delete(docToDelete.ref);
+                // Delete all existing companies data
+                const batch = writeBatch(db);
+                const companiesQuery = query(collection(db, `${userPath}/companies`));
+                const companiesSnap = await getDocs(companiesQuery);
+                for(const docToDelete of companiesSnap.docs) {
+                    const subcollections = ['accounts', 'transactions', 'payees', 'budgets', 'futureEntries', 'categories'];
+                    for (const sub of subcollections) {
+                        const subQuery = query(collection(db, `${userPath}/companies/${docToDelete.id}/${sub}`));
+                        const subSnap = await getDocs(subQuery);
+                        subSnap.forEach(subDoc => batch.delete(subDoc.ref));
                     }
-                    await batch.commit();
+                    batch.delete(docToDelete.ref);
                 }
+                await batch.commit();
 
                 // Restore new data
                 const restoreBatch = writeBatch(db);
-                backupData.data.categories.forEach(cat => {
-                    const { id, ...data } = cat;
-                    restoreBatch.set(doc(db, `${userPath}/categories`, id), data);
-                });
-
                 backupData.data.companies.forEach(comp => {
                     const { id, subcollections, ...data } = comp;
                     restoreBatch.set(doc(db, `${userPath}/companies`, id), data);
@@ -2715,12 +2753,10 @@ export default function App() {
         try {
             const userPath = `users/${userId}`;
             
-            // 1. Criar a nova empresa
             const newCompanyRef = doc(collection(db, `${userPath}/companies`));
             await setDoc(newCompanyRef, { name: "Minha Empresa Principal (Migrada)", createdAt: new Date().toISOString() });
             
-            // 2. Migrar coleções
-            const collectionsToMigrate = ['accounts', 'transactions', 'payees', 'budgets', 'futureEntries'];
+            const collectionsToMigrate = ['accounts', 'transactions', 'payees', 'budgets', 'futureEntries', 'categories'];
             for (const collName of collectionsToMigrate) {
                 const oldCollPath = `${userPath}/${collName}`;
                 const newCollPath = `${userPath}/companies/${newCompanyRef.id}/${collName}`;
@@ -2731,12 +2767,13 @@ export default function App() {
                     oldDocsSnap.forEach(oldDoc => {
                         const newDocRef = doc(db, newCollPath, oldDoc.id);
                         batch.set(newDocRef, oldDoc.data());
+                        // Optional: delete old doc after migration
+                        // batch.delete(oldDoc.ref);
                     });
                     await batch.commit();
                 }
             }
             
-            // 3. Marcar migração como concluída
             const profileRef = doc(db, `users/${userId}/profile`, 'userProfile');
             await setDoc(profileRef, { migrationCompleted: true }, { merge: true });
 
@@ -2785,7 +2822,7 @@ export default function App() {
             case 'reports':
                 return <ConsolidatedReportsView allCompaniesData={allCompaniesData} companies={companies} onBack={() => setHubView('selector')} />;
             case 'global_settings':
-                return <GlobalSettingsView companies={companies} categories={categories} subscription={subscription} onSave={handleSave} onDelete={(coll, id) => handleDelete(coll, {id})} onBack={() => setHubView('selector')} onBackup={handleBackup} onRestore={handleRestore} onSubscribe={handleSubscribeClick} />;
+                return <GlobalSettingsView companies={companies} onSave={handleSave} onDelete={(coll, id) => handleDelete(coll, {id})} onBack={() => setHubView('selector')} onBackup={handleBackup} onRestore={handleRestore} subscription={subscription} onSubscribe={handleSubscribeClick} />;
             case 'selector':
             default:
                 return <HubScreen companies={companies} onSelect={setActiveCompanyId} onShowReports={() => setHubView('reports')} onManageCompanies={() => setHubView('global_settings')} />;
@@ -2793,16 +2830,34 @@ export default function App() {
     }
 
     const renderView = () => {
+        const handleSaveWithCompanyId = (collection, data, id, file) => handleSave(collection, data, id, file);
+        const handleDeleteWithCompanyId = (collection, item) => handleDelete(collection, item);
+        const handleImportWithCompanyId = (importedTransactions, accountId) => handleImportTransactions(importedTransactions, accountId);
+        const handleReconcileWithCompanyId = (reconciliationData) => handleReconcile(reconciliationData);
+
+        const settingsSaveHandler = (collection, data, id) => {
+             handleSave(collection, data, id);
+        };
+
+        const settingsDeleteHandler = (collection, id) => {
+            handleDelete(collection, {id});
+        };
+
         switch (view) {
             case 'dashboard': return <DashboardView transactions={transactions} accounts={accounts} categories={categories} futureEntries={futureEntries} budgets={budgets} />;
-            case 'transactions': return <TransactionsView transactions={transactions} accounts={accounts} categories={categories} payees={payees} onSave={handleSave} onDelete={handleDelete} />;
-            case 'reconciliation': return <ReconciliationView transactions={transactions} accounts={accounts} categories={categories} payees={payees} onSaveTransaction={handleSave} allTransactions={transactions} />;
-            case 'futureEntries': return <FutureEntriesView futureEntries={futureEntries} accounts={accounts} categories={categories} payees={payees} onSave={handleSave} onDelete={(coll, id) => handleDelete(coll, {id})} onReconcile={handleReconcile} />;
-            case 'budgets': return <BudgetsView budgets={budgets} categories={categories} transactions={transactions} onSave={handleSave} onDelete={(coll, id) => handleDelete(coll, {id})} />;
+            case 'transactions': return <TransactionsView transactions={transactions} accounts={accounts} categories={categories} payees={payees} onSave={handleSaveWithCompanyId} onDelete={handleDeleteWithCompanyId} />;
+            case 'reconciliation': return <ReconciliationView transactions={transactions} accounts={accounts} categories={categories} payees={payees} onSaveTransaction={handleSaveWithCompanyId} allTransactions={transactions} />;
+            case 'futureEntries': return <FutureEntriesView futureEntries={futureEntries} accounts={accounts} categories={categories} payees={payees} onSave={handleSaveWithCompanyId} onDelete={handleDeleteWithCompanyId} onReconcile={handleReconcileWithCompanyId} />;
+            case 'budgets': return <BudgetsView budgets={budgets} categories={categories} transactions={transactions} onSave={handleSaveWithCompanyId} onDelete={handleDeleteWithCompanyId} />;
             case 'reports': return <ReportsView transactions={transactions} categories={categories} accounts={accounts} />;
-            case 'dre': return <DREView transactions={transactions} categories={categories} accounts={accounts} payees={payees} onSave={handleSave} onDelete={handleDelete} />;
+            case 'dre': return <DREView transactions={transactions} categories={categories} accounts={accounts} payees={payees} onSave={handleSaveWithCompanyId} onDelete={handleDeleteWithCompanyId} />;
             case 'weeklyCashFlow': return <WeeklyCashFlowView futureEntries={futureEntries} categories={categories} />;
-            case 'settings': return <SettingsView onSaveEntity={handleSave} onDeleteEntity={(coll, id) => handleDelete(coll, {id})} onImportTransactions={handleImportTransactions} {...{ accounts, payees, categories }} allTransactions={transactions} />;
+            case 'settings': return <SettingsView 
+                onSaveEntity={settingsSaveHandler}
+                onDeleteEntity={settingsDeleteHandler}
+                onImportTransactions={handleImportWithCompanyId} 
+                {...{ accounts, payees, categories, allTransactions: transactions, activeCompanyId }} 
+                />;
             default: return <DashboardView transactions={transactions} accounts={accounts} categories={categories} futureEntries={futureEntries} budgets={budgets} />;
         }
     };
@@ -3065,4 +3120,136 @@ const WeeklyCashFlowView = ({ futureEntries, categories }) => {
         </div>
     );
 }
+
+// --- NOVO COMPONENTE: MODAL DE MODELOS DE CATEGORIA ---
+const CATEGORY_TEMPLATES = {
+  personal: {
+    name: 'Finanças Pessoais',
+    description: 'Um plano de contas para uso pessoal e familiar.',
+    type: 'Finanças Pessoais',
+  },
+  commerce: {
+    name: 'Comércio',
+    description: 'Plano de contas para empresas comerciais.',
+    type: 'Pequeno Comércio Varejista',
+  },
+  industry: {
+    name: 'Indústria',
+    description: 'Plano de contas para pequenas indústrias.',
+    type: 'Pequena Indústria',
+  }
+};
+
+const TemplateModal = ({ isOpen, onClose, onApply }) => {
+    const fileInputRef = useRef(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState('');
+
+    const handleGenerateTemplate = async (templateKey) => {
+        const template = CATEGORY_TEMPLATES[templateKey];
+        if (!window.confirm(`Tem a certeza de que deseja gerar e aplicar o modelo "${template.name}"? A IA criará um plano de contas para si.`)) return;
+        
+        setIsLoading(true);
+        setError('');
+        
+        const prompt = `
+            Você é um contador especialista em sistemas financeiros no Brasil. Sua tarefa é criar um "Plano de Contas" para um tipo de negócio específico.
+            O resultado DEVE ser um array de objetos JSON VÁLIDO.
+            Cada objeto representa uma categoria e deve conter as seguintes chaves:
+            - "id": uma string única e curta em inglês para referência (ex: 'despesa_aluguel', 'receita_vendas').
+            - "name": o nome da categoria em português (ex: 'Aluguel', 'Vendas de Produtos').
+            - "type": deve ser 'expense' para despesa ou 'revenue' para receita.
+            - "parentId": deve ser null para categorias principais, ou o "id" da categoria pai para subcategorias.
+
+            Gere um plano de contas completo e bem estruturado para: "${template.type}".
+            Inclua as principais categorias de receitas e despesas, com subcategorias relevantes.
+        `;
+
+        const apiKey = process.env.REACT_APP_GEMINI_API_KEY;
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+        
+        try {
+            const payload = {
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: { responseMimeType: "application/json" },
+            };
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.error?.message || `API Error: ${response.status}`);
+            const textResponse = result.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (!textResponse) throw new Error("A API retornou uma resposta vazia.");
+            
+            const generatedCategories = JSON.parse(textResponse);
+            onApply(generatedCategories);
+            onClose();
+
+        } catch (e) {
+            console.error("Erro ao gerar plano de contas com IA:", e);
+            setError(`Ocorreu um erro: ${e.message}`);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+    
+    const handleImportClick = () => {
+        fileInputRef.current.click();
+    };
+
+    const handleFileChange = (event) => {
+        const file = event.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const importedData = JSON.parse(e.target.result);
+                    if (!Array.isArray(importedData) || !importedData.every(cat => cat.name && cat.type && cat.id)) {
+                       throw new Error("Formato de ficheiro inválido. O ficheiro JSON deve ser um array e cada categoria deve ter 'id', 'name' e 'type'.");
+                    }
+                    if(window.confirm("Tem a certeza que deseja importar este plano de contas?")) {
+                        onApply(importedData);
+                        onClose();
+                    }
+                } catch (error) {
+                    alert(`Erro ao ler o ficheiro: ${error.message}`);
+                }
+            };
+            reader.readAsText(file);
+        }
+    };
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title="Escolher um Plano de Contas" size="lg">
+            <div className="space-y-6">
+                {isLoading && <LoadingScreen message="A IA está a criar o seu plano de contas..." />}
+                {error && <p className="text-red-500 text-sm bg-red-50 dark:bg-red-900/20 p-2 rounded-md">{error}</p>}
+                {!isLoading && (
+                    <>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {Object.entries(CATEGORY_TEMPLATES).map(([key, template]) => (
+                                <div key={key} className="p-4 border dark:border-gray-700 rounded-lg flex flex-col items-center text-center">
+                                    <h3 className="font-bold text-lg">{template.name}</h3>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400 flex-grow my-2">{template.description}</p>
+                                    <Button onClick={() => handleGenerateTemplate(key)} className="w-full mt-auto">Gerar com IA</Button>
+                                </div>
+                            ))}
+                        </div>
+                         <div className="p-4 border-2 border-dashed dark:border-gray-600 rounded-lg flex flex-col items-center text-center">
+                            <h3 className="font-bold text-lg">Importar o seu Próprio Plano</h3>
+                            <p className="text-sm text-gray-500 dark:text-gray-400 my-2">Importe um plano de contas de um ficheiro JSON.</p>
+                            <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".json" className="hidden" />
+                            <Button onClick={handleImportClick} className="w-full max-w-xs bg-green-600 hover:bg-green-700">
+                                <FileJson size={16}/>
+                                <span>Importar de Ficheiro</span>
+                            </Button>
+                        </div>
+                    </>
+                )}
+            </div>
+        </Modal>
+    );
+};
 
