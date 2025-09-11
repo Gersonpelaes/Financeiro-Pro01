@@ -1394,6 +1394,28 @@ const CategoryManager = ({ categories, onSave, onDelete, onApplyTemplate }) => {
         handleCloseModal();
     };
     
+    const handleExportCategories = () => {
+        if (categories.length === 0) {
+            alert("Não há categorias para exportar.");
+            return;
+        }
+        // We only need these fields for a clean export/import
+        const exportData = categories.map(({ id, name, type, parentId }) => ({
+            id,
+            name,
+            type,
+            parentId: parentId || null,
+        }));
+
+        const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(
+            JSON.stringify(exportData, null, 2)
+        )}`;
+        const link = document.createElement("a");
+        link.href = jsonString;
+        link.download = "plano_de_contas.json";
+        link.click();
+    };
+
     const handleDelete = (id) => {
         if (window.confirm('Tem a certeza? Se for uma categoria principal, as suas subcategorias tornar-se-ão categorias principais.')) {
             onDelete('categories', id);
@@ -1438,7 +1460,15 @@ const CategoryManager = ({ categories, onSave, onDelete, onApplyTemplate }) => {
         <>
             <div className="flex justify-between items-center mb-6">
                 <h2 className="text-3xl font-extrabold text-gray-800 dark:text-gray-200">Gerenciador de Categorias</h2>
-                <Button onClick={() => handleOpenModal({})}><PlusCircle size={18}/><span>Nova Categoria</span></Button>
+                <div className="flex gap-2">
+                    {categories.length > 0 && (
+                         <Button onClick={handleExportCategories} className="bg-teal-600 hover:bg-teal-700">
+                            <Download size={18}/>
+                            <span>Exportar</span>
+                        </Button>
+                    )}
+                    <Button onClick={() => handleOpenModal({})}><PlusCircle size={18}/><span>Nova Categoria</span></Button>
+                </div>
             </div>
             
             <div className="p-6 bg-blue-50 dark:bg-gray-700/50 rounded-xl border-2 border-blue-200 dark:border-blue-800 mb-8">
@@ -2031,26 +2061,33 @@ const SettingsView = ({ onSaveEntity, onDeleteEntity, onImportTransactions, acco
         const batch = writeBatch(db);
         const idMap = new Map();
 
+        // Salvar primeiro as categorias pai para obter os seus IDs
         const parents = templateData.filter(cat => !cat.parentId);
         for (const cat of parents) {
-            const { id, ...data } = cat;
+            const { id: oldId, ...data } = cat;
             const docRef = doc(collection(db, `users/${auth.currentUser.uid}/companies/${activeCompanyId}/categories`));
-            idMap.set(id, docRef.id);
+            idMap.set(oldId, docRef.id); // Mapeia o ID antigo para o novo
             batch.set(docRef, data);
         }
-
+        
+        // Agora, salvar as categorias filhas, usando os novos IDs dos pais
         const children = templateData.filter(cat => cat.parentId);
         for (const child of children) {
-            const { id, ...data } = child;
-            const newParentId = idMap.get(data.parentId);
+            const { id: oldId, parentId: oldParentId, ...data } = child;
+            const newParentId = idMap.get(oldParentId);
             if (newParentId) {
                 data.parentId = newParentId;
                 const docRef = doc(collection(db, `users/${auth.currentUser.uid}/companies/${activeCompanyId}/categories`));
                 batch.set(docRef, data);
+            } else {
+                 console.warn(`Categoria filha "${child.name}" não encontrou o ID do pai "${oldParentId}". Será salva como categoria principal.`);
+                 const docRef = doc(collection(db, `users/${auth.currentUser.uid}/companies/${activeCompanyId}/categories`));
+                 batch.set(docRef, data);
             }
         }
         await batch.commit();
     };
+
 
     const TabButton = ({ tab, label }) => (
         <button
@@ -2756,6 +2793,7 @@ export default function App() {
             const newCompanyRef = doc(collection(db, `${userPath}/companies`));
             await setDoc(newCompanyRef, { name: "Minha Empresa Principal (Migrada)", createdAt: new Date().toISOString() });
             
+            // CORREÇÃO: Adicionada a coleção 'categories' à lista de migração.
             const collectionsToMigrate = ['accounts', 'transactions', 'payees', 'budgets', 'futureEntries', 'categories'];
             for (const collName of collectionsToMigrate) {
                 const oldCollPath = `${userPath}/${collName}`;
@@ -2767,8 +2805,6 @@ export default function App() {
                     oldDocsSnap.forEach(oldDoc => {
                         const newDocRef = doc(db, newCollPath, oldDoc.id);
                         batch.set(newDocRef, oldDoc.data());
-                        // Optional: delete old doc after migration
-                        // batch.delete(oldDoc.ref);
                     });
                     await batch.commit();
                 }
@@ -3122,31 +3158,21 @@ const WeeklyCashFlowView = ({ futureEntries, categories }) => {
 }
 
 // --- NOVO COMPONENTE: MODAL DE MODELOS DE CATEGORIA ---
-const CATEGORY_TEMPLATES = {
-  personal: {
-    name: 'Finanças Pessoais',
-    description: 'Um plano de contas para uso pessoal e familiar.',
-    type: 'Finanças Pessoais',
-  },
-  commerce: {
-    name: 'Comércio',
-    description: 'Plano de contas para empresas comerciais.',
-    type: 'Pequeno Comércio Varejista',
-  },
-  industry: {
-    name: 'Indústria',
-    description: 'Plano de contas para pequenas indústrias.',
-    type: 'Pequena Indústria',
-  }
-};
-
 const TemplateModal = ({ isOpen, onClose, onApply }) => {
     const fileInputRef = useRef(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
 
+    const TEMPLATE_DEFINITIONS = {
+      personal: { name: 'Finanças Pessoais', description: 'Plano de contas para uso pessoal e familiar.', type: 'Finanças Pessoais' },
+      commerce: { name: 'Comércio', description: 'Plano de contas para empresas comerciais.', type: 'Pequeno Comércio Varejista' },
+      industry: { name: 'Indústria', description: 'Plano de contas para pequenas indústrias.', type: 'Pequena Indústria' },
+      restaurant: { name: 'Restaurante', description: 'Plano de contas focado em restaurantes e lancherias.', type: 'Restaurante e Lancheria' },
+      rural: { name: 'Propriedade Rural', description: 'Para gestão de atividades agrícolas e pecuárias.', type: 'Propriedade Rural (Agronegócio)' },
+    };
+
     const handleGenerateTemplate = async (templateKey) => {
-        const template = CATEGORY_TEMPLATES[templateKey];
+        const template = TEMPLATE_DEFINITIONS[templateKey];
         if (!window.confirm(`Tem a certeza de que deseja gerar e aplicar o modelo "${template.name}"? A IA criará um plano de contas para si.`)) return;
         
         setIsLoading(true);
@@ -3228,8 +3254,8 @@ const TemplateModal = ({ isOpen, onClose, onApply }) => {
                 {error && <p className="text-red-500 text-sm bg-red-50 dark:bg-red-900/20 p-2 rounded-md">{error}</p>}
                 {!isLoading && (
                     <>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            {Object.entries(CATEGORY_TEMPLATES).map(([key, template]) => (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {Object.entries(TEMPLATE_DEFINITIONS).map(([key, template]) => (
                                 <div key={key} className="p-4 border dark:border-gray-700 rounded-lg flex flex-col items-center text-center">
                                     <h3 className="font-bold text-lg">{template.name}</h3>
                                     <p className="text-sm text-gray-500 dark:text-gray-400 flex-grow my-2">{template.description}</p>
@@ -3252,4 +3278,5 @@ const TemplateModal = ({ isOpen, onClose, onApply }) => {
         </Modal>
     );
 };
+
 
