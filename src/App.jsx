@@ -270,12 +270,13 @@ const DashboardView = ({ transactions, accounts, categories, futureEntries, budg
     );
 };
 
-const TransactionsView = ({ transactions, accounts, categories, payees, onSave, onDelete }) => {
+const TransactionsView = ({ transactions, accounts, categories, payees, onSave, onDelete, onBatchDelete }) => {
     const [selectedAccountId, setSelectedAccountId] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingTransaction, setEditingTransaction] = useState(null);
     const [formData, setFormData] = useState({});
     const [attachmentFile, setAttachmentFile] = useState(null);
+    const [selectedTransactions, setSelectedTransactions] = useState(new Set());
 
     // Estados para o modal de adicionar favorecido
     const [isAddPayeeModalOpen, setIsAddPayeeModalOpen] = useState(false);
@@ -286,6 +287,7 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
         if (accounts.length > 0 && !selectedAccountId) {
             setSelectedAccountId(accounts[0].id);
         }
+        setSelectedTransactions(new Set());
     }, [accounts, selectedAccountId]);
     
     // Efeito para auto-selecionar o novo favorecido
@@ -326,6 +328,33 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
         if (transactionsWithBalance.length === 0) return selectedAccount.initialBalance || 0;
         return transactionsWithBalance[0].runningBalance;
     }, [transactionsWithBalance, selectedAccount]);
+
+    const handleSelectTransaction = (id) => {
+        setSelectedTransactions(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(id)) {
+                newSet.delete(id);
+            } else {
+                newSet.add(id);
+            }
+            return newSet;
+        });
+    };
+
+    const handleSelectAll = (e) => {
+        if (e.target.checked) {
+            const allIds = transactionsWithBalance.map(t => t.id);
+            setSelectedTransactions(new Set(allIds));
+        } else {
+            setSelectedTransactions(new Set());
+        }
+    };
+
+    const handleDeleteSelected = () => {
+        const toDelete = transactions.filter(t => selectedTransactions.has(t.id));
+        onBatchDelete(toDelete);
+        setSelectedTransactions(new Set());
+    };
 
     const handleOpenModal = (transaction = null) => {
         setAttachmentFile(null);
@@ -406,14 +435,48 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
                     <p className="text-gray-500 dark:text-gray-400">Saldo Atual</p>
                     <p className="text-2xl font-bold text-gray-800 dark:text-gray-200">{formatCurrency(currentBalance)}</p>
                 </div>
-                <Button onClick={() => handleOpenModal()}><PlusCircle size={20} /><span>Adicionar Transação</span></Button>
+                <div className="flex items-center gap-4">
+                    {selectedTransactions.size > 0 && (
+                        <Button onClick={handleDeleteSelected} className="bg-red-600 hover:bg-red-700">
+                            <Trash2 size={20} />
+                            <span>Apagar ({selectedTransactions.size})</span>
+                        </Button>
+                    )}
+                    <Button onClick={() => handleOpenModal()}><PlusCircle size={20} /><span>Adicionar Transação</span></Button>
+                </div>
             </div>
             <div className="overflow-x-auto">
                 <table className="w-full text-left">
-                    <thead><tr className="border-b-2 border-gray-200 dark:border-gray-700"><th className="p-4">Data</th><th className="p-4">Descrição</th><th className="p-4">Categoria</th><th className="p-4 text-right">Valor</th><th className="p-4 text-right">Saldo</th><th className="p-4">Ações</th></tr></thead>
+                    <thead>
+                        <tr className="border-b-2 border-gray-200 dark:border-gray-700">
+                            <th className="p-4 w-12 text-center">
+                                <input
+                                    type="checkbox"
+                                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
+                                    onChange={handleSelectAll}
+                                    checked={transactionsWithBalance.length > 0 && selectedTransactions.size === transactionsWithBalance.length}
+                                    ref={input => { if (input) { input.indeterminate = selectedTransactions.size > 0 && selectedTransactions.size < transactionsWithBalance.length; } }}
+                                />
+                            </th>
+                            <th className="p-4">Data</th>
+                            <th className="p-4">Descrição</th>
+                            <th className="p-4">Categoria</th>
+                            <th className="p-4 text-right">Valor</th>
+                            <th className="p-4 text-right">Saldo</th>
+                            <th className="p-4">Ações</th>
+                        </tr>
+                    </thead>
                     <tbody>
                         {transactionsWithBalance.map(t => (
-                            <tr key={t.id} className="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                            <tr key={t.id} className={`border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 ${selectedTransactions.has(t.id) ? 'bg-blue-50 dark:bg-blue-900/40' : ''}`}>
+                                <td className="p-4 text-center">
+                                    <input
+                                        type="checkbox"
+                                        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
+                                        checked={selectedTransactions.has(t.id)}
+                                        onChange={() => handleSelectTransaction(t.id)}
+                                    />
+                                </td>
                                 <td className="p-4 text-gray-600 dark:text-gray-400">{formatDate(t.date)}</td>
                                 <td className="p-4 font-medium text-gray-800 dark:text-gray-200 flex items-center gap-2">
                                     {t.description}
@@ -2626,6 +2689,48 @@ export default function App() {
         }
     };
     
+    const handleBatchDeleteTransactions = async (transactionsToDelete) => {
+        if (!userId || transactionsToDelete.length === 0) return;
+        if (!window.confirm(`Tem a certeza que deseja apagar ${transactionsToDelete.length} transações? Esta ação não pode ser desfeita.`)) return;
+
+        const path = `users/${userId}/companies/${activeCompanyId}/transactions`;
+        const batch = writeBatch(db);
+        const storageDeletePromises = [];
+        const transferIdsProcessed = new Set(); 
+
+        for (const item of transactionsToDelete) {
+            if (item.attachmentURL) {
+                try {
+                    const storageRef = ref(storage, item.attachmentURL);
+                    storageDeletePromises.push(deleteObject(storageRef));
+                } catch (error) {
+                    console.error("Error creating promise for attachment deletion:", error);
+                }
+            }
+
+            if (item.isTransfer && item.transferId) {
+                if (!transferIdsProcessed.has(item.transferId)) {
+                    transferIdsProcessed.add(item.transferId);
+                    const q = query(collection(db, path), where("transferId", "==", item.transferId));
+                    const querySnapshot = await getDocs(q);
+                    querySnapshot.forEach((doc) => {
+                        batch.delete(doc.ref);
+                    });
+                }
+            } else if (!item.isTransfer) {
+                 batch.delete(doc(db, path, item.id));
+            }
+        }
+        
+        try {
+            await Promise.all(storageDeletePromises);
+            await batch.commit();
+        } catch(error) {
+            console.error("Erro ao apagar transações em lote:", error);
+            alert("Ocorreu um erro ao apagar as transações.");
+        }
+    };
+
     const handleImportTransactions = async (transactionsToImport, accountId) => {
         if (!userId) return;
         const path = `users/${userId}/companies/${activeCompanyId}/transactions`;
@@ -2881,7 +2986,7 @@ export default function App() {
 
         switch (view) {
             case 'dashboard': return <DashboardView transactions={transactions} accounts={accounts} categories={categories} futureEntries={futureEntries} budgets={budgets} />;
-            case 'transactions': return <TransactionsView transactions={transactions} accounts={accounts} categories={categories} payees={payees} onSave={handleSaveWithCompanyId} onDelete={handleDeleteWithCompanyId} />;
+            case 'transactions': return <TransactionsView transactions={transactions} accounts={accounts} categories={categories} payees={payees} onSave={handleSaveWithCompanyId} onDelete={handleDeleteWithCompanyId} onBatchDelete={handleBatchDeleteTransactions} />;
             case 'reconciliation': return <ReconciliationView transactions={transactions} accounts={accounts} categories={categories} payees={payees} onSaveTransaction={handleSaveWithCompanyId} allTransactions={transactions} />;
             case 'futureEntries': return <FutureEntriesView futureEntries={futureEntries} accounts={accounts} categories={categories} payees={payees} onSave={handleSaveWithCompanyId} onDelete={handleDeleteWithCompanyId} onReconcile={handleReconcileWithCompanyId} />;
             case 'budgets': return <BudgetsView budgets={budgets} categories={categories} transactions={transactions} onSave={handleSaveWithCompanyId} onDelete={handleDeleteWithCompanyId} />;
@@ -3278,5 +3383,4 @@ const TemplateModal = ({ isOpen, onClose, onApply }) => {
         </Modal>
     );
 };
-
 
