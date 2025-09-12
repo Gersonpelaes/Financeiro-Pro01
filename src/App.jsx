@@ -3271,6 +3271,7 @@ const TemplateModal = ({ isOpen, onClose, onApply }) => {
     const TEMPLATE_DEFINITIONS = {
       personal: { name: 'Finanças Pessoais', description: 'Plano de contas para uso pessoal e familiar.', type: 'Finanças Pessoais' },
       commerce: { name: 'Comércio', description: 'Plano de contas para empresas comerciais.', type: 'Pequeno Comércio Varejista' },
+      services: { name: 'Prestação de Serviços', description: 'Ideal para autônomos, agências e consultorias.', type: 'Empresa de Prestação de Serviços' },
       industry: { name: 'Indústria', description: 'Plano de contas para pequenas indústrias.', type: 'Pequena Indústria' },
       restaurant: { name: 'Restaurante', description: 'Plano de contas focado em restaurantes e lancherias.', type: 'Restaurante e Lancheria' },
       rural: { name: 'Propriedade Rural', description: 'Para gestão de atividades agrícolas e pecuárias.', type: 'Propriedade Rural (Agronegócio)' },
@@ -3284,16 +3285,33 @@ const TemplateModal = ({ isOpen, onClose, onApply }) => {
         setError('');
         
         const prompt = `
-            Você é um contador especialista em sistemas financeiros no Brasil. Sua tarefa é criar um "Plano de Contas" para um tipo de negócio específico.
-            O resultado DEVE ser um array de objetos JSON VÁLIDO.
-            Cada objeto representa uma categoria e deve conter as seguintes chaves:
-            - "id": uma string única e curta em inglês para referência (ex: 'despesa_aluguel', 'receita_vendas').
-            - "name": o nome da categoria em português (ex: 'Aluguel', 'Vendas de Produtos').
-            - "type": deve ser 'expense' para despesa ou 'revenue' para receita.
-            - "parentId": deve ser null para categorias principais, ou o "id" da categoria pai para subcategorias.
+            **Contexto:** Você é um contador experiente no Brasil, especializado em criar planos de contas para sistemas financeiros.
 
-            Gere um plano de contas completo e bem estruturado para: "${template.type}".
-            Inclua as principais categorias de receitas e despesas, com subcategorias relevantes.
+            **Tarefa:** Sua missão é gerar um "Plano de Contas" detalhado e hierárquico para um tipo de negócio específico. O resultado DEVE ser um array de objetos JSON VÁLIDO, sem nenhum texto adicional, explicação ou markdown.
+
+            **Exemplo de Saída Desejada (Estrutura Obrigatória):**
+            [
+              {
+                "id": "despesa-operacional",
+                "name": "Despesas Operacionais",
+                "type": "expense",
+                "parentId": null
+              },
+              {
+                "id": "despesa-aluguel",
+                "name": "Aluguel",
+                "type": "expense",
+                "parentId": "despesa-operacional"
+              }
+            ]
+
+            **Regras Críticas:**
+            1.  **Hierarquia é Essencial:** Crie uma estrutura lógica com categorias principais e subcategorias. Subcategorias DEVEM OBRIGATORIAMENTE ter o \`parentId\` preenchido com o \`id\` da sua categoria principal. Categorias principais DEVEM ter \`parentId\` como \`null\`.
+            2.  **ID Padrão:** O campo \`id\` deve seguir o padrão \`tipo-nome-da-categoria\`, tudo em minúsculas, sem acentos e com hífens no lugar de espaços. Ex: "receita-venda-servicos", "despesa-impostos".
+            3.  **Tipos Válidos:** O campo \`type\` só pode ser 'expense' ou 'revenue'.
+            4.  **Saída Limpa:** Retorne APENAS o array JSON.
+
+            **Plano de Contas a ser Gerado para:** "${template.type}"
         `;
 
         const apiKey = process.env.REACT_APP_GEMINI_API_KEY;
