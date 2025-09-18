@@ -270,33 +270,37 @@ const DashboardView = ({ transactions, accounts, categories, futureEntries, budg
     );
 };
 
-const TransactionsView = ({ transactions, accounts, categories, payees, onSave, onDelete, onBatchDelete }) => {
+const TransactionsView = ({ transactions, accounts, categories, payees, onSave, onDelete, onBatchDelete, futureEntries }) => {
     const [selectedAccountId, setSelectedAccountId] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingTransaction, setEditingTransaction] = useState(null);
     const [formData, setFormData] = useState({});
     const [attachmentFile, setAttachmentFile] = useState(null);
     const [selectedTransactions, setSelectedTransactions] = useState(new Set());
-
-    // Estados para o modal de adicionar favorecido
     const [isAddPayeeModalOpen, setIsAddPayeeModalOpen] = useState(false);
     const [newPayeeName, setNewPayeeName] = useState('');
     const [newlyAddedPayeeName, setNewlyAddedPayeeName] = useState(null);
+
+    // Estados de Simulação
+    const [isSimulating, setIsSimulating] = useState(false);
+    const [simulationRange, setSimulationRange] = useState({ start: '', end: '' });
+    const [isSimulationModalOpen, setIsSimulationModalOpen] = useState(false);
+
 
     useEffect(() => {
         if (accounts.length > 0 && !selectedAccountId) {
             setSelectedAccountId(accounts[0].id);
         }
         setSelectedTransactions(new Set());
+        setIsSimulating(false); // Reset simulation on account change
     }, [accounts, selectedAccountId]);
     
-    // Efeito para auto-selecionar o novo favorecido
     useEffect(() => {
         if (newlyAddedPayeeName && payees.length > 0) {
             const newPayee = payees.find(p => p.name === newlyAddedPayeeName);
             if (newPayee) {
                 setFormData(prev => ({ ...prev, payeeId: newPayee.id }));
-                setNewlyAddedPayeeName(null); // Reset after setting
+                setNewlyAddedPayeeName(null); 
             }
         }
     }, [payees, newlyAddedPayeeName]);
@@ -311,8 +315,36 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
 
     const transactionsWithBalance = useMemo(() => {
         if (!selectedAccount) return [];
+
+        let combinedTransactions = [...filteredTransactions];
+
+        if (isSimulating && simulationRange.start && simulationRange.end) {
+            const simStartDate = new Date(simulationRange.start + 'T00:00:00');
+            const simEndDate = new Date(simulationRange.end + 'T23:59:59');
+
+            const futureSimulations = futureEntries
+                .filter(entry => {
+                    const dueDate = new Date(entry.dueDate);
+                    return entry.status !== 'reconciled' &&
+                           dueDate >= simStartDate &&
+                           dueDate <= simEndDate;
+                })
+                .map(entry => ({
+                    ...entry,
+                    id: `sim-${entry.id}`, // Unique key for simulated entries
+                    date: entry.dueDate, 
+                    accountId: selectedAccountId, 
+                    isSimulated: true,
+                }));
+            
+            combinedTransactions.push(...futureSimulations);
+        }
+
+        combinedTransactions.sort((a, b) => new Date(b.date) - new Date(a.date));
+
         let runningBalance = selectedAccount.initialBalance || 0;
-        const processed = filteredTransactions
+        
+        const processed = combinedTransactions
             .slice()
             .reverse()
             .map(t => {
@@ -320,8 +352,9 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
                 runningBalance += amount;
                 return { ...t, runningBalance };
             });
+        
         return processed.reverse();
-    }, [filteredTransactions, selectedAccount]);
+    }, [filteredTransactions, selectedAccount, isSimulating, simulationRange, futureEntries, selectedAccountId]);
 
     const currentBalance = useMemo(() => {
         if (!selectedAccount) return 0;
@@ -343,7 +376,7 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
 
     const handleSelectAll = (e) => {
         if (e.target.checked) {
-            const allIds = transactionsWithBalance.map(t => t.id);
+            const allIds = transactionsWithBalance.filter(t => !t.isSimulated).map(t => t.id);
             setSelectedTransactions(new Set(allIds));
         } else {
             setSelectedTransactions(new Set());
@@ -412,6 +445,29 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
         setNewPayeeName('');
         setIsAddPayeeModalOpen(false);
     };
+    
+    const handleOpenSimulationModal = () => {
+        const today = new Date();
+        const endDate = new Date();
+        endDate.setDate(today.getDate() + 30);
+        
+        setSimulationRange({
+            start: today.toISOString().substring(0, 10),
+            end: endDate.toISOString().substring(0, 10),
+        });
+        setIsSimulationModalOpen(true);
+    };
+    
+    const handleSimRangeChange = (e) => {
+        const { name, value } = e.target;
+        setSimulationRange(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleStartSimulation = (e) => {
+        e.preventDefault();
+        setIsSimulating(true);
+        setIsSimulationModalOpen(false);
+    };
 
     const groupedCategories = useMemo(() => {
         const type = formData.type || 'expense';
@@ -432,7 +488,7 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
                     </select>
                 </div>
                 <div className="text-right">
-                    <p className="text-gray-500 dark:text-gray-400">Saldo Atual</p>
+                    <p className="text-gray-500 dark:text-gray-400">{isSimulating ? 'Saldo Simulado' : 'Saldo Atual'}</p>
                     <p className="text-2xl font-bold text-gray-800 dark:text-gray-200">{formatCurrency(currentBalance)}</p>
                 </div>
                 <div className="flex items-center gap-4">
@@ -440,6 +496,15 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
                         <Button onClick={handleDeleteSelected} className="bg-red-600 hover:bg-red-700">
                             <Trash2 size={20} />
                             <span>Apagar ({selectedTransactions.size})</span>
+                        </Button>
+                    )}
+                    {isSimulating ? (
+                        <Button onClick={() => setIsSimulating(false)} className="bg-gray-600 hover:bg-gray-700">
+                            <ArrowLeft size={20} /><span>Voltar ao Extrato</span>
+                        </Button>
+                    ) : (
+                        <Button onClick={handleOpenSimulationModal} className="bg-yellow-500 hover:bg-yellow-600">
+                            <Clock size={20} /><span>Simular Futuro</span>
                         </Button>
                     )}
                     <Button onClick={() => handleOpenModal()}><PlusCircle size={20} /><span>Adicionar Transação</span></Button>
@@ -454,8 +519,8 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
                                     type="checkbox"
                                     className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
                                     onChange={handleSelectAll}
-                                    checked={transactionsWithBalance.length > 0 && selectedTransactions.size === transactionsWithBalance.length}
-                                    ref={input => { if (input) { input.indeterminate = selectedTransactions.size > 0 && selectedTransactions.size < transactionsWithBalance.length; } }}
+                                    checked={transactionsWithBalance.filter(t => !t.isSimulated).length > 0 && selectedTransactions.size === transactionsWithBalance.filter(t => !t.isSimulated).length}
+                                    ref={input => { if (input) { input.indeterminate = selectedTransactions.size > 0 && selectedTransactions.size < transactionsWithBalance.filter(t => !t.isSimulated).length; } }}
                                 />
                             </th>
                             <th className="p-4">Data</th>
@@ -468,14 +533,16 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
                     </thead>
                     <tbody>
                         {transactionsWithBalance.map(t => (
-                            <tr key={t.id} className={`border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 ${selectedTransactions.has(t.id) ? 'bg-blue-50 dark:bg-blue-900/40' : ''}`}>
+                            <tr key={t.id} className={`border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 ${selectedTransactions.has(t.id) ? 'bg-blue-50 dark:bg-blue-900/40' : ''} ${t.isSimulated ? 'bg-yellow-50 dark:bg-yellow-900/20 italic' : ''}`}>
                                 <td className="p-4 text-center">
-                                    <input
-                                        type="checkbox"
-                                        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
-                                        checked={selectedTransactions.has(t.id)}
-                                        onChange={() => handleSelectTransaction(t.id)}
-                                    />
+                                    {!t.isSimulated && (
+                                        <input
+                                            type="checkbox"
+                                            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
+                                            checked={selectedTransactions.has(t.id)}
+                                            onChange={() => handleSelectTransaction(t.id)}
+                                        />
+                                    )}
                                 </td>
                                 <td className="p-4 text-gray-600 dark:text-gray-400">{formatDate(t.date)}</td>
                                 <td className="p-4 font-medium text-gray-800 dark:text-gray-200 flex items-center gap-2">
@@ -486,20 +553,41 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
                                         </a>
                                     )}
                                 </td>
-                                <td className="p-4 text-gray-600 dark:text-gray-400">{t.isTransfer ? <span className="flex items-center gap-2 text-blue-600 font-medium"><ArrowRightLeft size={14}/> Transferência</span> : getCategoryFullName(t.categoryId, categories)}</td>
+                                <td className="p-4 text-gray-600 dark:text-gray-400">
+                                    {t.isTransfer ? <span className="flex items-center gap-2 text-blue-600 font-medium"><ArrowRightLeft size={14}/> Transferência</span> : getCategoryFullName(t.categoryId, categories)}
+                                    {t.isSimulated && <span className="text-xs ml-2 text-yellow-700 dark:text-yellow-400 font-bold">[SIMULAÇÃO]</span>}
+                                </td>
                                 <td className={`p-4 font-bold text-right ${t.type === 'revenue' ? 'text-green-600' : 'text-red-600'}`}>{t.type === 'revenue' ? '+' : '-'} {formatCurrency(t.amount)}</td>
                                 <td className="p-4 font-mono text-right text-gray-700 dark:text-gray-300">{formatCurrency(t.runningBalance)}</td>
                                 <td className="p-4">
-                                    <div className="flex space-x-2">
-                                        {!t.isTransfer && <button onClick={() => handleOpenModal(t)} className="text-blue-500 hover:text-blue-700"><Edit size={18} /></button>}
-                                        <button onClick={() => onDelete('transactions', t)} className="text-red-500 hover:text-red-700"><Trash2 size={18} /></button>
-                                    </div>
+                                    {!t.isSimulated && (
+                                        <div className="flex space-x-2">
+                                            {!t.isTransfer && <button onClick={() => handleOpenModal(t)} className="text-blue-500 hover:text-blue-700"><Edit size={18} /></button>}
+                                            <button onClick={() => onDelete('transactions', t)} className="text-red-500 hover:text-red-700"><Trash2 size={18} /></button>
+                                        </div>
+                                    )}
                                 </td>
                             </tr>
                         ))}
                     </tbody>
                 </table>
             </div>
+            
+            <Modal isOpen={isSimulationModalOpen} onClose={() => setIsSimulationModalOpen(false)} title="Simular Lançamentos Futuros">
+                <form onSubmit={handleStartSimulation} className="space-y-4">
+                    <p className="text-gray-700 dark:text-gray-300">Selecione o período para incluir os lançamentos futuros no extrato.</p>
+                    <div className="flex gap-4">
+                        <label className="flex-1 text-gray-700 dark:text-gray-300">Data Inicial
+                            <input type="date" name="start" value={simulationRange.start} onChange={handleSimRangeChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required />
+                        </label>
+                        <label className="flex-1 text-gray-700 dark:text-gray-300">Data Final
+                            <input type="date" name="end" value={simulationRange.end} onChange={handleSimRangeChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required />
+                        </label>
+                    </div>
+                    <div className="flex justify-end pt-4"><Button type="submit" className="bg-yellow-500 hover:bg-yellow-600">Simular</Button></div>
+                </form>
+            </Modal>
+
             <Modal isOpen={isModalOpen} onClose={handleCloseModal} title={editingTransaction ? "Editar Transação" : "Nova Transação"}>
                 <form onSubmit={handleSubmit} className="space-y-6">
                     <div className="flex space-x-4">
@@ -2986,7 +3074,7 @@ export default function App() {
 
         switch (view) {
             case 'dashboard': return <DashboardView transactions={transactions} accounts={accounts} categories={categories} futureEntries={futureEntries} budgets={budgets} />;
-            case 'transactions': return <TransactionsView transactions={transactions} accounts={accounts} categories={categories} payees={payees} onSave={handleSaveWithCompanyId} onDelete={handleDeleteWithCompanyId} onBatchDelete={handleBatchDeleteTransactions} />;
+            case 'transactions': return <TransactionsView transactions={transactions} accounts={accounts} categories={categories} payees={payees} futureEntries={futureEntries} onSave={handleSaveWithCompanyId} onDelete={handleDeleteWithCompanyId} onBatchDelete={handleBatchDeleteTransactions} />;
             case 'reconciliation': return <ReconciliationView transactions={transactions} accounts={accounts} categories={categories} payees={payees} onSaveTransaction={handleSaveWithCompanyId} allTransactions={transactions} />;
             case 'futureEntries': return <FutureEntriesView futureEntries={futureEntries} accounts={accounts} categories={categories} payees={payees} onSave={handleSaveWithCompanyId} onDelete={handleDeleteWithCompanyId} onReconcile={handleReconcileWithCompanyId} />;
             case 'budgets': return <BudgetsView budgets={budgets} categories={categories} transactions={transactions} onSave={handleSaveWithCompanyId} onDelete={handleDeleteWithCompanyId} />;
