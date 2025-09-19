@@ -182,13 +182,13 @@ const DashboardView = ({ transactions, accounts, categories, futureEntries, budg
     const profitMargin = useMemo(() => totalRevenue > 0 ? (monthlyCashFlow / totalRevenue) * 100 : 0, [monthlyCashFlow, totalRevenue]);
 
     const cmv = useMemo(() => {
-        const cmvCategoryIds = categories.filter(c => c.name.toLowerCase().includes('mercadorias vendidas') || c.name.toLowerCase().includes('cmv')).map(c => c.id);
+        const cmvCategoryIds = categories.filter(c => c.name && (c.name.toLowerCase().includes('mercadorias vendidas') || c.name.toLowerCase().includes('cmv'))).map(c => c.id);
         if (cmvCategoryIds.length === 0) return 0;
         return monthlyTransactions.filter(t => t.type === 'expense' && cmvCategoryIds.includes(t.categoryId)).reduce((sum, t) => sum + t.amount, 0);
     }, [monthlyTransactions, categories]);
     
     const operationalExpenses = useMemo(() => {
-        const parentOpExId = categories.find(c => c.name.toLowerCase().includes('despesas operacionais') && !c.parentId)?.id;
+        const parentOpExId = categories.find(c => c.name && c.name.toLowerCase().includes('despesas operacionais') && !c.parentId)?.id;
         if (!parentOpExId) return 0;
         const opExCategoryIds = [parentOpExId, ...categories.filter(c => c.parentId === parentOpExId).map(c => c.id)];
         return monthlyTransactions.filter(t => t.type === 'expense' && opExCategoryIds.includes(t.categoryId)).reduce((sum, t) => sum + t.amount, 0);
@@ -201,7 +201,7 @@ const DashboardView = ({ transactions, accounts, categories, futureEntries, budg
     }, [futureEntries]);
     
     const taxes = useMemo(() => {
-        const taxCategoryIds = categories.filter(c => c.name.toLowerCase().includes('impostos') || c.name.toLowerCase().includes('obrigações fiscais')).map(c => c.id);
+        const taxCategoryIds = categories.filter(c => c.name && (c.name.toLowerCase().includes('impostos') || c.name.toLowerCase().includes('obrigações fiscais'))).map(c => c.id);
         if (taxCategoryIds.length === 0) return 0;
         return monthlyTransactions.filter(t => t.type === 'expense' && taxCategoryIds.includes(t.categoryId)).reduce((sum, t) => sum + t.amount, 0);
     }, [monthlyTransactions, categories]);
@@ -3659,6 +3659,7 @@ const TemplateModal = ({ isOpen, onClose, onApply }) => {
         </Modal>
     );
 };
+
 
 
 
