@@ -5,7 +5,7 @@ import { getFirestore, collection, doc, addDoc, getDocs, writeBatch, query, onSn
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { PlusCircle, Upload, Trash2, Edit, TrendingUp, TrendingDown, DollarSign, Settings, LayoutDashboard, List, BarChart2, Target, ArrowLeft, ArrowRightLeft, Repeat, CheckCircle, AlertTriangle, Clock, CalendarCheck2, Building, GitCompareArrows, ArrowUp, ArrowDown, Paperclip, FileText, LogOut, Download, UploadCloud, Sun, Moon, FileOutput, CalendarClock, Menu, X, ShieldCheck, CreditCard, RefreshCw, BookCopy, FileJson } from 'lucide-react';
+import { PlusCircle, Upload, Trash2, Edit, TrendingUp, TrendingDown, DollarSign, Settings, LayoutDashboard, List, BarChart2, Target, ArrowLeft, ArrowRightLeft, Repeat, CheckCircle, AlertTriangle, Clock, CalendarCheck2, Building, GitCompareArrows, ArrowUp, ArrowDown, Paperclip, FileText, LogOut, Download, UploadCloud, Sun, Moon, FileOutput, CalendarClock, Menu, X, ShieldCheck, CreditCard, RefreshCw, BookCopy, FileJson, Wallet, Percent, Archive, Receipt, Landmark, AreaChart } from 'lucide-react';
 
 // --- CONFIGURAÇÃO DO FIREBASE ---
 const firebaseConfig = {
@@ -141,34 +141,88 @@ const AuthView = ({ onGoogleSignIn }) => {
 
 
 // --- COMPONENTES DAS VIEWS ---
-const DashboardView = ({ transactions, accounts, categories, futureEntries, budgets }) => {
+const DashboardView = ({ transactions, accounts, categories, futureEntries, budgets, dashboardConfig, onSaveConfig }) => {
+    const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+    const [tempConfig, setTempConfig] = useState(dashboardConfig);
+
+    useEffect(() => {
+        setTempConfig(dashboardConfig);
+    }, [dashboardConfig]);
+
+    const handleConfigChange = (key) => {
+        setTempConfig(prev => ({ ...prev, [key]: !prev[key] }));
+    };
+
+    const handleSaveSettings = () => {
+        onSaveConfig(tempConfig);
+        setIsSettingsModalOpen(false);
+    };
+
+    // --- CÁLCULOS DOS KPIs ---
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
     const totalBalance = useMemo(() =>
         accounts.reduce((acc, account) => acc + (account.initialBalance || 0), 0) +
         transactions.reduce((acc, t) => {
             if (t.type === 'revenue') return acc + t.amount;
             if (t.type === 'expense') return acc - t.amount;
             return acc;
-        }, 0),
-        [accounts, transactions]);
+        }, 0), [accounts, transactions]);
 
-    const monthlyData = useMemo(() => {
-        const now = new Date();
-        const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-        return transactions.filter(t => new Date(t.date) >= firstDayOfMonth && !t.isTransfer);
-    }, [transactions]);
+    const monthlyTransactions = useMemo(() => transactions.filter(t => {
+        const tDate = new Date(t.date);
+        return tDate >= startOfMonth && tDate <= endOfMonth && !t.isTransfer;
+    }), [transactions, startOfMonth, endOfMonth]);
+    
+    const totalRevenue = useMemo(() => monthlyTransactions.filter(t => t.type === 'revenue').reduce((sum, t) => sum + t.amount, 0), [monthlyTransactions]);
+    const totalExpense = useMemo(() => monthlyTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0), [monthlyTransactions]);
+    const monthlyCashFlow = useMemo(() => totalRevenue - totalExpense, [totalRevenue, totalExpense]);
+    const profitMargin = useMemo(() => totalRevenue > 0 ? (monthlyCashFlow / totalRevenue) * 100 : 0, [monthlyCashFlow, totalRevenue]);
 
-    const totalRevenue = useMemo(() => monthlyData.filter(t => t.type === 'revenue').reduce((sum, t) => sum + t.amount, 0), [monthlyData]);
-    const totalExpense = useMemo(() => monthlyData.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0), [monthlyData]);
+    const cmv = useMemo(() => {
+        const cmvCategoryIds = categories.filter(c => c.name.toLowerCase().includes('mercadorias vendidas') || c.name.toLowerCase().includes('cmv')).map(c => c.id);
+        if (cmvCategoryIds.length === 0) return 0;
+        return monthlyTransactions.filter(t => t.type === 'expense' && cmvCategoryIds.includes(t.categoryId)).reduce((sum, t) => sum + t.amount, 0);
+    }, [monthlyTransactions, categories]);
+    
+    const operationalExpenses = useMemo(() => {
+        const parentOpExId = categories.find(c => c.name.toLowerCase().includes('despesas operacionais') && !c.parentId)?.id;
+        if (!parentOpExId) return 0;
+        const opExCategoryIds = [parentOpExId, ...categories.filter(c => c.parentId === parentOpExId).map(c => c.id)];
+        return monthlyTransactions.filter(t => t.type === 'expense' && opExCategoryIds.includes(t.categoryId)).reduce((sum, t) => sum + t.amount, 0);
+    }, [monthlyTransactions, categories]);
+
+    const accountsPayable = useMemo(() => {
+        return futureEntries
+            .filter(e => e.status !== 'reconciled' && e.type === 'expense')
+            .reduce((sum, e) => sum + e.amount, 0);
+    }, [futureEntries]);
+    
+    const taxes = useMemo(() => {
+        const taxCategoryIds = categories.filter(c => c.name.toLowerCase().includes('impostos') || c.name.toLowerCase().includes('obrigações fiscais')).map(c => c.id);
+        if (taxCategoryIds.length === 0) return 0;
+        return monthlyTransactions.filter(t => t.type === 'expense' && taxCategoryIds.includes(t.categoryId)).reduce((sum, t) => sum + t.amount, 0);
+    }, [monthlyTransactions, categories]);
+    
+    const next30DaysProjection = useMemo(() => {
+        const endDate = new Date();
+        endDate.setDate(endDate.getDate() + 30);
+        const futureCashFlow = futureEntries
+            .filter(e => e.status !== 'reconciled' && new Date(e.dueDate) <= endDate)
+            .reduce((sum, e) => sum + (e.type === 'revenue' ? e.amount : -e.amount), 0);
+        return totalBalance + futureCashFlow;
+    }, [futureEntries, totalBalance]);
 
     const expenseByCategory = useMemo(() => {
-        const expenses = monthlyData.filter(t => t.type === 'expense');
-        const grouped = expenses.reduce((acc, t) => {
+        const grouped = monthlyTransactions.filter(t => t.type === 'expense').reduce((acc, t) => {
             const categoryName = getCategoryFullName(t.categoryId, categories);
             acc[categoryName] = (acc[categoryName] || 0) + t.amount;
             return acc;
         }, {});
         return Object.entries(grouped).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
-    }, [monthlyData, categories]);
+    }, [monthlyTransactions, categories]);
 
     const dueToday = useMemo(() => {
         const today = new Date().toISOString().slice(0, 10);
@@ -176,96 +230,133 @@ const DashboardView = ({ transactions, accounts, categories, futureEntries, budg
     }, [futureEntries]);
     
     const budgetOverview = useMemo(() => {
-        const now = new Date();
-        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-        const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-        const monthlyRevenue = transactions
-            .filter(t => t.type === 'revenue' && !t.isTransfer && new Date(t.date) >= startOfMonth && new Date(t.date) <= endOfMonth)
-            .reduce((sum, t) => sum + t.amount, 0);
-
-        const expensesThisMonth = transactions.filter(t => t.type === 'expense' && new Date(t.date) >= startOfMonth && new Date(t.date) <= endOfMonth && !t.isTransfer);
-        
         const expensesByCat = {};
-        for(const expense of expensesThisMonth) {
+        for(const expense of monthlyTransactions) {
             expensesByCat[expense.categoryId] = (expensesByCat[expense.categoryId] || 0) + expense.amount;
             const category = categories.find(c => c.id === expense.categoryId);
-            if(category?.parentId) {
-                expensesByCat[category.parentId] = (expensesByCat[category.parentId] || 0) + expense.amount;
-            }
+            if(category?.parentId) expensesByCat[category.parentId] = (expensesByCat[category.parentId] || 0) + expense.amount;
         }
         
         let totalBudget = 0;
         let totalSpent = 0;
-
         budgets.forEach(b => {
-            const budgetAmount = b.budgetType === 'percentage' ? (monthlyRevenue * (b.percentage || 0)) / 100 : b.amount;
-            const spent = expensesByCat[b.categoryId] || 0;
+            const budgetAmount = b.budgetType === 'percentage' ? (totalRevenue * (b.percentage || 0)) / 100 : b.amount;
             totalBudget += budgetAmount;
-            totalSpent += spent;
+            totalSpent += expensesByCat[b.categoryId] || 0;
         });
-
         const progress = totalBudget > 0 ? (totalSpent / totalBudget) * 100 : 0;
         return { totalBudget, totalSpent, progress };
-    }, [budgets, transactions, categories]);
+    }, [budgets, monthlyTransactions, categories, totalRevenue]);
+
+    const kpiCards = [
+        { key: 'showTotalBalance', title: "Saldo Total", value: formatCurrency(totalBalance), icon: <DollarSign className="text-white" />, color: "bg-green-500" },
+        { key: 'showMonthlyRevenue', title: "Receitas (Mês)", value: formatCurrency(totalRevenue), icon: <TrendingUp className="text-white" />, color: "bg-blue-500" },
+        { key: 'showMonthlyExpense', title: "Despesas (Mês)", value: formatCurrency(totalExpense), icon: <TrendingDown className="text-white" />, color: "bg-red-500" },
+        { key: 'showCashFlow', title: "Fluxo de Caixa (Mês)", value: formatCurrency(monthlyCashFlow), icon: <Wallet className="text-white" />, color: "bg-cyan-500" },
+        { key: 'showProfitMargin', title: "Margem de Lucro", value: `${profitMargin.toFixed(2)}%`, icon: <Percent className="text-white" />, color: "bg-teal-500" },
+        { key: 'showCMV', title: "CMV (Mês)", value: formatCurrency(cmv), icon: <Archive className="text-white" />, color: "bg-orange-500" },
+        { key: 'showOperationalExpenses', title: "Desp. Operacionais", value: formatCurrency(operationalExpenses), icon: <Receipt className="text-white" />, color: "bg-yellow-500" },
+        { key: 'showAccountsPayable', title: "Contas a Pagar", value: formatCurrency(accountsPayable), icon: <Landmark className="text-white" />, color: "bg-pink-500" },
+        { key: 'showTaxes', title: "Impostos (Mês)", value: formatCurrency(taxes), icon: <FileText className="text-white" />, color: "bg-indigo-500" },
+        { key: 'showNext30DaysProjection', title: "Projeção 30 dias", value: formatCurrency(next30DaysProjection), icon: <AreaChart className="text-white" />, color: "bg-purple-500" },
+    ];
+    
+    if (!dashboardConfig) return <LoadingScreen message="A carregar dashboard..." />;
 
     return (
         <div className="space-y-8">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <StatCard title="Saldo Total" value={formatCurrency(totalBalance)} icon={<DollarSign className="text-white" />} color="bg-green-500" />
-                <StatCard title="Receitas (Mês)" value={formatCurrency(totalRevenue)} icon={<TrendingUp className="text-white" />} color="bg-blue-500" />
-                <StatCard title="Despesas (Mês)" value={formatCurrency(totalExpense)} icon={<TrendingDown className="text-white" />} color="bg-red-500" />
+            <div className="flex justify-between items-center">
+                <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-200">Dashboard</h2>
+                <Button onClick={() => setIsSettingsModalOpen(true)} className="bg-gray-600 hover:bg-gray-700 !p-2">
+                    <Settings />
+                </Button>
             </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {kpiCards.filter(kpi => dashboardConfig[kpi.key]).map(kpi => (
+                    <StatCard key={kpi.key} {...kpi} />
+                ))}
+            </div>
+
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg">
-                    <h3 className="text-xl font-bold text-gray-800 dark:text-gray-200 mb-4">Despesas do Mês por Categoria</h3>
-                    {expenseByCategory.length > 0 ? (
-                        <ResponsiveContainer width="100%" height={300}>
-                           <BarChart data={expenseByCategory} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                                <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis type="number" tickFormatter={formatCurrency} />
-                                <YAxis type="category" dataKey="name" width={150} />
-                                <Tooltip formatter={(value) => formatCurrency(value)} />
-                                <Bar dataKey="value" fill="#ef4444" />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    ) : <p className="text-center text-gray-500 dark:text-gray-400 py-12">Sem despesas este mês.</p>}
-                </div>
-                 <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg">
-                    <h3 className="text-xl font-bold text-gray-800 dark:text-gray-200 mb-4">Contas a Vencer Hoje</h3>
-                    {dueToday.length > 0 ? (
-                        <ul className="space-y-3 max-h-[300px] overflow-y-auto">
-                            {dueToday.map(item => (
-                                <li key={item.id} className="flex justify-between items-center border-b dark:border-gray-700 pb-2">
-                                    <div>
-                                        <p className="font-semibold text-gray-700 dark:text-gray-300">{item.description}</p>
-                                        <p className="text-sm text-gray-500 dark:text-gray-400">{getCategoryFullName(item.categoryId, categories)}</p>
+                {dashboardConfig.showExpenseByCategory && (
+                    <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg">
+                        <h3 className="text-xl font-bold text-gray-800 dark:text-gray-200 mb-4">Despesas do Mês por Categoria</h3>
+                        {expenseByCategory.length > 0 ? (
+                            <ResponsiveContainer width="100%" height={300}>
+                               <BarChart data={expenseByCategory} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                                    <CartesianGrid strokeDasharray="3 3" />
+                                    <XAxis type="number" tickFormatter={formatCurrency} />
+                                    <YAxis type="category" dataKey="name" width={150} />
+                                    <Tooltip formatter={(value) => formatCurrency(value)} />
+                                    <Bar dataKey="value" fill="#ef4444" />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        ) : <p className="text-center text-gray-500 dark:text-gray-400 py-12">Sem despesas este mês.</p>}
+                    </div>
+                )}
+                 {dashboardConfig.showDueToday && (
+                    <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg">
+                        <h3 className="text-xl font-bold text-gray-800 dark:text-gray-200 mb-4">Contas a Vencer Hoje</h3>
+                        {dueToday.length > 0 ? (
+                            <ul className="space-y-3 max-h-[300px] overflow-y-auto">
+                                {dueToday.map(item => (
+                                    <li key={item.id} className="flex justify-between items-center border-b dark:border-gray-700 pb-2">
+                                        <div>
+                                            <p className="font-semibold text-gray-700 dark:text-gray-300">{item.description}</p>
+                                            <p className="text-sm text-gray-500 dark:text-gray-400">{getCategoryFullName(item.categoryId, categories)}</p>
+                                        </div>
+                                        <span className="font-bold text-red-600">{formatCurrency(item.amount)}</span>
+                                    </li>
+                                ))}
+                            </ul>
+                        ) : <p className="text-center text-gray-500 dark:text-gray-400 py-12">Nenhuma conta vence hoje.</p>}
+                    </div>
+                 )}
+                 {dashboardConfig.showBudgetSummary && (
+                    <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg lg:col-span-2">
+                        <h3 className="text-xl font-bold text-gray-800 dark:text-gray-200 mb-4">Resumo dos Orçamentos do Mês</h3>
+                        {budgetOverview.totalBudget > 0 ? (
+                            <div>
+                                <div className="flex justify-between text-lg mb-2">
+                                    <span className="font-semibold text-gray-700 dark:text-gray-300">Gasto: <span className={budgetOverview.totalSpent > budgetOverview.totalBudget ? 'text-red-500' : 'text-green-500'}>{formatCurrency(budgetOverview.totalSpent)}</span></span>
+                                    <span className="font-semibold text-gray-700 dark:text-gray-300">Orçamento: {formatCurrency(budgetOverview.totalBudget)}</span>
+                                </div>
+                                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-6">
+                                    <div 
+                                        className={`h-6 rounded-full text-white text-sm flex items-center justify-center ${budgetOverview.progress > 100 ? 'bg-red-500' : 'bg-blue-500'}`} 
+                                        style={{ width: `${Math.min(budgetOverview.progress, 100)}%` }}
+                                    >
+                                        {budgetOverview.progress.toFixed(0)}%
                                     </div>
-                                    <span className="font-bold text-red-600">{formatCurrency(item.amount)}</span>
-                                </li>
-                            ))}
-                        </ul>
-                    ) : <p className="text-center text-gray-500 dark:text-gray-400 py-12">Nenhuma conta vence hoje.</p>}
-                </div>
-                 <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg lg:col-span-2">
-                    <h3 className="text-xl font-bold text-gray-800 dark:text-gray-200 mb-4">Resumo dos Orçamentos do Mês</h3>
-                    {budgetOverview.totalBudget > 0 ? (
-                        <div>
-                            <div className="flex justify-between text-lg mb-2">
-                                <span className="font-semibold text-gray-700 dark:text-gray-300">Gasto: <span className={budgetOverview.totalSpent > budgetOverview.totalBudget ? 'text-red-500' : 'text-green-500'}>{formatCurrency(budgetOverview.totalSpent)}</span></span>
-                                <span className="font-semibold text-gray-700 dark:text-gray-300">Orçamento: {formatCurrency(budgetOverview.totalBudget)}</span>
-                            </div>
-                            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-6">
-                                <div 
-                                    className={`h-6 rounded-full text-white text-sm flex items-center justify-center ${budgetOverview.progress > 100 ? 'bg-red-500' : 'bg-blue-500'}`} 
-                                    style={{ width: `${Math.min(budgetOverview.progress, 100)}%` }}
-                                >
-                                    {budgetOverview.progress.toFixed(0)}%
                                 </div>
                             </div>
-                        </div>
-                    ) : <p className="text-center text-gray-500 dark:text-gray-400 py-12">Nenhum orçamento definido para este mês.</p>}
-                </div>
+                        ) : <p className="text-center text-gray-500 dark:text-gray-400 py-12">Nenhum orçamento definido para este mês.</p>}
+                    </div>
+                 )}
             </div>
+            
+            <Modal isOpen={isSettingsModalOpen} onClose={() => setIsSettingsModalOpen(false)} title="Configurar Dashboard">
+                <div className="space-y-2">
+                    <p className="text-gray-600 dark:text-gray-400 mb-4">Selecione os indicadores que deseja ver no seu dashboard.</p>
+                    <div className="grid grid-cols-2 gap-4 max-h-96 overflow-y-auto pr-2">
+                        {[
+                            ...kpiCards.map(k => ({ key: k.key, label: k.title})),
+                            { key: 'showExpenseByCategory', label: 'Gráfico de Despesas' },
+                            { key: 'showDueToday', label: 'Contas a Vencer Hoje' },
+                            { key: 'showBudgetSummary', label: 'Resumo de Orçamentos' },
+                        ].map(item => (
+                            <label key={item.key} className="flex items-center space-x-3 p-3 bg-gray-100 dark:bg-gray-700 rounded-lg cursor-pointer">
+                                <input type="checkbox" checked={!!tempConfig[item.key]} onChange={() => handleConfigChange(item.key)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                <span className="text-gray-800 dark:text-gray-300 font-medium">{item.label}</span>
+                            </label>
+                        ))}
+                    </div>
+                    <div className="flex justify-end pt-6">
+                        <Button onClick={handleSaveSettings}>Guardar Configuração</Button>
+                    </div>
+                </div>
+            </Modal>
         </div>
     );
 };
@@ -2565,6 +2656,7 @@ export default function App() {
     const [migrationStatus, setMigrationStatus] = useState('checking'); // checking, needed, not_needed
     const [isMigrating, setIsMigrating] = useState(false);
     const [backupConfig, setBackupConfig] = useState({ frequency: 'disabled', lastBackup: null });
+    const [dashboardConfig, setDashboardConfig] = useState(null);
 
     useEffect(() => {
         if (theme === 'dark') {
@@ -2721,6 +2813,7 @@ export default function App() {
         };
         const companyDataPath = `users/${userId}/companies/${activeCompanyId}`;
         const collections = { accounts: setAccounts, payees: setPayees, transactions: setTransactions, budgets: setBudgets, futureEntries: setFutureEntries, categories: setCategories };
+        
         const unsubscribes = Object.entries(collections).map(([name, setter]) => {
             const q = query(collection(db, `${companyDataPath}/${name}`));
             return onSnapshot(q, (snapshot) => {
@@ -2729,6 +2822,26 @@ export default function App() {
                 setter(items);
             });
         });
+
+        // Listener para configuração do Dashboard
+        const configRef = doc(db, companyDataPath, 'profile/dashboardConfig');
+        const unsubConfig = onSnapshot(configRef, (doc) => {
+            if (doc.exists()) {
+                setDashboardConfig(doc.data());
+            } else {
+                // Configuração Padrão
+                const defaultConfig = {
+                    showTotalBalance: true, showMonthlyRevenue: true, showMonthlyExpense: true,
+                    showCashFlow: true, showProfitMargin: true, showCMV: false, showOperationalExpenses: false,
+                    showAccountsPayable: true, showTaxes: false, showNext30DaysProjection: true,
+                    showExpenseByCategory: true, showDueToday: true, showBudgetSummary: true,
+                };
+                setDoc(configRef, defaultConfig);
+                setDashboardConfig(defaultConfig);
+            }
+        });
+        unsubscribes.push(unsubConfig);
+
         return () => unsubscribes.forEach(unsub => unsub());
     }, [activeCompanyId, userId, appId]);
 
@@ -3069,6 +3182,12 @@ export default function App() {
         await setDoc(backupConfigRef, { frequency }, { merge: true });
     };
 
+    const handleSaveDashboardConfig = async (newConfig) => {
+        if (!userId || !activeCompanyId) return;
+        const configRef = doc(db, `users/${userId}/companies/${activeCompanyId}/profile/dashboardConfig`);
+        await setDoc(configRef, newConfig);
+    };
+
     const handleSubscribeClick = async () => {
         const createSubscription = httpsCallable(functions, 'createSubscription');
         try {
@@ -3124,7 +3243,7 @@ export default function App() {
         };
 
         switch (view) {
-            case 'dashboard': return <DashboardView transactions={transactions} accounts={accounts} categories={categories} futureEntries={futureEntries} budgets={budgets} />;
+            case 'dashboard': return <DashboardView {...{ transactions, accounts, categories, futureEntries, budgets, dashboardConfig }} onSaveConfig={handleSaveDashboardConfig} />;
             case 'transactions': return <TransactionsView transactions={transactions} accounts={accounts} categories={categories} payees={payees} futureEntries={futureEntries} onSave={handleSaveWithCompanyId} onDelete={handleDeleteWithCompanyId} onBatchDelete={handleBatchDeleteTransactions} />;
             case 'reconciliation': return <ReconciliationView transactions={transactions} accounts={accounts} categories={categories} payees={payees} onSaveTransaction={handleSaveWithCompanyId} allTransactions={transactions} />;
             case 'futureEntries': return <FutureEntriesView futureEntries={futureEntries} accounts={accounts} categories={categories} payees={payees} onSave={handleSaveWithCompanyId} onDelete={handleDeleteWithCompanyId} onReconcile={handleReconcileWithCompanyId} />;
@@ -3138,7 +3257,7 @@ export default function App() {
                 onImportTransactions={handleImportWithCompanyId} 
                 {...{ accounts, payees, categories, allTransactions: transactions, activeCompanyId }} 
                 />;
-            default: return <DashboardView transactions={transactions} accounts={accounts} categories={categories} futureEntries={futureEntries} budgets={budgets} />;
+            default: return <DashboardView {...{ transactions, accounts, categories, futureEntries, budgets, dashboardConfig }} onSaveConfig={handleSaveDashboardConfig} />;
         }
     };
 
@@ -3540,6 +3659,7 @@ const TemplateModal = ({ isOpen, onClose, onApply }) => {
         </Modal>
     );
 };
+
 
 
 
