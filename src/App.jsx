@@ -2335,7 +2335,7 @@ const ConsolidatedReportsView = ({ allCompaniesData, companies, onBack }) => {
 };
 
 // --- NOVA VIEW: CONFIGURAÇÕES GLOBAIS ---
-const GlobalSettingsView = ({ companies, onSave, onDelete, onBack, onBackup, onRestore, subscription, onSubscribe }) => {
+const GlobalSettingsView = ({ companies, onSave, onDelete, onBack, onBackup, onRestore, subscription, onSubscribe, backupConfig, onSaveBackupConfig }) => {
     const [activeTab, setActiveTab] = useState('empresas');
 
     const TabButton = ({ tabName, label, active }) => (
@@ -2373,7 +2373,7 @@ const GlobalSettingsView = ({ companies, onSave, onDelete, onBack, onBackup, onR
                         <SubscriptionView subscription={subscription} onSubscribe={onSubscribe} />
                     )}
                     {activeTab === 'backup' && (
-                        <BackupManager onBackup={onBackup} onRestore={onRestore} />
+                        <BackupManager onBackup={onBackup} onRestore={onRestore} backupConfig={backupConfig} onSaveBackupConfig={onSaveBackupConfig} />
                     )}
                 </div>
             </div>
@@ -2381,7 +2381,7 @@ const GlobalSettingsView = ({ companies, onSave, onDelete, onBack, onBackup, onR
     );
 };
 
-const BackupManager = ({ onBackup, onRestore }) => {
+const BackupManager = ({ onBackup, onRestore, backupConfig, onSaveBackupConfig }) => {
     const [isLoading, setIsLoading] = useState(false);
     const fileInputRef = useRef(null);
 
@@ -2404,17 +2404,42 @@ const BackupManager = ({ onBackup, onRestore }) => {
             }
         }
     };
+    
+    const handleFrequencyChange = (e) => {
+        onSaveBackupConfig(e.target.value);
+    };
+
+    const lastBackupDate = backupConfig?.lastBackup ? formatDate(new Date(backupConfig.lastBackup)) : 'Nunca';
 
     return (
         <div>
             <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-200 mb-6">Backup e Restauração</h2>
             <div className="space-y-6">
+                 <div className="p-4 border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/20 rounded-lg">
+                    <h3 className="font-bold text-gray-800 dark:text-gray-300">Backup Automático</h3>
+                    <p className="text-sm text-gray-700 dark:text-gray-400 mt-1 mb-3">Configure uma frequência para backups de segurança. A verificação para um novo backup é feita ao iniciar a aplicação.</p>
+                    <div className="flex items-center gap-4">
+                        <label htmlFor="backup-frequency" className="font-semibold text-gray-700 dark:text-gray-300">Frequência:</label>
+                        <select
+                            id="backup-frequency"
+                            value={backupConfig?.frequency || 'disabled'}
+                            onChange={handleFrequencyChange}
+                            className="p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300"
+                        >
+                            <option value="disabled">Desativado</option>
+                            <option value="daily">Diariamente</option>
+                            <option value="weekly">Semanalmente</option>
+                            <option value="monthly">Mensalmente</option>
+                        </select>
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-3">Último backup realizado: {lastBackupDate}</p>
+                </div>
                 <div className="p-4 border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                    <h3 className="font-bold text-blue-800 dark:text-blue-300">Criar Backup</h3>
+                    <h3 className="font-bold text-blue-800 dark:text-blue-300">Criar Backup Manual</h3>
                     <p className="text-sm text-blue-700 dark:text-blue-400 mt-1 mb-3">Guarde todos os seus dados (empresas, contas, transações, etc.) num único ficheiro seguro.</p>
                     <Button onClick={handleBackup} disabled={isLoading} className="bg-blue-600 hover:bg-blue-700">
                         <Download size={18} />
-                        <span>{isLoading ? 'A criar...' : 'Criar Backup'}</span>
+                        <span>{isLoading ? 'A criar...' : 'Criar Backup Agora'}</span>
                     </Button>
                 </div>
                 <div className="p-4 border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 rounded-lg">
@@ -2533,12 +2558,12 @@ export default function App() {
     const [futureEntries, setFutureEntries] = useState([]);
     
     const [allCompaniesData, setAllCompaniesData] = useState({});
-    const [subscription, setSubscription] = useState(null);
-    const isSubscribed = subscription?.status === 'active' || subscription?.status === 'trialing';
+    const [isSubscribed, setSubscribed] = useState(null);
     
     // --- LÓGICA DE MIGRAÇÃO ---
     const [migrationStatus, setMigrationStatus] = useState('checking'); // checking, needed, not_needed
     const [isMigrating, setIsMigrating] = useState(false);
+    const [backupConfig, setBackupConfig] = useState({ frequency: 'disabled', lastBackup: null });
 
     useEffect(() => {
         if (theme === 'dark') {
@@ -2604,6 +2629,21 @@ export default function App() {
     // eslint-disable-next-line no-undef
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
     const userId = user?.uid;
+    
+    // Listener da configuração de backup
+    useEffect(() => {
+        if (!userId) return;
+        const backupConfigRef = doc(db, `users/${userId}/profile`, 'backupConfig');
+        const unsub = onSnapshot(backupConfigRef, (doc) => {
+            if (doc.exists()) {
+                setBackupConfig(doc.data());
+            } else {
+                // If no config exists, create a default one
+                setDoc(backupConfigRef, { frequency: 'disabled', lastBackup: null });
+            }
+        });
+        return () => unsub();
+    }, [userId]);
     
     // Listener da subscrição
     useEffect(() => {
@@ -2923,6 +2963,10 @@ export default function App() {
         link.href = jsonString;
         link.download = `financeiro_pro_backup_${new Date().toISOString().slice(0,10)}.json`;
         link.click();
+
+        // Atualiza a data do último backup na configuração
+        const backupConfigRef = doc(db, `users/${userId}/profile`, 'backupConfig');
+        await setDoc(backupConfigRef, { lastBackup: new Date().toISOString() }, { merge: true });
     };
 
     const handleRestore = async (file) => {
@@ -3018,6 +3062,12 @@ export default function App() {
         }
     };
 
+    const handleSaveBackupConfig = async (frequency) => {
+        if (!userId) return;
+        const backupConfigRef = doc(db, `users/${userId}/profile`, 'backupConfig');
+        await setDoc(backupConfigRef, { frequency }, { merge: true });
+    };
+
     const handleSubscribeClick = async () => {
         const createSubscription = httpsCallable(functions, 'createSubscription');
         try {
@@ -3051,7 +3101,7 @@ export default function App() {
             case 'reports':
                 return <ConsolidatedReportsView allCompaniesData={allCompaniesData} companies={companies} onBack={() => setHubView('selector')} />;
             case 'global_settings':
-                return <GlobalSettingsView companies={companies} onSave={handleSave} onDelete={(coll, id) => handleDelete(coll, {id})} onBack={() => setHubView('selector')} onBackup={handleBackup} onRestore={handleRestore} subscription={subscription} onSubscribe={handleSubscribeClick} />;
+                return <GlobalSettingsView companies={companies} onSave={handleSave} onDelete={(coll, id) => handleDelete(coll, {id})} onBack={() => setHubView('selector')} onBackup={handleBackup} onRestore={handleRestore} subscription={subscription} onSubscribe={handleSubscribeClick} backupConfig={backupConfig} onSaveBackupConfig={handleSaveBackupConfig} />;
             case 'selector':
             default:
                 return <HubScreen companies={companies} onSelect={setActiveCompanyId} onShowReports={() => setHubView('reports')} onManageCompanies={() => setHubView('global_settings')} />;
@@ -3489,4 +3539,5 @@ const TemplateModal = ({ isOpen, onClose, onApply }) => {
         </Modal>
     );
 };
+
 
