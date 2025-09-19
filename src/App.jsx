@@ -2558,7 +2558,8 @@ export default function App() {
     const [futureEntries, setFutureEntries] = useState([]);
     
     const [allCompaniesData, setAllCompaniesData] = useState({});
-    const [isSubscribed, setSubscribed] = useState(null);
+    const [subscription, setSubscription] = useState(null);
+    const isSubscribed = subscription?.status === 'active' || subscription?.status === 'trialing';
     
     // --- LÓGICA DE MIGRAÇÃO ---
     const [migrationStatus, setMigrationStatus] = useState('checking'); // checking, needed, not_needed
@@ -3539,5 +3540,6 @@ const TemplateModal = ({ isOpen, onClose, onApply }) => {
         </Modal>
     );
 };
+
 
 
