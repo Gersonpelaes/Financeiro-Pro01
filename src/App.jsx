@@ -273,7 +273,7 @@ const DashboardView = ({ transactions, accounts, categories, futureEntries, budg
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {kpiCards.filter(kpi => dashboardConfig[kpi.key]).map(kpi => (
+                {kpiCards.filter(kpi => dashboardConfig && dashboardConfig[kpi.key]).map(kpi => (
                     <StatCard key={kpi.key} {...kpi} />
                 ))}
             </div>
@@ -347,7 +347,7 @@ const DashboardView = ({ transactions, accounts, categories, futureEntries, budg
                             { key: 'showBudgetSummary', label: 'Resumo de Orçamentos' },
                         ].map(item => (
                             <label key={item.key} className="flex items-center space-x-3 p-3 bg-gray-100 dark:bg-gray-700 rounded-lg cursor-pointer">
-                                <input type="checkbox" checked={!!tempConfig[item.key]} onChange={() => handleConfigChange(item.key)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                <input type="checkbox" checked={!!(tempConfig && tempConfig[item.key])} onChange={() => handleConfigChange(item.key)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
                                 <span className="text-gray-800 dark:text-gray-300 font-medium">{item.label}</span>
                             </label>
                         ))}
@@ -3659,6 +3659,7 @@ const TemplateModal = ({ isOpen, onClose, onApply }) => {
         </Modal>
     );
 };
+
 
 
 
