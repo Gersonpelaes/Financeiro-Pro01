@@ -883,6 +883,10 @@ const ReconciliationView = ({ transactions, accounts, categories, payees, onSave
     const [statementData, setStatementData] = useState([]);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     
+    // Novos estados para o modal de transferência
+    const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+    const [transferData, setTransferData] = useState(null);
+    
     const reconciliationResult = useMemo(() => {
         if (!selectedAccountId || statementData.length === 0) {
             return { matched: [], onlyInStatement: [], onlyInSystem: [] };
@@ -935,6 +939,21 @@ const ReconciliationView = ({ transactions, accounts, categories, payees, onSave
         setStatementData(prev => prev.filter(t => t.id !== statementItem.id));
     };
 
+    // Novas funções para gerir a criação de transferências
+    const handleOpenTransferModal = (statementItem) => {
+        setTransferData(statementItem);
+        setIsTransferModalOpen(true);
+    };
+
+    const handleCreateTransfer = async (data) => {
+        await onSaveTransaction('transactions', {
+            ...data,
+            type: 'transfer',
+        });
+        setStatementData(prev => prev.filter(t => t.id !== data.id));
+        setIsTransferModalOpen(false);
+    };
+
     return (
         <div className="space-y-8">
             <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg">
@@ -966,9 +985,12 @@ const ReconciliationView = ({ transactions, accounts, categories, payees, onSave
                     <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg">
                         <h3 className="text-xl font-bold text-blue-600 mb-4">Apenas no Extrato ({reconciliationResult.onlyInStatement.length})</h3>
                         {reconciliationResult.onlyInStatement.map(item => (
-                            <div key={item.id} className="flex justify-between items-center border-b dark:border-gray-700 p-2">
-                                <p>{item.description} - {formatCurrency(item.amount)} em {formatDate(item.date)}</p>
-                                <Button onClick={() => handleCreateTransaction(item)} className="bg-green-500 hover:bg-green-600 !py-1 !px-2">Criar no Sistema</Button>
+                            <div key={item.id} className="flex flex-wrap justify-between items-center border-b dark:border-gray-700 p-2 gap-2">
+                                <p className="flex-grow">{item.description} - {formatCurrency(item.amount)} em {formatDate(item.date)}</p>
+                                <div className="flex gap-2">
+                                    <Button onClick={() => handleCreateTransaction(item)} className="bg-green-500 hover:bg-green-600 !py-1 !px-2 text-xs">Criar Lançamento</Button>
+                                    <Button onClick={() => handleOpenTransferModal(item)} className="bg-blue-500 hover:bg-blue-600 !py-1 !px-2 text-xs">É uma Transferência</Button>
+                                </div>
                             </div>
                         ))}
                     </div>
@@ -993,7 +1015,100 @@ const ReconciliationView = ({ transactions, accounts, categories, payees, onSave
                 payees={payees}
                 allTransactions={allTransactions}
             />
+
+            <ReconciliationTransferModal 
+                isOpen={isTransferModalOpen}
+                onClose={() => setIsTransferModalOpen(false)}
+                onSave={handleCreateTransfer}
+                transferData={transferData}
+                accounts={accounts}
+                currentAccountId={selectedAccountId}
+            />
         </div>
+    );
+};
+
+// --- NOVO COMPONENTE: MODAL PARA CRIAR TRANSFERÊNCIA NA CONCILIAÇÃO ---
+const ReconciliationTransferModal = ({ isOpen, onClose, onSave, transferData, accounts, currentAccountId }) => {
+    const [formData, setFormData] = useState({ sourceAccountId: '', destinationAccountId: '' });
+
+    useEffect(() => {
+        if (transferData && isOpen) {
+            const isExpense = transferData.type === 'expense';
+            const otherAccountId = accounts.find(a => a.id !== currentAccountId)?.id || '';
+            
+            setFormData({
+                sourceAccountId: isExpense ? currentAccountId : otherAccountId,
+                destinationAccountId: !isExpense ? currentAccountId : otherAccountId,
+            });
+        }
+    }, [transferData, accounts, currentAccountId, isOpen]);
+
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        if (formData.sourceAccountId === formData.destinationAccountId) {
+            alert("A conta de origem e destino não podem ser a mesma.");
+            return;
+        }
+        onSave({
+            id: transferData.id,
+            amount: transferData.amount,
+            date: transferData.date,
+            description: transferData.description,
+            ...formData,
+        });
+    };
+
+    if (!isOpen || !transferData) return null;
+    
+    const isExpense = transferData.type === 'expense';
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title="Criar Transferência a partir do Extrato">
+            <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="bg-gray-100 dark:bg-gray-700 p-3 rounded-lg">
+                    <p className="font-bold">{transferData.description}</p>
+                    <p>Data: {formatDate(transferData.date)} - Valor: {formatCurrency(transferData.amount)}</p>
+                </div>
+                
+                <label className="block dark:text-gray-300">
+                    <span className="text-gray-700 dark:text-gray-300">Conta de Origem</span>
+                    <select 
+                        name="sourceAccountId" 
+                        value={formData.sourceAccountId} 
+                        onChange={handleChange} 
+                        disabled={isExpense}
+                        className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300 disabled:bg-gray-200 dark:disabled:bg-gray-600"
+                        required
+                    >
+                        {accounts.filter(a => a.id !== formData.destinationAccountId).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                    </select>
+                </label>
+
+                <label className="block dark:text-gray-300">
+                    <span className="text-gray-700 dark:text-gray-300">Conta de Destino</span>
+                    <select 
+                        name="destinationAccountId" 
+                        value={formData.destinationAccountId} 
+                        onChange={handleChange} 
+                        disabled={!isExpense}
+                        className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300 disabled:bg-gray-200 dark:disabled:bg-gray-600"
+                        required
+                    >
+                        {accounts.filter(a => a.id !== formData.sourceAccountId).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                    </select>
+                </label>
+
+                <div className="flex justify-end pt-4">
+                    <Button type="submit">Confirmar Transferência</Button>
+                </div>
+            </form>
+        </Modal>
     );
 };
 
@@ -3659,6 +3774,7 @@ const TemplateModal = ({ isOpen, onClose, onApply }) => {
         </Modal>
     );
 };
+
 
 
 
