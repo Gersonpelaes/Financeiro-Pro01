@@ -482,10 +482,33 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
 
     const handleOpenModal = (transaction = null) => {
         setAttachmentFile(null);
-        if (transaction && !transaction.isTransfer) {
+        if (transaction) { // Editing
             setEditingTransaction(transaction);
-            setFormData({ ...transaction, date: transaction.date.substring(0, 10) });
-        } else {
+            if (transaction.isTransfer) {
+                const transferPair = transactions.filter(t => t.transferId === transaction.transferId);
+                const expenseSide = transferPair.find(t => t.type === 'expense');
+                const revenueSide = transferPair.find(t => t.type === 'revenue');
+
+                let commonDescription = '';
+                if (expenseSide?.description) {
+                    const sourceAccountName = accounts.find(a => a.id === revenueSide?.accountId)?.name || 'outra conta';
+                    const prefix = `Transferência para ${sourceAccountName}`;
+                    commonDescription = expenseSide.description.replace(prefix, '').replace(' - ', '').trim();
+                }
+                
+                setFormData({
+                    type: 'transfer',
+                    amount: transaction.amount,
+                    date: transaction.date.substring(0, 10),
+                    description: commonDescription,
+                    sourceAccountId: expenseSide?.accountId || '',
+                    destinationAccountId: revenueSide?.accountId || '',
+                    transferId: transaction.transferId,
+                });
+            } else { // Regular transaction
+                setFormData({ ...transaction, date: transaction.date.substring(0, 10) });
+            }
+        } else { // New transaction
             setEditingTransaction(null);
             setFormData({
                 type: 'expense', amount: '', description: '', date: new Date().toISOString().substring(0, 10),
@@ -570,40 +593,42 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
     }, [categories, formData.type]);
 
     return (
-        <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg">
-            <div className="flex flex-wrap justify-between items-center mb-6 gap-4">
-                <div>
-                    <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-200">Extrato da Conta</h2>
-                    <select value={selectedAccountId} onChange={(e) => setSelectedAccountId(e.target.value)} className="mt-2 p-2 border dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 dark:text-gray-300">
-                        {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-                    </select>
-                </div>
-                <div className="text-right">
-                    <p className="text-gray-500 dark:text-gray-400">{isSimulating ? 'Saldo Simulado' : 'Saldo Atual'}</p>
-                    <p className="text-2xl font-bold text-gray-800 dark:text-gray-200">{formatCurrency(currentBalance)}</p>
-                </div>
-                <div className="flex items-center gap-4">
-                    {selectedTransactions.size > 0 && (
-                        <Button onClick={handleDeleteSelected} className="bg-red-600 hover:bg-red-700">
-                            <Trash2 size={20} />
-                            <span>Apagar ({selectedTransactions.size})</span>
-                        </Button>
-                    )}
-                    {isSimulating ? (
-                        <Button onClick={() => setIsSimulating(false)} className="bg-gray-600 hover:bg-gray-700">
-                            <ArrowLeft size={20} /><span>Voltar ao Extrato</span>
-                        </Button>
-                    ) : (
-                        <Button onClick={handleOpenSimulationModal} className="bg-yellow-500 hover:bg-yellow-600">
-                            <Clock size={20} /><span>Simular Futuro</span>
-                        </Button>
-                    )}
-                    <Button onClick={() => handleOpenModal()}><PlusCircle size={20} /><span>Adicionar Transação</span></Button>
+        <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg h-full flex flex-col">
+            <div className="flex-shrink-0">
+                <div className="flex flex-wrap justify-between items-center mb-6 gap-4">
+                    <div>
+                        <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-200">Extrato da Conta</h2>
+                        <select value={selectedAccountId} onChange={(e) => setSelectedAccountId(e.target.value)} className="mt-2 p-2 border dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 dark:text-gray-300">
+                            {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                        </select>
+                    </div>
+                    <div className="text-right">
+                        <p className="text-gray-500 dark:text-gray-400">{isSimulating ? 'Saldo Simulado' : 'Saldo Atual'}</p>
+                        <p className="text-2xl font-bold text-gray-800 dark:text-gray-200">{formatCurrency(currentBalance)}</p>
+                    </div>
+                    <div className="flex items-center gap-4">
+                        {selectedTransactions.size > 0 && (
+                            <Button onClick={handleDeleteSelected} className="bg-red-600 hover:bg-red-700">
+                                <Trash2 size={20} />
+                                <span>Apagar ({selectedTransactions.size})</span>
+                            </Button>
+                        )}
+                        {isSimulating ? (
+                            <Button onClick={() => setIsSimulating(false)} className="bg-gray-600 hover:bg-gray-700">
+                                <ArrowLeft size={20} /><span>Voltar ao Extrato</span>
+                            </Button>
+                        ) : (
+                            <Button onClick={handleOpenSimulationModal} className="bg-yellow-500 hover:bg-yellow-600">
+                                <Clock size={20} /><span>Simular Futuro</span>
+                            </Button>
+                        )}
+                        <Button onClick={() => handleOpenModal()}><PlusCircle size={20} /><span>Adicionar Transação</span></Button>
+                    </div>
                 </div>
             </div>
-            <div className="overflow-x-auto">
+            <div className="overflow-auto flex-grow">
                 <table className="w-full text-left">
-                    <thead>
+                    <thead className="sticky top-0 bg-white dark:bg-gray-800 z-10">
                         <tr className="border-b-2 border-gray-200 dark:border-gray-700">
                             <th className="p-4 w-12 text-center">
                                 <input
@@ -653,7 +678,7 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
                                 <td className="p-4">
                                     {!t.isSimulated && (
                                         <div className="flex space-x-2">
-                                            {!t.isTransfer && <button onClick={() => handleOpenModal(t)} className="text-blue-500 hover:text-blue-700"><Edit size={18} /></button>}
+                                            <button onClick={() => handleOpenModal(t)} className="text-blue-500 hover:text-blue-700"><Edit size={18} /></button>
                                             <button onClick={() => onDelete('transactions', t)} className="text-red-500 hover:text-red-700"><Trash2 size={18} /></button>
                                         </div>
                                     )}
@@ -2967,10 +2992,16 @@ export default function App() {
         let path = isGlobal ? `${basePath}/${collectionName}` : `${basePath}/companies/${activeCompanyId}/${collectionName}`;
         
         if (collectionName === 'transactions' && data.type === 'transfer') {
-            const { sourceAccountId, destinationAccountId, amount, date, description } = data;
-            const transferId = crypto.randomUUID();
+            const { sourceAccountId, destinationAccountId, amount, date, description, transferId: existingTransferId } = data;
+            const transferId = existingTransferId || crypto.randomUUID();
             const batch = writeBatch(db);
             const fullPath = `${basePath}/companies/${activeCompanyId}/transactions`;
+
+            if (existingTransferId) {
+                const q = query(collection(db, fullPath), where("transferId", "==", existingTransferId));
+                const querySnapshot = await getDocs(q);
+                querySnapshot.forEach((doc) => batch.delete(doc.ref));
+            }
 
             // Saída da conta de origem
             const sourceAccountName = accounts.find(a => a.id === destinationAccountId)?.name || 'outra conta';
@@ -3774,6 +3805,7 @@ const TemplateModal = ({ isOpen, onClose, onApply }) => {
         </Modal>
     );
 };
+
 
 
 
