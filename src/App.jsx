@@ -3414,6 +3414,8 @@ export default function App() {
     );
     
     const activeCompany = companies.find(c => c.id === activeCompanyId);
+    
+    const isTransactionsView = view === 'transactions';
 
     return (
         <div className={`flex h-screen bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200 font-sans`}>
@@ -3448,7 +3450,7 @@ export default function App() {
                     </button>
                 </div>
             </aside>
-            <main className="flex-1 p-8 overflow-y-auto relative">
+            <main className={`flex-1 p-8 relative ${isTransactionsView ? 'overflow-hidden' : 'overflow-y-auto'}`}>
                 {!isSubscribed && (
                     <div className="absolute inset-0 bg-black/70 z-40 flex flex-col justify-center items-center text-white p-8 text-center">
                         <AlertTriangle size={64} className="text-yellow-400 mb-4" />
@@ -3460,7 +3462,7 @@ export default function App() {
                         </Button>
                     </div>
                 )}
-                <div className={!isSubscribed ? 'blur-sm' : ''}>
+                <div className={`${isTransactionsView ? 'h-full' : ''} ${!isSubscribed ? 'blur-sm' : ''}`}>
                     {renderView()}
                 </div>
             </main>
@@ -3805,6 +3807,7 @@ const TemplateModal = ({ isOpen, onClose, onApply }) => {
         </Modal>
     );
 };
+
 
 
 
