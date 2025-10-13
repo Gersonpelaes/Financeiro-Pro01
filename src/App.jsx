@@ -125,7 +125,7 @@ const AuthView = ({ onGoogleSignIn }) => {
         <div className="w-full h-screen flex justify-center items-center bg-gray-100">
             <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-2xl shadow-lg text-center">
                 <h2 className="text-3xl font-bold text-gray-800">Bem-vindo ao Financeiro PRO</h2>
-                <p className="text-gray-600">Entre com a sua conta Google para continuar e aproveite 30 dias grátis.</p>
+                <p className="text-gray-600">Entre com a sua conta Google para continuar e aproveite 360 dias grátis.</p>
                 <button
                     onClick={handleSignIn}
                     className="w-full flex items-center justify-center space-x-3 bg-white border border-gray-300 text-gray-700 font-semibold py-3 px-4 rounded-lg shadow-sm transition-all transform hover:scale-105 hover:bg-gray-50"
@@ -2827,7 +2827,7 @@ export default function App() {
                 // Setup subscription if it doesn't exist
                 if (!subSnap.exists()) {
                     const trialEndDate = new Date();
-                    trialEndDate.setDate(trialEndDate.getDate() + 30);
+                    trialEndDate.setDate(trialEndDate.getDate() + 360);
                     await setDoc(subRef, {
                         status: 'trialing',
                         trial_end: trialEndDate,
@@ -3807,6 +3807,8 @@ const TemplateModal = ({ isOpen, onClose, onApply }) => {
         </Modal>
     );
 };
+
+
 
 
 
