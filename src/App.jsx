@@ -1606,7 +1606,7 @@ const ImportStatementModal = ({ isOpen, onClose, onImport, account, categories, 
     const runAiAnalysis = async (promptToRun) => {
         setIsAnalyzing(true);
         try {
-            const geminiApiKey = typeof __gemini_api_key !== 'undefined' ? __gemini_api_key : '';
+            const geminiApiKey = process.env.REACT_APP_GEMINI_API_KEY || '';
             if (!geminiApiKey) {
                 alert("Chave da API Gemini não configurada.");
                 setIsAnalyzing(false);
