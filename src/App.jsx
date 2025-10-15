@@ -2226,18 +2226,30 @@ const CompanyDashboard = ({ userId, activeCompanyId, setActiveCompanyId, isOnlin
 
     const renderView = () => {
         const AppContent = () => {
-            if (!isSubscribed && view !== 'settings') {
-                return <SettingsView 
-                    {...{ onSave: settingsSaveHandler, onDelete: settingsDeleteHandler, accounts, payees, categories, activeCompanyId, backupConfig, onSaveBackupConfig, subscription, isSubscribed, onSubscribeClick, onManageSubscription, isManagingSubscription }} 
-                />;
-            }
-
             const settingsSaveHandler = (collection, data, id) => {
                 handleSave(collection, data, id);
             };
             const settingsDeleteHandler = (collection, id) => {
                 handleDelete(collection, {id});
             };
+
+            if (!isSubscribed && view !== 'settings') {
+                return <SettingsView 
+                    onSave={settingsSaveHandler}
+                    onDelete={settingsDeleteHandler}
+                    accounts={accounts}
+                    payees={payees}
+                    categories={categories}
+                    activeCompanyId={activeCompanyId}
+                    backupConfig={backupConfig}
+                    onSaveBackupConfig={handleSaveBackupConfig}
+                    subscription={subscription}
+                    isSubscribed={isSubscribed}
+                    onSubscribeClick={handleSubscribeClick}
+                    onManageSubscription={handleManageSubscription}
+                    isManagingSubscription={isManagingSubscription}
+                />;
+            }
 
             switch (view) {
                 case 'dashboard': return <DashboardView {...{ transactions, accounts, categories, futureEntries, budgets, dashboardConfig }} onSaveConfig={handleSaveDashboardConfig} />;
@@ -2249,7 +2261,17 @@ const CompanyDashboard = ({ userId, activeCompanyId, setActiveCompanyId, isOnlin
                 case 'settings': return <SettingsView
                     onSave={settingsSaveHandler}
                     onDelete={settingsDeleteHandler}
-                    {...{ accounts, payees, categories, activeCompanyId, backupConfig, onSaveBackupConfig, subscription, isSubscribed, onSubscribeClick, onManageSubscription, isManagingSubscription }}
+                    accounts={accounts}
+                    payees={payees}
+                    categories={categories}
+                    activeCompanyId={activeCompanyId}
+                    backupConfig={backupConfig}
+                    onSaveBackupConfig={handleSaveBackupConfig}
+                    subscription={subscription}
+                    isSubscribed={isSubscribed}
+                    onSubscribeClick={handleSubscribeClick}
+                    onManageSubscription={handleManageSubscription}
+                    isManagingSubscription={isManagingSubscription}
                     />;
                 case 'company_settings': return <CompanySettingsView 
                     companyName={companyName} 
