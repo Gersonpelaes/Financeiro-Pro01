@@ -139,6 +139,40 @@ const AuthView = ({ onGoogleSignIn }) => {
     );
 };
 
+// NOVO COMPONENTE REUTILIZÁVEL PARA SELEÇÃO DE CONTA HIERÁRQUICA
+const AccountSelector = ({ accounts, selectedAccountId, onChange, required = true, name = "accountId", className = "", filter, allowNone = false }) => {
+    const hierarchicalAccounts = useMemo(() => {
+        const topLevelAccounts = accounts.filter(a => !a.parentId);
+        
+        return topLevelAccounts.map(p => ({
+            ...p,
+            subAccounts: accounts.filter(s => s.parentId === p.id).sort((a,b) => a.name.localeCompare(b.name))
+        })).sort((a,b) => a.name.localeCompare(b.name));
+    }, [accounts]);
+
+    let accountsToDisplay = hierarchicalAccounts;
+    if (filter) {
+        accountsToDisplay = hierarchicalAccounts.filter(filter);
+    }
+
+    return (
+        <select name={name} value={selectedAccountId} onChange={onChange} className={`block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300 ${className}`} required={required}>
+            {allowNone ? <option value="">Nenhuma</option> : <option value="">Selecione...</option>}
+            {accountsToDisplay.map(account => {
+                if (account.subAccounts.length > 0) {
+                    return (
+                        <optgroup key={account.id} label={account.name}>
+                            <option value={account.id}>{account.name} (Conta Principal)</option>
+                            {account.subAccounts.map(sub => <option key={sub.id} value={sub.id}>&nbsp;&nbsp;{sub.name}</option>)}
+                        </optgroup>
+                    );
+                }
+                return <option key={account.id} value={account.id}>{account.name}</option>;
+            })}
+        </select>
+    );
+};
+
 
 // --- COMPONENTES DAS VIEWS ---
 const DashboardView = ({ transactions, accounts, categories, futureEntries, budgets, dashboardConfig, onSaveConfig }) => {
@@ -380,7 +414,7 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
 
     useEffect(() => {
         if (accounts.length > 0 && !selectedAccountId) {
-            setSelectedAccountId(accounts[0].id);
+            setSelectedAccountId(accounts.find(a => !a.parentId)?.id || accounts[0].id);
         }
         setSelectedTransactions(new Set());
         setIsSimulating(false); // Reset simulation on account change
@@ -399,10 +433,29 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
 
     const selectedAccount = useMemo(() => accounts.find(a => a.id === selectedAccountId), [accounts, selectedAccountId]);
 
-    const filteredTransactions = useMemo(() => {
+    const subAccountIds = useMemo(() => {
+        if (!selectedAccount) return [];
+        return accounts.filter(a => a.parentId === selectedAccount.id).map(a => a.id);
+    }, [accounts, selectedAccount]);
+
+    const accountIdsToFilter = useMemo(() => {
         if (!selectedAccountId) return [];
-        return transactions.filter(t => t.accountId === selectedAccountId);
-    }, [transactions, selectedAccountId]);
+        return [selectedAccountId, ...subAccountIds];
+    }, [selectedAccountId, subAccountIds]);
+
+    const filteredTransactions = useMemo(() => {
+        if (accountIdsToFilter.length === 0) return [];
+        return transactions.filter(t => accountIdsToFilter.includes(t.accountId));
+    }, [transactions, accountIdsToFilter]);
+
+    const groupInitialBalance = useMemo(() => {
+        if (!selectedAccount) return 0;
+        const parentBalance = selectedAccount.initialBalance || 0;
+        const subBalances = accounts
+            .filter(a => a.parentId === selectedAccount.id)
+            .reduce((sum, acc) => sum + (acc.initialBalance || 0), 0);
+        return parentBalance + subBalances;
+    }, [accounts, selectedAccount]);
 
     const transactionsWithBalance = useMemo(() => {
         if (!selectedAccount) return [];
@@ -433,7 +486,7 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
 
         combinedTransactions.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-        let runningBalance = selectedAccount.initialBalance || 0;
+        let runningBalance = groupInitialBalance;
         
         const processed = combinedTransactions
             .slice()
@@ -445,13 +498,13 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
             });
         
         return processed.reverse();
-    }, [filteredTransactions, selectedAccount, isSimulating, simulationRange, futureEntries, selectedAccountId]);
+    }, [filteredTransactions, selectedAccount, isSimulating, simulationRange, futureEntries, groupInitialBalance]);
 
     const currentBalance = useMemo(() => {
         if (!selectedAccount) return 0;
-        if (transactionsWithBalance.length === 0) return selectedAccount.initialBalance || 0;
+        if (transactionsWithBalance.length === 0) return groupInitialBalance;
         return transactionsWithBalance[0].runningBalance;
-    }, [transactionsWithBalance, selectedAccount]);
+    }, [transactionsWithBalance, selectedAccount, groupInitialBalance]);
 
     const handleSelectTransaction = (id) => {
         setSelectedTransactions(prev => {
@@ -598,9 +651,12 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
                 <div className="flex flex-wrap justify-between items-center mb-6 gap-4">
                     <div>
                         <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-200">Extrato da Conta</h2>
-                        <select value={selectedAccountId} onChange={(e) => setSelectedAccountId(e.target.value)} className="mt-2 p-2 border dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 dark:text-gray-300">
-                            {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-                        </select>
+                        <AccountSelector 
+                            accounts={accounts} 
+                            selectedAccountId={selectedAccountId} 
+                            onChange={(e) => setSelectedAccountId(e.target.value)} 
+                            className="!mt-2"
+                        />
                     </div>
                     <div className="text-right">
                         <p className="text-gray-500 dark:text-gray-400">{isSimulating ? 'Saldo Simulado' : 'Saldo Atual'}</p>
@@ -714,8 +770,8 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
                     {formData.type === 'transfer' ? (
                         <>
                             <div className="flex space-x-4">
-                                <label className="flex-1"><span className="text-gray-700 dark:text-gray-300">Conta de Origem</span><select name="sourceAccountId" value={formData.sourceAccountId} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required>{accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label>
-                                <label className="flex-1"><span className="text-gray-700 dark:text-gray-300">Conta de Destino</span><select name="destinationAccountId" value={formData.destinationAccountId} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required>{accounts.filter(a => a.id !== formData.sourceAccountId).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label>
+                               <label className="flex-1"><span className="text-gray-700 dark:text-gray-300">Conta de Origem</span><AccountSelector accounts={accounts} selectedAccountId={formData.sourceAccountId} onChange={handleChange} name="sourceAccountId" /></label>
+                               <label className="flex-1"><span className="text-gray-700 dark:text-gray-300">Conta de Destino</span><AccountSelector accounts={accounts.filter(a => a.id !== formData.sourceAccountId)} selectedAccountId={formData.destinationAccountId} onChange={handleChange} name="destinationAccountId" /></label>
                             </div>
                              <div><label className="block"><span className="text-gray-700 dark:text-gray-300">Descrição (Opcional)</span><input type="text" name="description" value={formData.description} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" /></label></div>
                             <div><label className="block"><span className="text-gray-700 dark:text-gray-300">Valor (R$)</span><input type="number" step="0.01" name="amount" value={formData.amount} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" placeholder="0.00" required /></label></div>
@@ -725,7 +781,7 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
                             <div><label className="block"><span className="text-gray-700 dark:text-gray-300">Descrição</span><input type="text" name="description" value={formData.description} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" placeholder="Ex: Salário, Aluguer" required /></label></div>
                             <div className="flex space-x-4">
                                 <label className="flex-1"><span className="text-gray-700 dark:text-gray-300">Valor (R$)</span><input type="number" step="0.01" name="amount" value={formData.amount} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" placeholder="0.00" required /></label>
-                                <label className="flex-1"><span className="text-gray-700 dark:text-gray-300">Conta</span><select name="accountId" value={formData.accountId} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required>{accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label>
+                                <label className="flex-1"><span className="text-gray-700 dark:text-gray-300">Conta</span><AccountSelector accounts={accounts} selectedAccountId={formData.accountId} onChange={handleChange} /></label>
                             </div>
                             <div className="flex space-x-4">
                                 <label className="flex-1">
@@ -984,10 +1040,7 @@ const ReconciliationView = ({ transactions, accounts, categories, payees, onSave
             <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg">
                 <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-200 mb-4">Conciliação Bancária</h2>
                 <div className="flex gap-4 items-center">
-                    <select value={selectedAccountId} onChange={(e) => setSelectedAccountId(e.target.value)} className="p-2 border dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 dark:text-gray-300 flex-grow">
-                        <option value="">Selecione uma conta...</option>
-                        {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-                    </select>
+                    <AccountSelector accounts={accounts} selectedAccountId={selectedAccountId} onChange={e => setSelectedAccountId(e.target.value)} className="flex-grow" />
                     <Button onClick={() => setIsImportModalOpen(true)} disabled={!selectedAccountId}>
                         <Upload size={18}/> Importar Extrato
                     </Button>
@@ -1103,30 +1156,26 @@ const ReconciliationTransferModal = ({ isOpen, onClose, onSave, transferData, ac
                 
                 <label className="block dark:text-gray-300">
                     <span className="text-gray-700 dark:text-gray-300">Conta de Origem</span>
-                    <select 
-                        name="sourceAccountId" 
-                        value={formData.sourceAccountId} 
+                    <AccountSelector 
+                        accounts={accounts.filter(a => a.id !== formData.destinationAccountId)}
+                        selectedAccountId={formData.sourceAccountId} 
                         onChange={handleChange} 
                         disabled={isExpense}
-                        className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300 disabled:bg-gray-200 dark:disabled:bg-gray-600"
-                        required
-                    >
-                        {accounts.filter(a => a.id !== formData.destinationAccountId).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-                    </select>
+                        name="sourceAccountId"
+                        className="disabled:bg-gray-200 dark:disabled:bg-gray-600"
+                    />
                 </label>
 
                 <label className="block dark:text-gray-300">
                     <span className="text-gray-700 dark:text-gray-300">Conta de Destino</span>
-                    <select 
-                        name="destinationAccountId" 
-                        value={formData.destinationAccountId} 
+                    <AccountSelector 
+                        accounts={accounts.filter(a => a.id !== formData.sourceAccountId)}
+                        selectedAccountId={formData.destinationAccountId} 
                         onChange={handleChange} 
                         disabled={!isExpense}
-                        className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300 disabled:bg-gray-200 dark:disabled:bg-gray-600"
-                        required
-                    >
-                        {accounts.filter(a => a.id !== formData.sourceAccountId).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-                    </select>
+                        name="destinationAccountId"
+                        className="disabled:bg-gray-200 dark:disabled:bg-gray-600"
+                    />
                 </label>
 
                 <div className="flex justify-end pt-4">
@@ -1465,7 +1514,15 @@ const FutureEntriesView = ({ futureEntries, accounts, categories, payees, onSave
                         <p className="font-bold">{entryToReconcile?.description}</p>
                         <p>Vencimento: {formatDate(entryToReconcile?.dueDate || '')} - Valor Original: {formatCurrency(entryToReconcile?.amount)}</p>
                     </div>
-                    <label className="dark:text-gray-300">Conta de Pagamento<select name="accountId" value={reconcileFormData.accountId} onChange={handleReconcileChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required>{accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label>
+                    <label className="dark:text-gray-300">Conta de Pagamento
+                        <AccountSelector 
+                            accounts={accounts} 
+                            selectedAccountId={reconcileFormData.accountId} 
+                            onChange={handleReconcileChange} 
+                            name="accountId" 
+                            className="!mt-1"
+                        />
+                    </label>
                     <div className="flex gap-4">
                         <label className="flex-1 dark:text-gray-300">Valor Final Pago (com juros/desconto)<input type="number" step="0.01" name="finalAmount" value={reconcileFormData.finalAmount} onChange={handleReconcileChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required /></label>
                         <label className="flex-1 dark:text-gray-300">Data do Pagamento<input type="date" name="paymentDate" value={reconcileFormData.paymentDate} onChange={handleReconcileChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required /></label>
@@ -1893,18 +1950,33 @@ const CategoryManager = ({ categories, onSave, onDelete, onApplyTemplate }) => {
     );
 };
 
-const AccountsManager = ({ accounts, onSave, onDelete, onImport, allTransactions }) => {
+const AccountsManager = ({ accounts, onSave, onDelete, onImport }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingAccount, setEditingAccount] = useState(null);
     const [formData, setFormData] = useState({});
 
-    const handleOpenModal = (account = null) => {
+    const hierarchicalAccounts = useMemo(() => {
+        const topLevel = accounts.filter(a => !a.parentId);
+        return topLevel.map(p => ({
+            ...p,
+            subAccounts: accounts.filter(s => s.parentId === p.id).sort((a,b) => a.name.localeCompare(b.name))
+        })).sort((a,b) => a.name.localeCompare(b.name));
+    }, [accounts]);
+
+    const handleOpenModal = (account = null, parent = null) => {
         if (account) {
             setEditingAccount(account);
             setFormData(account);
         } else {
             setEditingAccount(null);
-            setFormData({ name: '', initialBalance: 0, accountType: 'corrente', closingDay: '', paymentDay: '' });
+            setFormData({ 
+                name: '', 
+                initialBalance: 0, 
+                accountType: parent ? 'corrente' : 'corrente', 
+                closingDay: '', 
+                paymentDay: '',
+                parentId: parent ? parent.id : null
+            });
         }
         setIsModalOpen(true);
     };
@@ -1914,9 +1986,33 @@ const AccountsManager = ({ accounts, onSave, onDelete, onImport, allTransactions
     const handleSubmit = (e) => {
         e.preventDefault();
         const dataToSave = { ...formData, initialBalance: parseFloat(formData.initialBalance || 0) };
+        if (!dataToSave.parentId) dataToSave.parentId = null;
         onSave('accounts', dataToSave, editingAccount?.id);
         handleCloseModal();
     };
+
+    const AccountListItem = ({ account, isSub = false }) => (
+        <li className={`flex justify-between items-center p-3 rounded-lg ${isSub ? 'bg-gray-50 dark:bg-gray-700/20' : 'bg-gray-100 dark:bg-gray-700/50'}`}>
+            <div>
+                <p className={`font-semibold ${!isSub && 'text-lg'}`}>{account.name}</p>
+                {!isSub && <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">{(account.accountType || 'corrente').replace(/_/g, ' ')}</p>}
+                {account.accountType === 'cartao_credito' && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Fecha dia {account.closingDay}, Paga dia {account.paymentDay}</p>
+                )}
+            </div>
+            <div className="flex items-center space-x-2">
+                 <span className="font-bold text-gray-800 dark:text-gray-200">{formatCurrency(account.initialBalance)}</span>
+                 {account.accountType === 'corrente' && !isSub && (
+                    <button onClick={() => handleOpenModal(null, account)} className="text-green-500 hover:text-green-700 p-1" title="Adicionar Subconta"><PlusCircle size={16}/></button>
+                 )}
+                 {account.accountType === 'dinheiro' && (
+                    <button onClick={() => onImport(account)} className="text-teal-500 hover:text-teal-700 p-1" title="Importar extrato para esta conta"><Upload size={16}/></button>
+                 )}
+                <button onClick={() => handleOpenModal(account)} className="text-blue-500 hover:text-blue-700 p-1" title="Editar Conta"><Edit size={16}/></button>
+                <button onClick={() => onDelete('accounts', account.id)} className="text-red-500 hover:text-red-700 p-1" title="Excluir Conta"><Trash2 size={16}/></button>
+            </div>
+        </li>
+    );
 
     return (
         <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg h-full">
@@ -1924,33 +2020,37 @@ const AccountsManager = ({ accounts, onSave, onDelete, onImport, allTransactions
                 <h3 className="text-2xl font-bold text-gray-700 dark:text-gray-200">Contas</h3>
                 <Button onClick={() => handleOpenModal()}><PlusCircle size={18}/><span>Nova Conta</span></Button>
             </div>
-            <ul className="space-y-3">
-                {accounts.map(acc => (
-                    <li key={acc.id} className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                        <div>
-                            <p className="font-semibold">{acc.name}</p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">{(acc.accountType || 'corrente').replace(/_/g, ' ')}</p>
-                            {acc.accountType === 'cartao_credito' && (
-                                <p className="text-xs text-gray-500 dark:text-gray-400">Fecha dia {acc.closingDay}, Paga dia {acc.paymentDay}</p>
-                            )}
-                        </div>
-                        <div className="flex items-center space-x-2">
-                             <span className="font-bold text-gray-800 dark:text-gray-200">{formatCurrency(acc.initialBalance)}</span>
-                             {acc.accountType === 'dinheiro' && (
-                                <button onClick={() => onImport(acc)} className="text-teal-500 hover:text-teal-700 p-1" title="Importar extrato para esta conta"><Upload size={16}/></button>
-                             )}
-                            <button onClick={() => handleOpenModal(acc)} className="text-blue-500 hover:text-blue-700 p-1" title="Editar Conta"><Edit size={16}/></button>
-                            <button onClick={() => onDelete('accounts', acc.id)} className="text-red-500 hover:text-red-700 p-1" title="Excluir Conta"><Trash2 size={16}/></button>
-                        </div>
-                    </li>
+            <ul className="space-y-4">
+                {hierarchicalAccounts.map(acc => (
+                    <React.Fragment key={acc.id}>
+                        <AccountListItem account={acc} />
+                        {acc.subAccounts.length > 0 && (
+                            <ul className="pl-8 space-y-2 border-l-2 dark:border-gray-700 ml-4">
+                                {acc.subAccounts.map(sub => <AccountListItem key={sub.id} account={sub} isSub />)}
+                            </ul>
+                        )}
+                    </React.Fragment>
                 ))}
             </ul>
              <Modal isOpen={isModalOpen} onClose={handleCloseModal} title={editingAccount ? 'Editar Conta' : 'Nova Conta'}>
                 <form onSubmit={handleSubmit} className="space-y-4">
+                    <label className="block dark:text-gray-300">
+                        <span className="text-gray-700 dark:text-gray-300">Conta Principal (Opcional)</span>
+                        <AccountSelector 
+                            accounts={accounts.filter(a => a.accountType === 'corrente' && !a.parentId && a.id !== editingAccount?.id)}
+                            selectedAccountId={formData.parentId || ''}
+                            onChange={handleChange}
+                            name="parentId"
+                            required={false}
+                            allowNone={true}
+                            className="!mt-1"
+                        />
+                    </label>
+
                     <label className="block dark:text-gray-300"><span className="text-gray-700 dark:text-gray-300">Nome da Conta</span><input type="text" name="name" value={formData.name || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required /></label>
                      <label className="block dark:text-gray-300">
                         <span className="text-gray-700 dark:text-gray-300">Tipo de Conta</span>
-                        <select name="accountType" value={formData.accountType || 'corrente'} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300">
+                        <select name="accountType" value={formData.accountType || 'corrente'} onChange={handleChange} disabled={!!formData.parentId} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300 disabled:bg-gray-200 dark:disabled:bg-gray-600">
                             <option value="corrente">Conta Corrente</option>
                             <option value="cartao_credito">Cartão de Crédito</option>
                             <option value="lancamentos_futuros">Lançamentos Futuros</option>
@@ -2489,7 +2589,7 @@ const SettingsView = ({ onSaveEntity, onDeleteEntity, onImportTransactions, acco
             </div>
 
             <div className="mt-4">
-                {activeTab === 'accounts' && <AccountsManager accounts={accounts} onSave={onSaveEntity} onDelete={onDeleteEntity} onImport={handleOpenImportModal} allTransactions={allTransactions} />}
+                {activeTab === 'accounts' && <AccountsManager accounts={accounts} onSave={onSaveEntity} onDelete={onDeleteEntity} onImport={handleOpenImportModal} />}
                 {activeTab === 'payees' && <PayeesManager payees={payees} categories={categories} onSave={onSaveEntity} onDelete={onDeleteEntity} />}
                 {activeTab === 'categories' && <CategoryManager categories={categories} onSave={onSaveEntity} onDelete={onDeleteEntity} onApplyTemplate={handleApplyTemplate} />}
             </div>
@@ -3580,7 +3680,7 @@ const TransactionEditModal = ({ isOpen, onClose, editingTransaction, accounts, c
                     <label className="flex-1"><span className="text-gray-700 dark:text-gray-300">Data</span><input type="date" name="date" value={formData.date || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required /></label>
                 </div>
                 <div className="flex space-x-4">
-                    <label className="flex-1"><span className="text-gray-700 dark:text-gray-300">Conta</span><select name="accountId" value={formData.accountId || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required>{accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label>
+                    <label className="flex-1"><span className="text-gray-700 dark:text-gray-300">Conta</span><AccountSelector accounts={accounts} selectedAccountId={formData.accountId} onChange={handleChange} /></label>
                     <label className="flex-1"><span className="text-gray-700 dark:text-gray-300">Favorecido</span><select name="payeeId" value={formData.payeeId || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300"><option value="">Nenhum</option>{payees.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
                 </div>
                 <div>
@@ -3807,13 +3907,4 @@ const TemplateModal = ({ isOpen, onClose, onApply }) => {
         </Modal>
     );
 };
-
-
-
-
-
-
-
-
-
 
