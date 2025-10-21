@@ -140,7 +140,7 @@ const AuthView = ({ onGoogleSignIn }) => {
 };
 
 // NOVO COMPONENTE REUTILIZÁVEL PARA SELEÇÃO DE CONTA HIERÁRQUICA
-const AccountSelector = ({ accounts, selectedAccountId, onChange, required = true, name = "accountId", className = "", filter, allowNone = false }) => {
+const AccountSelector = ({ accounts, selectedAccountId, onChange, required = true, name = "accountId", className = "", filter, allowNone = false, excludeId = null }) => {
     const hierarchicalAccounts = useMemo(() => {
         const topLevelAccounts = accounts.filter(a => !a.parentId);
         
@@ -162,12 +162,14 @@ const AccountSelector = ({ accounts, selectedAccountId, onChange, required = tru
                 if (account.subAccounts.length > 0) {
                     return (
                         <optgroup key={account.id} label={account.name}>
-                            <option value={account.id}>{account.name} (Conta Principal)</option>
-                            {account.subAccounts.map(sub => <option key={sub.id} value={sub.id}>&nbsp;&nbsp;{sub.name}</option>)}
+                            {account.id !== excludeId && <option value={account.id}>{account.name} (Conta Principal)</option>}
+                            {account.subAccounts.map(sub => (
+                                sub.id !== excludeId && <option key={sub.id} value={sub.id}>&nbsp;&nbsp;{sub.name}</option>
+                            ))}
                         </optgroup>
                     );
                 }
-                return <option key={account.id} value={account.id}>{account.name}</option>;
+                return account.id !== excludeId && <option key={account.id} value={account.id}>{account.name}</option>;
             })}
         </select>
     );
@@ -770,8 +772,8 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
                     {formData.type === 'transfer' ? (
                         <>
                             <div className="flex space-x-4">
-                               <label className="flex-1"><span className="text-gray-700 dark:text-gray-300">Conta de Origem</span><AccountSelector accounts={accounts} selectedAccountId={formData.sourceAccountId} onChange={handleChange} name="sourceAccountId" /></label>
-                               <label className="flex-1"><span className="text-gray-700 dark:text-gray-300">Conta de Destino</span><AccountSelector accounts={accounts.filter(a => a.id !== formData.sourceAccountId)} selectedAccountId={formData.destinationAccountId} onChange={handleChange} name="destinationAccountId" /></label>
+                               <label className="flex-1"><span className="text-gray-700 dark:text-gray-300">Conta de Origem</span><AccountSelector accounts={accounts} selectedAccountId={formData.sourceAccountId} onChange={handleChange} name="sourceAccountId" excludeId={formData.destinationAccountId} /></label>
+                               <label className="flex-1"><span className="text-gray-700 dark:text-gray-300">Conta de Destino</span><AccountSelector accounts={accounts} selectedAccountId={formData.destinationAccountId} onChange={handleChange} name="destinationAccountId" excludeId={formData.sourceAccountId} /></label>
                             </div>
                              <div><label className="block"><span className="text-gray-700 dark:text-gray-300">Descrição (Opcional)</span><input type="text" name="description" value={formData.description} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" /></label></div>
                             <div><label className="block"><span className="text-gray-700 dark:text-gray-300">Valor (R$)</span><input type="number" step="0.01" name="amount" value={formData.amount} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" placeholder="0.00" required /></label></div>
@@ -1157,24 +1159,26 @@ const ReconciliationTransferModal = ({ isOpen, onClose, onSave, transferData, ac
                 <label className="block dark:text-gray-300">
                     <span className="text-gray-700 dark:text-gray-300">Conta de Origem</span>
                     <AccountSelector 
-                        accounts={accounts.filter(a => a.id !== formData.destinationAccountId)}
+                        accounts={accounts}
                         selectedAccountId={formData.sourceAccountId} 
                         onChange={handleChange} 
                         disabled={isExpense}
                         name="sourceAccountId"
                         className="disabled:bg-gray-200 dark:disabled:bg-gray-600"
+                        excludeId={formData.destinationAccountId}
                     />
                 </label>
 
                 <label className="block dark:text-gray-300">
                     <span className="text-gray-700 dark:text-gray-300">Conta de Destino</span>
                     <AccountSelector 
-                        accounts={accounts.filter(a => a.id !== formData.sourceAccountId)}
+                        accounts={accounts}
                         selectedAccountId={formData.destinationAccountId} 
                         onChange={handleChange} 
                         disabled={!isExpense}
                         name="destinationAccountId"
                         className="disabled:bg-gray-200 dark:disabled:bg-gray-600"
+                        excludeId={formData.sourceAccountId}
                     />
                 </label>
 
@@ -3907,4 +3911,5 @@ const TemplateModal = ({ isOpen, onClose, onApply }) => {
         </Modal>
     );
 };
+
 
