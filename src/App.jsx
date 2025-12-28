@@ -9,19 +9,19 @@ import { PlusCircle, Upload, Trash2, Edit, TrendingUp, TrendingDown, DollarSign,
 
 // --- CONFIGURAÇÃO DO FIREBASE ---
 const firebaseConfig = {
-      apiKey: "AIzaSyAssnm4OKxyI_IMFijKcU1wKDf0iGEFYAw",
-      authDomain: "meu-finaceiro.firebaseapp.com",
-      projectId: "meu-finaceiro",
-      storageBucket: "meu-finaceiro.firebasestorage.app",
-      messagingSenderId: "204846182105",
-      appId: "1:204846182105:web:695589e7181040bf5958c8",
-    };
+    apiKey: "AIzaSyAssnm4OKxyI_IMFijKcU1wKDf0iGEFYAw",
+    authDomain: "meu-finaceiro.firebaseapp.com",
+    projectId: "meu-finaceiro",
+    storageBucket: "meu-finaceiro.firebasestorage.app",
+    messagingSenderId: "204846182105",
+    appId: "1:204846182105:web:695589e7181040bf5958c8",
+};
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
-const functions = getFunctions(app, 'southamerica-east1'); 
+const functions = getFunctions(app, 'southamerica-east1');
 
 // --- UTILITÁRIOS ---
 const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
@@ -143,11 +143,11 @@ const AuthView = ({ onGoogleSignIn }) => {
 const AccountSelector = ({ accounts, selectedAccountId, onChange, required = true, name = "accountId", className = "", filter, allowNone = false, excludeId = null }) => {
     const hierarchicalAccounts = useMemo(() => {
         const topLevelAccounts = accounts.filter(a => !a.parentId);
-        
+
         return topLevelAccounts.map(p => ({
             ...p,
-            subAccounts: accounts.filter(s => s.parentId === p.id).sort((a,b) => a.name.localeCompare(b.name))
-        })).sort((a,b) => a.name.localeCompare(b.name));
+            subAccounts: accounts.filter(s => s.parentId === p.id).sort((a, b) => a.name.localeCompare(b.name))
+        })).sort((a, b) => a.name.localeCompare(b.name));
     }, [accounts]);
 
     let accountsToDisplay = hierarchicalAccounts;
@@ -211,7 +211,7 @@ const DashboardView = ({ transactions, accounts, categories, futureEntries, budg
         const tDate = new Date(t.date);
         return tDate >= startOfMonth && tDate <= endOfMonth && !t.isTransfer;
     }), [transactions, startOfMonth, endOfMonth]);
-    
+
     const totalRevenue = useMemo(() => monthlyTransactions.filter(t => t.type === 'revenue').reduce((sum, t) => sum + t.amount, 0), [monthlyTransactions]);
     const totalExpense = useMemo(() => monthlyTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0), [monthlyTransactions]);
     const monthlyCashFlow = useMemo(() => totalRevenue - totalExpense, [totalRevenue, totalExpense]);
@@ -222,7 +222,7 @@ const DashboardView = ({ transactions, accounts, categories, futureEntries, budg
         if (cmvCategoryIds.length === 0) return 0;
         return monthlyTransactions.filter(t => t.type === 'expense' && cmvCategoryIds.includes(t.categoryId)).reduce((sum, t) => sum + t.amount, 0);
     }, [monthlyTransactions, categories]);
-    
+
     const operationalExpenses = useMemo(() => {
         const parentOpExId = categories.find(c => c.name && c.name.toLowerCase().includes('despesas operacionais') && !c.parentId)?.id;
         if (!parentOpExId) return 0;
@@ -235,13 +235,13 @@ const DashboardView = ({ transactions, accounts, categories, futureEntries, budg
             .filter(e => e.status !== 'reconciled' && e.type === 'expense')
             .reduce((sum, e) => sum + e.amount, 0);
     }, [futureEntries]);
-    
+
     const taxes = useMemo(() => {
         const taxCategoryIds = categories.filter(c => c.name && (c.name.toLowerCase().includes('impostos') || c.name.toLowerCase().includes('obrigações fiscais'))).map(c => c.id);
         if (taxCategoryIds.length === 0) return 0;
         return monthlyTransactions.filter(t => t.type === 'expense' && taxCategoryIds.includes(t.categoryId)).reduce((sum, t) => sum + t.amount, 0);
     }, [monthlyTransactions, categories]);
-    
+
     const next30DaysProjection = useMemo(() => {
         const endDate = new Date();
         endDate.setDate(endDate.getDate() + 30);
@@ -264,15 +264,15 @@ const DashboardView = ({ transactions, accounts, categories, futureEntries, budg
         const today = new Date().toISOString().slice(0, 10);
         return futureEntries.filter(e => e.dueDate.slice(0, 10) === today && e.status !== 'reconciled');
     }, [futureEntries]);
-    
+
     const budgetOverview = useMemo(() => {
         const expensesByCat = {};
-        for(const expense of monthlyTransactions) {
+        for (const expense of monthlyTransactions) {
             expensesByCat[expense.categoryId] = (expensesByCat[expense.categoryId] || 0) + expense.amount;
             const category = categories.find(c => c.id === expense.categoryId);
-            if(category?.parentId) expensesByCat[category.parentId] = (expensesByCat[category.parentId] || 0) + expense.amount;
+            if (category?.parentId) expensesByCat[category.parentId] = (expensesByCat[category.parentId] || 0) + expense.amount;
         }
-        
+
         let totalBudget = 0;
         let totalSpent = 0;
         budgets.forEach(b => {
@@ -296,7 +296,7 @@ const DashboardView = ({ transactions, accounts, categories, futureEntries, budg
         { key: 'showTaxes', title: "Impostos (Mês)", value: formatCurrency(taxes), icon: <FileText className="text-white" />, color: "bg-indigo-500" },
         { key: 'showNext30DaysProjection', title: "Projeção 30 dias", value: formatCurrency(next30DaysProjection), icon: <AreaChart className="text-white" />, color: "bg-purple-500" },
     ];
-    
+
     if (!dashboardConfig) return <LoadingScreen message="A carregar dashboard..." />;
 
     return (
@@ -320,7 +320,7 @@ const DashboardView = ({ transactions, accounts, categories, futureEntries, budg
                         <h3 className="text-xl font-bold text-gray-800 dark:text-gray-200 mb-4">Despesas do Mês por Categoria</h3>
                         {expenseByCategory.length > 0 ? (
                             <ResponsiveContainer width="100%" height={300}>
-                               <BarChart data={expenseByCategory} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                                <BarChart data={expenseByCategory} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                                     <CartesianGrid strokeDasharray="3 3" />
                                     <XAxis type="number" tickFormatter={formatCurrency} />
                                     <YAxis type="category" dataKey="name" width={150} />
@@ -331,7 +331,7 @@ const DashboardView = ({ transactions, accounts, categories, futureEntries, budg
                         ) : <p className="text-center text-gray-500 dark:text-gray-400 py-12">Sem despesas este mês.</p>}
                     </div>
                 )}
-                 {dashboardConfig.showDueToday && (
+                {dashboardConfig.showDueToday && (
                     <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg">
                         <h3 className="text-xl font-bold text-gray-800 dark:text-gray-200 mb-4">Contas a Vencer Hoje</h3>
                         {dueToday.length > 0 ? (
@@ -348,8 +348,8 @@ const DashboardView = ({ transactions, accounts, categories, futureEntries, budg
                             </ul>
                         ) : <p className="text-center text-gray-500 dark:text-gray-400 py-12">Nenhuma conta vence hoje.</p>}
                     </div>
-                 )}
-                 {dashboardConfig.showBudgetSummary && (
+                )}
+                {dashboardConfig.showBudgetSummary && (
                     <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg lg:col-span-2">
                         <h3 className="text-xl font-bold text-gray-800 dark:text-gray-200 mb-4">Resumo dos Orçamentos do Mês</h3>
                         {budgetOverview.totalBudget > 0 ? (
@@ -359,8 +359,8 @@ const DashboardView = ({ transactions, accounts, categories, futureEntries, budg
                                     <span className="font-semibold text-gray-700 dark:text-gray-300">Orçamento: {formatCurrency(budgetOverview.totalBudget)}</span>
                                 </div>
                                 <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-6">
-                                    <div 
-                                        className={`h-6 rounded-full text-white text-sm flex items-center justify-center ${budgetOverview.progress > 100 ? 'bg-red-500' : 'bg-blue-500'}`} 
+                                    <div
+                                        className={`h-6 rounded-full text-white text-sm flex items-center justify-center ${budgetOverview.progress > 100 ? 'bg-red-500' : 'bg-blue-500'}`}
                                         style={{ width: `${Math.min(budgetOverview.progress, 100)}%` }}
                                     >
                                         {budgetOverview.progress.toFixed(0)}%
@@ -369,15 +369,15 @@ const DashboardView = ({ transactions, accounts, categories, futureEntries, budg
                             </div>
                         ) : <p className="text-center text-gray-500 dark:text-gray-400 py-12">Nenhum orçamento definido para este mês.</p>}
                     </div>
-                 )}
+                )}
             </div>
-            
+
             <Modal isOpen={isSettingsModalOpen} onClose={() => setIsSettingsModalOpen(false)} title="Configurar Dashboard">
                 <div className="space-y-2">
                     <p className="text-gray-600 dark:text-gray-400 mb-4">Selecione os indicadores que deseja ver no seu dashboard.</p>
                     <div className="grid grid-cols-2 gap-4 max-h-96 overflow-y-auto pr-2">
                         {[
-                            ...kpiCards.map(k => ({ key: k.key, label: k.title})),
+                            ...kpiCards.map(k => ({ key: k.key, label: k.title })),
                             { key: 'showExpenseByCategory', label: 'Gráfico de Despesas' },
                             { key: 'showDueToday', label: 'Contas a Vencer Hoje' },
                             { key: 'showBudgetSummary', label: 'Resumo de Orçamentos' },
@@ -421,13 +421,13 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
         setSelectedTransactions(new Set());
         setIsSimulating(false); // Reset simulation on account change
     }, [accounts, selectedAccountId]);
-    
+
     useEffect(() => {
         if (newlyAddedPayeeName && payees.length > 0) {
             const newPayee = payees.find(p => p.name === newlyAddedPayeeName);
             if (newPayee) {
                 setFormData(prev => ({ ...prev, payeeId: newPayee.id }));
-                setNewlyAddedPayeeName(null); 
+                setNewlyAddedPayeeName(null);
             }
         }
     }, [payees, newlyAddedPayeeName]);
@@ -472,24 +472,24 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
                 .filter(entry => {
                     const dueDate = new Date(entry.dueDate);
                     return entry.status !== 'reconciled' &&
-                           dueDate >= simStartDate &&
-                           dueDate <= simEndDate;
+                        dueDate >= simStartDate &&
+                        dueDate <= simEndDate;
                 })
                 .map(entry => ({
                     ...entry,
                     id: `sim-${entry.id}`, // Unique key for simulated entries
-                    date: entry.dueDate, 
-                    accountId: selectedAccountId, 
+                    date: entry.dueDate,
+                    accountId: selectedAccountId,
                     isSimulated: true,
                 }));
-            
+
             combinedTransactions.push(...futureSimulations);
         }
 
         combinedTransactions.sort((a, b) => new Date(b.date) - new Date(a.date));
 
         let runningBalance = groupInitialBalance;
-        
+
         const processed = combinedTransactions
             .slice()
             .reverse()
@@ -498,7 +498,7 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
                 runningBalance += amount;
                 return { ...t, runningBalance };
             });
-        
+
         return processed.reverse();
     }, [filteredTransactions, selectedAccount, isSimulating, simulationRange, futureEntries, groupInitialBalance]);
 
@@ -550,7 +550,7 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
                     const prefix = `Transferência para ${sourceAccountName}`;
                     commonDescription = expenseSide.description.replace(prefix, '').replace(' - ', '').trim();
                 }
-                
+
                 setFormData({
                     type: 'transfer',
                     amount: transaction.amount,
@@ -578,7 +578,7 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
     };
 
     const handleCloseModal = () => setIsModalOpen(false);
-    
+
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => {
@@ -598,7 +598,7 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
         onSave('transactions', dataToSave, editingTransaction?.id, attachmentFile);
         handleCloseModal();
     };
-    
+
     const handleAddPayee = async () => {
         const trimmedName = newPayeeName.trim();
         if (!trimmedName) {
@@ -614,19 +614,19 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
         setNewPayeeName('');
         setIsAddPayeeModalOpen(false);
     };
-    
+
     const handleOpenSimulationModal = () => {
         const today = new Date();
         const endDate = new Date();
         endDate.setDate(today.getDate() + 30);
-        
+
         setSimulationRange({
             start: today.toISOString().substring(0, 10),
             end: endDate.toISOString().substring(0, 10),
         });
         setIsSimulationModalOpen(true);
     };
-    
+
     const handleSimRangeChange = (e) => {
         const { name, value } = e.target;
         setSimulationRange(prev => ({ ...prev, [name]: value }));
@@ -653,10 +653,10 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
                 <div className="flex flex-wrap justify-between items-center mb-6 gap-4">
                     <div>
                         <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-200">Extrato da Conta</h2>
-                        <AccountSelector 
-                            accounts={accounts} 
-                            selectedAccountId={selectedAccountId} 
-                            onChange={(e) => setSelectedAccountId(e.target.value)} 
+                        <AccountSelector
+                            accounts={accounts}
+                            selectedAccountId={selectedAccountId}
+                            onChange={(e) => setSelectedAccountId(e.target.value)}
                             className="!mt-2"
                         />
                     </div>
@@ -723,12 +723,12 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
                                     {t.description}
                                     {t.attachmentURL && (
                                         <a href={t.attachmentURL} target="_blank" rel="noopener noreferrer" title="Ver anexo">
-                                            <Paperclip className="text-blue-500" size={16}/>
+                                            <Paperclip className="text-blue-500" size={16} />
                                         </a>
                                     )}
                                 </td>
                                 <td className="p-4 text-gray-600 dark:text-gray-400">
-                                    {t.isTransfer ? <span className="flex items-center gap-2 text-blue-600 font-medium"><ArrowRightLeft size={14}/> Transferência</span> : getCategoryFullName(t.categoryId, categories)}
+                                    {t.isTransfer ? <span className="flex items-center gap-2 text-blue-600 font-medium"><ArrowRightLeft size={14} /> Transferência</span> : getCategoryFullName(t.categoryId, categories)}
                                     {t.isSimulated && <span className="text-xs ml-2 text-yellow-700 dark:text-yellow-400 font-bold">[SIMULAÇÃO]</span>}
                                 </td>
                                 <td className={`p-4 font-bold text-right ${t.type === 'revenue' ? 'text-green-600' : 'text-red-600'}`}>{t.type === 'revenue' ? '+' : '-'} {formatCurrency(t.amount)}</td>
@@ -746,7 +746,7 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
                     </tbody>
                 </table>
             </div>
-            
+
             <Modal isOpen={isSimulationModalOpen} onClose={() => setIsSimulationModalOpen(false)} title="Simular Lançamentos Futuros">
                 <form onSubmit={handleStartSimulation} className="space-y-4">
                     <p className="text-gray-700 dark:text-gray-300">Selecione o período para incluir os lançamentos futuros no extrato.</p>
@@ -772,10 +772,10 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
                     {formData.type === 'transfer' ? (
                         <>
                             <div className="flex space-x-4">
-                               <label className="flex-1"><span className="text-gray-700 dark:text-gray-300">Conta de Origem</span><AccountSelector accounts={accounts} selectedAccountId={formData.sourceAccountId} onChange={handleChange} name="sourceAccountId" excludeId={formData.destinationAccountId} /></label>
-                               <label className="flex-1"><span className="text-gray-700 dark:text-gray-300">Conta de Destino</span><AccountSelector accounts={accounts} selectedAccountId={formData.destinationAccountId} onChange={handleChange} name="destinationAccountId" excludeId={formData.sourceAccountId} /></label>
+                                <label className="flex-1"><span className="text-gray-700 dark:text-gray-300">Conta de Origem</span><AccountSelector accounts={accounts} selectedAccountId={formData.sourceAccountId} onChange={handleChange} name="sourceAccountId" excludeId={formData.destinationAccountId} /></label>
+                                <label className="flex-1"><span className="text-gray-700 dark:text-gray-300">Conta de Destino</span><AccountSelector accounts={accounts} selectedAccountId={formData.destinationAccountId} onChange={handleChange} name="destinationAccountId" excludeId={formData.sourceAccountId} /></label>
                             </div>
-                             <div><label className="block"><span className="text-gray-700 dark:text-gray-300">Descrição (Opcional)</span><input type="text" name="description" value={formData.description} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" /></label></div>
+                            <div><label className="block"><span className="text-gray-700 dark:text-gray-300">Descrição (Opcional)</span><input type="text" name="description" value={formData.description} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" /></label></div>
                             <div><label className="block"><span className="text-gray-700 dark:text-gray-300">Valor (R$)</span><input type="number" step="0.01" name="amount" value={formData.amount} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" placeholder="0.00" required /></label></div>
                         </>
                     ) : (
@@ -790,7 +790,7 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
                                     <div className="flex justify-between items-center mb-1">
                                         <span className="text-gray-700 dark:text-gray-300">Favorecido</span>
                                         <button type="button" onClick={() => setIsAddPayeeModalOpen(true)} className="text-blue-500 hover:text-blue-700 text-sm flex items-center gap-1">
-                                            <PlusCircle size={14}/> Novo
+                                            <PlusCircle size={14} /> Novo
                                         </button>
                                     </div>
                                     <select name="payeeId" value={formData.payeeId} onChange={handleChange} className="block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300">
@@ -802,7 +802,7 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
                             </div>
                             <div>
                                 <label className="block"><span className="text-gray-700 dark:text-gray-300">Anexar Comprovativo</span>
-                                <input type="file" onChange={(e) => setAttachmentFile(e.target.files[0])} className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
+                                    <input type="file" onChange={(e) => setAttachmentFile(e.target.files[0])} className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
                                 </label>
                                 {formData.attachmentURL && !attachmentFile && <div className="text-xs mt-1">Anexo atual: <a href={formData.attachmentURL} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Ver anexo</a>. Selecione um novo ficheiro para o substituir.</div>}
                             </div>
@@ -839,12 +839,12 @@ const ReportsView = ({ transactions, categories, accounts }) => {
 
     const netWorthData = useMemo(() => {
         if (transactions.length === 0 && accounts.length === 0) return [];
-        
+
         const sortedTransactions = [...transactions].sort((a, b) => new Date(a.date) - new Date(b.date));
         const initialBalance = accounts.reduce((sum, acc) => sum + (acc.initialBalance || 0), 0);
-        
+
         const monthlyBalances = {};
-        
+
         let currentBalance = initialBalance;
         for (const t of sortedTransactions) {
             const month = getYearMonth(new Date(t.date));
@@ -864,9 +864,9 @@ const ReportsView = ({ transactions, categories, accounts }) => {
             let currentDate = new Date(sortedTransactions[0].date);
             const lastDate = new Date();
             let lastBalance = initialBalance;
-            while(currentDate <= lastDate) {
+            while (currentDate <= lastDate) {
                 const monthKey = getYearMonth(currentDate);
-                if(monthlyBalances[monthKey]) {
+                if (monthlyBalances[monthKey]) {
                     lastBalance = monthlyBalances[monthKey];
                 } else {
                     monthlyBalances[monthKey] = lastBalance;
@@ -874,7 +874,7 @@ const ReportsView = ({ transactions, categories, accounts }) => {
                 currentDate.setMonth(currentDate.getMonth() + 1);
             }
         }
-        
+
         return Object.entries(monthlyBalances)
             .map(([month, balance]) => ({ month, balance }))
             .sort((a, b) => a.month.localeCompare(b.month));
@@ -902,7 +902,7 @@ const ReportsView = ({ transactions, categories, accounts }) => {
             const change = val1 - val2;
             const percentChange = val2 !== 0 ? (change / val2) * 100 : (val1 > 0 ? 100 : 0);
             return { category: key, value1: val1, value2: val2, change, percentChange };
-        }).sort((a,b) => b.value1 - a.value1);
+        }).sort((a, b) => b.value1 - a.value1);
     }, [compareMonths, transactions, categories]);
 
     return (
@@ -946,7 +946,7 @@ const ReportsView = ({ transactions, categories, accounts }) => {
                                     <td className="p-3 text-right">{formatCurrency(item.change)}</td>
                                     <td className={`p-3 text-right font-bold ${item.percentChange > 0 ? 'text-red-500' : 'text-green-500'}`}>
                                         <span className="flex items-center justify-end gap-1">
-                                            {item.percentChange !== 0 && (item.percentChange > 0 ? <ArrowUp size={14}/> : <ArrowDown size={14}/>)}
+                                            {item.percentChange !== 0 && (item.percentChange > 0 ? <ArrowUp size={14} /> : <ArrowDown size={14} />)}
                                             {item.percentChange.toFixed(2)}%
                                         </span>
                                     </td>
@@ -965,11 +965,11 @@ const ReconciliationView = ({ transactions, accounts, categories, payees, onSave
     const [selectedAccountId, setSelectedAccountId] = useState('');
     const [statementData, setStatementData] = useState([]);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-    
+
     // Novos estados para o modal de transferência
     const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
     const [transferData, setTransferData] = useState(null);
-    
+
     const reconciliationResult = useMemo(() => {
         if (!selectedAccountId || statementData.length === 0) {
             return { matched: [], onlyInStatement: [], onlyInSystem: [] };
@@ -977,7 +977,7 @@ const ReconciliationView = ({ transactions, accounts, categories, payees, onSave
 
         const accountTransactions = transactions.filter(t => t.accountId === selectedAccountId && !t.reconciled);
         const statementTransactions = [...statementData];
-        
+
         const matched = [];
         const onlyInSystem = [];
 
@@ -1002,7 +1002,7 @@ const ReconciliationView = ({ transactions, accounts, categories, payees, onSave
                 onlyInSystem.push(sysTrans);
             }
         }
-        
+
         return { matched, onlyInStatement: statementTransactions, onlyInSystem };
     }, [selectedAccountId, statementData, transactions]);
 
@@ -1044,7 +1044,7 @@ const ReconciliationView = ({ transactions, accounts, categories, payees, onSave
                 <div className="flex gap-4 items-center">
                     <AccountSelector accounts={accounts} selectedAccountId={selectedAccountId} onChange={e => setSelectedAccountId(e.target.value)} className="flex-grow" />
                     <Button onClick={() => setIsImportModalOpen(true)} disabled={!selectedAccountId}>
-                        <Upload size={18}/> Importar Extrato
+                        <Upload size={18} /> Importar Extrato
                     </Button>
                 </div>
             </div>
@@ -1085,7 +1085,7 @@ const ReconciliationView = ({ transactions, accounts, categories, payees, onSave
                     </div>
                 </div>
             )}
-            
+
             <TransactionImportModal
                 isOpen={isImportModalOpen}
                 onClose={() => setIsImportModalOpen(false)}
@@ -1096,7 +1096,7 @@ const ReconciliationView = ({ transactions, accounts, categories, payees, onSave
                 allTransactions={allTransactions}
             />
 
-            <ReconciliationTransferModal 
+            <ReconciliationTransferModal
                 isOpen={isTransferModalOpen}
                 onClose={() => setIsTransferModalOpen(false)}
                 onSave={handleCreateTransfer}
@@ -1116,7 +1116,7 @@ const ReconciliationTransferModal = ({ isOpen, onClose, onSave, transferData, ac
         if (transferData && isOpen) {
             const isExpense = transferData.type === 'expense';
             const otherAccountId = accounts.find(a => a.id !== currentAccountId)?.id || '';
-            
+
             setFormData({
                 sourceAccountId: isExpense ? currentAccountId : otherAccountId,
                 destinationAccountId: !isExpense ? currentAccountId : otherAccountId,
@@ -1145,7 +1145,7 @@ const ReconciliationTransferModal = ({ isOpen, onClose, onSave, transferData, ac
     };
 
     if (!isOpen || !transferData) return null;
-    
+
     const isExpense = transferData.type === 'expense';
 
     return (
@@ -1155,13 +1155,13 @@ const ReconciliationTransferModal = ({ isOpen, onClose, onSave, transferData, ac
                     <p className="font-bold">{transferData.description}</p>
                     <p>Data: {formatDate(transferData.date)} - Valor: {formatCurrency(transferData.amount)}</p>
                 </div>
-                
+
                 <label className="block dark:text-gray-300">
                     <span className="text-gray-700 dark:text-gray-300">Conta de Origem</span>
-                    <AccountSelector 
+                    <AccountSelector
                         accounts={accounts}
-                        selectedAccountId={formData.sourceAccountId} 
-                        onChange={handleChange} 
+                        selectedAccountId={formData.sourceAccountId}
+                        onChange={handleChange}
                         disabled={isExpense}
                         name="sourceAccountId"
                         className="disabled:bg-gray-200 dark:disabled:bg-gray-600"
@@ -1171,10 +1171,10 @@ const ReconciliationTransferModal = ({ isOpen, onClose, onSave, transferData, ac
 
                 <label className="block dark:text-gray-300">
                     <span className="text-gray-700 dark:text-gray-300">Conta de Destino</span>
-                    <AccountSelector 
+                    <AccountSelector
                         accounts={accounts}
-                        selectedAccountId={formData.destinationAccountId} 
-                        onChange={handleChange} 
+                        selectedAccountId={formData.destinationAccountId}
+                        onChange={handleChange}
                         disabled={!isExpense}
                         name="destinationAccountId"
                         className="disabled:bg-gray-200 dark:disabled:bg-gray-600"
@@ -1226,12 +1226,12 @@ const BudgetsView = ({ budgets, categories, transactions, onSave, onDelete }) =>
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
         const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
         const expensesThisMonth = transactions.filter(t => t.type === 'expense' && new Date(t.date) >= startOfMonth && new Date(t.date) <= endOfMonth && !t.isTransfer);
-        
+
         const expensesByCat = {};
-        for(const expense of expensesThisMonth) {
+        for (const expense of expensesThisMonth) {
             expensesByCat[expense.categoryId] = (expensesByCat[expense.categoryId] || 0) + expense.amount;
             const category = categories.find(c => c.id === expense.categoryId);
-            if(category?.parentId) {
+            if (category?.parentId) {
                 expensesByCat[category.parentId] = (expensesByCat[category.parentId] || 0) + expense.amount;
             }
         }
@@ -1268,7 +1268,7 @@ const BudgetsView = ({ budgets, categories, transactions, onSave, onDelete }) =>
                         </div>
                     );
                 })}
-                 {budgets.length === 0 && <p className="text-gray-500 dark:text-gray-400 col-span-full text-center py-8">Nenhum orçamento definido.</p>}
+                {budgets.length === 0 && <p className="text-gray-500 dark:text-gray-400 col-span-full text-center py-8">Nenhum orçamento definido.</p>}
             </div>
             <Modal isOpen={isModalOpen} onClose={handleCloseModal} title="Novo Orçamento">
                 <form onSubmit={handleSubmit} className="space-y-4">
@@ -1299,12 +1299,12 @@ const FutureEntriesView = ({ futureEntries, accounts, categories, payees, onSave
     const [formData, setFormData] = useState({});
     const [reconcileFormData, setReconcileFormData] = useState({});
     const [filter, setFilter] = useState('a_vencer'); // a_vencer, vencidos, reconciliados
-    
+
     // Estados para o modal de adicionar favorecido
     const [isAddPayeeModalOpen, setIsAddPayeeModalOpen] = useState(false);
     const [newPayeeName, setNewPayeeName] = useState('');
     const [newlyAddedPayeeName, setNewlyAddedPayeeName] = useState(null);
-    
+
     // Efeito para auto-selecionar o novo favorecido
     useEffect(() => {
         if (newlyAddedPayeeName && payees.length > 0) {
@@ -1372,7 +1372,7 @@ const FutureEntriesView = ({ futureEntries, accounts, categories, payees, onSave
         onReconcile({ ...reconcileFormData, finalAmount: parseFloat(reconcileFormData.finalAmount) });
         handleCloseReconcileModal();
     };
-    
+
     const handleAddPayee = async () => {
         const trimmedName = newPayeeName.trim();
         if (!trimmedName) {
@@ -1394,7 +1394,7 @@ const FutureEntriesView = ({ futureEntries, accounts, categories, payees, onSave
         const parents = categories.filter(c => !c.parentId && c.type === type);
         return parents.map(parent => ({ ...parent, subcategories: categories.filter(sub => sub.parentId === parent.id) })).sort((a, b) => a.name.localeCompare(b.name));
     }, [categories, formData.type]);
-    
+
     const filteredEntries = useMemo(() => {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -1416,11 +1416,11 @@ const FutureEntriesView = ({ futureEntries, accounts, categories, payees, onSave
     );
 
     const getStatusBadge = (entry) => {
-        if (entry.status === 'reconciled') return <span className="flex items-center gap-1.5 text-xs font-medium text-green-700 bg-green-100 px-2 py-1 rounded-full"><CheckCircle size={14}/> Reconciliado</span>;
+        if (entry.status === 'reconciled') return <span className="flex items-center gap-1.5 text-xs font-medium text-green-700 bg-green-100 px-2 py-1 rounded-full"><CheckCircle size={14} /> Reconciliado</span>;
         const today = new Date(); today.setHours(0, 0, 0, 0);
         const dueDate = new Date(entry.dueDate);
-        if (dueDate < today) return <span className="flex items-center gap-1.5 text-xs font-medium text-red-700 bg-red-100 px-2 py-1 rounded-full"><AlertTriangle size={14}/> Vencido</span>;
-        return <span className="flex items-center gap-1.5 text-xs font-medium text-blue-700 bg-blue-100 px-2 py-1 rounded-full"><Clock size={14}/> A Vencer</span>;
+        if (dueDate < today) return <span className="flex items-center gap-1.5 text-xs font-medium text-red-700 bg-red-100 px-2 py-1 rounded-full"><AlertTriangle size={14} /> Vencido</span>;
+        return <span className="flex items-center gap-1.5 text-xs font-medium text-blue-700 bg-blue-100 px-2 py-1 rounded-full"><Clock size={14} /> A Vencer</span>;
     };
 
     return (
@@ -1447,7 +1447,7 @@ const FutureEntriesView = ({ futureEntries, accounts, categories, payees, onSave
                             <div className="flex items-center gap-6 mt-2 text-sm text-gray-600 dark:text-gray-400">
                                 <span>Vencimento: <strong>{formatDate(entry.dueDate)}</strong></span>
                                 <span>Valor: <strong className={entry.type === 'revenue' ? 'text-green-600' : 'text-red-600'}>{formatCurrency(entry.amount)}</strong></span>
-                                {entry.entryType !== 'unico' && <span className="capitalize flex items-center gap-1"><Repeat size={14}/> {entry.frequency}</span>}
+                                {entry.entryType !== 'unico' && <span className="capitalize flex items-center gap-1"><Repeat size={14} /> {entry.frequency}</span>}
                             </div>
                             {entry.status === 'reconciled' && (
                                 <div className="mt-2 text-xs bg-green-50 dark:bg-green-900/20 p-2 rounded-md border border-green-200 dark:border-green-800">
@@ -1485,7 +1485,7 @@ const FutureEntriesView = ({ futureEntries, accounts, categories, payees, onSave
                             <div className="flex justify-between items-center mb-1">
                                 <span className="text-gray-700 dark:text-gray-300">Favorecido (Opcional)</span>
                                 <button type="button" onClick={() => setIsAddPayeeModalOpen(true)} className="text-blue-500 hover:text-blue-700 text-sm flex items-center gap-1">
-                                    <PlusCircle size={14}/> Novo
+                                    <PlusCircle size={14} /> Novo
                                 </button>
                             </div>
                             <select name="payeeId" value={formData.payeeId} onChange={handleChange} className="block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300">
@@ -1498,7 +1498,7 @@ const FutureEntriesView = ({ futureEntries, accounts, categories, payees, onSave
                     <div className="flex justify-end pt-4"><Button type="submit">Guardar</Button></div>
                 </form>
             </Modal>
-            
+
             <Modal isOpen={isAddPayeeModalOpen} onClose={() => setIsAddPayeeModalOpen(false)} title="Novo Favorecido">
                 <div className="space-y-4">
                     <label className="block">
@@ -1519,11 +1519,11 @@ const FutureEntriesView = ({ futureEntries, accounts, categories, payees, onSave
                         <p>Vencimento: {formatDate(entryToReconcile?.dueDate || '')} - Valor Original: {formatCurrency(entryToReconcile?.amount)}</p>
                     </div>
                     <label className="dark:text-gray-300">Conta de Pagamento
-                        <AccountSelector 
-                            accounts={accounts} 
-                            selectedAccountId={reconcileFormData.accountId} 
-                            onChange={handleReconcileChange} 
-                            name="accountId" 
+                        <AccountSelector
+                            accounts={accounts}
+                            selectedAccountId={reconcileFormData.accountId}
+                            onChange={handleReconcileChange}
+                            name="accountId"
                             className="!mt-1"
                         />
                     </label>
@@ -1548,7 +1548,7 @@ const DREView = ({ transactions, categories, accounts, payees, onSave, onDelete 
 
     const dreData = useMemo(() => {
         const filtered = transactions.filter(t => getYearMonth(t.date) === period && !t.isTransfer);
-        
+
         const revenues = filtered.filter(t => t.type === 'revenue');
         const expenses = filtered.filter(t => t.type === 'expense');
 
@@ -1559,7 +1559,7 @@ const DREView = ({ transactions, categories, accounts, payees, onSave, onDelete 
             const data = parentCategories.map(parent => {
                 const subcategories = categories.filter(sub => sub.parentId === parent.id);
                 const childIds = [parent.id, ...subcategories.map(s => s.id)];
-                
+
                 const total = trans.filter(t => childIds.includes(t.categoryId)).reduce((sum, t) => sum + t.amount, 0);
 
                 return {
@@ -1580,7 +1580,7 @@ const DREView = ({ transactions, categories, accounts, payees, onSave, onDelete 
             }).filter(p => p.value > 0);
             return data;
         };
-        
+
         const revenueData = groupByCategory(revenues, 'revenue');
         const expenseData = groupByCategory(expenses, 'expense');
         const totalExpense = expenses.reduce((sum, t) => sum + t.amount, 0);
@@ -1611,7 +1611,7 @@ const DREView = ({ transactions, categories, accounts, payees, onSave, onDelete 
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
         doc.text(`DRE - ${period}`, 14, 16);
-        
+
         const head = [['Descrição', 'Valor', '% Faturamento']];
         const body = [];
 
@@ -1631,7 +1631,7 @@ const DREView = ({ transactions, categories, accounts, payees, onSave, onDelete 
             });
         });
         body.push([{ content: '(-) Total de Despesas', styles: { fontStyle: 'bold' } }, { content: formatCurrency(dreData.totalExpense), styles: { halign: 'right', fontStyle: 'bold' } }, { content: `${(dreData.totalRevenue > 0 ? (dreData.totalExpense / dreData.totalRevenue) * 100 : 0).toFixed(2)}%`, styles: { halign: 'right', fontStyle: 'bold' } }]);
-        
+
         // Resultado
         body.push([{ content: '(=) Resultado Líquido do Período', styles: { fontStyle: 'bold', fontSize: 12 } }, { content: formatCurrency(dreData.netResult), styles: { halign: 'right', fontStyle: 'bold', fontSize: 12 } }, { content: `${(dreData.totalRevenue > 0 ? (dreData.netResult / dreData.totalRevenue) * 100 : 0).toFixed(2)}%`, styles: { halign: 'right', fontStyle: 'bold', fontSize: 12 } }]);
 
@@ -1662,13 +1662,13 @@ const DREView = ({ transactions, categories, accounts, payees, onSave, onDelete 
                 <div className="flex justify-between items-center mb-6">
                     <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-200">DRE - Demonstrativo de Resultados</h2>
                     <div className="flex items-center gap-4">
-                        <input 
-                            type="month" 
-                            value={period} 
+                        <input
+                            type="month"
+                            value={period}
                             onChange={(e) => setPeriod(e.target.value)}
                             className="p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300"
                         />
-                        <Button onClick={handleExportPDF} className="bg-green-600 hover:bg-green-700"><FileOutput size={18}/> Exportar PDF</Button>
+                        <Button onClick={handleExportPDF} className="bg-green-600 hover:bg-green-700"><FileOutput size={18} /> Exportar PDF</Button>
                     </div>
                 </div>
                 <div className="overflow-x-auto">
@@ -1714,7 +1714,7 @@ const DREView = ({ transactions, categories, accounts, payees, onSave, onDelete 
                     </table>
                 </div>
             </div>
-            <TransactionDetailModal 
+            <TransactionDetailModal
                 isOpen={detailModalOpen}
                 onClose={() => setDetailModalOpen(false)}
                 title={modalTitle}
@@ -1754,21 +1754,21 @@ const CompaniesManager = ({ companies, onSave, onDelete }) => {
         <>
             <div className="flex justify-between items-center mb-6">
                 <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-200">Gerir Empresas</h2>
-                <Button onClick={() => handleOpenModal()}><PlusCircle size={18}/><span>Nova Empresa</span></Button>
+                <Button onClick={() => handleOpenModal()}><PlusCircle size={18} /><span>Nova Empresa</span></Button>
             </div>
             <ul className="space-y-3">
                 {companies.map(c => (
                     <li key={c.id} className="flex justify-between items-center p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg border dark:border-gray-700">
                         <p className="font-semibold text-gray-700 dark:text-gray-300">{c.name}</p>
                         <div className="flex items-center space-x-2">
-                            <button onClick={() => handleOpenModal(c)} className="text-blue-500 hover:text-blue-700 p-1" title="Renomear Empresa"><Edit size={16}/></button>
-                            <button onClick={() => onDelete('companies', c.id)} className="text-red-500 hover:text-red-700 p-1" title="Excluir Empresa"><Trash2 size={16}/></button>
+                            <button onClick={() => handleOpenModal(c)} className="text-blue-500 hover:text-blue-700 p-1" title="Renomear Empresa"><Edit size={16} /></button>
+                            <button onClick={() => onDelete('companies', c.id)} className="text-red-500 hover:text-red-700 p-1" title="Excluir Empresa"><Trash2 size={16} /></button>
                         </div>
                     </li>
                 ))}
                 {companies.length === 0 && <p className="text-gray-500 dark:text-gray-400 text-center py-8">Nenhuma empresa criada.</p>}
             </ul>
-             <Modal isOpen={isModalOpen} onClose={handleCloseModal} title={editingCompany ? 'Renomear Empresa' : 'Nova Empresa'}>
+            <Modal isOpen={isModalOpen} onClose={handleCloseModal} title={editingCompany ? 'Renomear Empresa' : 'Nova Empresa'}>
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <label className="block dark:text-gray-300"><span className="text-gray-700 dark:text-gray-300">Nome da Empresa</span><input type="text" name="name" value={formData.name || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required /></label>
                     <div className="flex justify-end pt-4"><Button type="submit"><span>Guardar</span></Button></div>
@@ -1788,15 +1788,15 @@ const CategoryManager = ({ categories, onSave, onDelete, onApplyTemplate }) => {
     const { revenueCategories, expenseCategories } = useMemo(() => {
         const revenue = categories.filter(c => c.type === 'revenue');
         const expense = categories.filter(c => c.type === 'expense');
-        
+
         const buildHierarchy = (list) => {
             const parents = list.filter(c => !c.parentId);
             return parents.map(p => ({
                 ...p,
                 subcategories: list.filter(sub => sub.parentId === p.id)
-            })).sort((a,b) => a.name.localeCompare(b.name));
+            })).sort((a, b) => a.name.localeCompare(b.name));
         };
-        
+
         return {
             revenueCategories: buildHierarchy(revenue),
             expenseCategories: buildHierarchy(expense),
@@ -1836,7 +1836,7 @@ const CategoryManager = ({ categories, onSave, onDelete, onApplyTemplate }) => {
         onSave('categories', formData, editingCategory?.id);
         handleCloseModal();
     };
-    
+
     const handleExportCategories = () => {
         if (categories.length === 0) {
             alert("Não há categorias para exportar.");
@@ -1876,10 +1876,10 @@ const CategoryManager = ({ categories, onSave, onDelete, onApplyTemplate }) => {
                             <span className="font-bold text-lg text-gray-800 dark:text-gray-200">{parent.name}</span>
                             <div className="flex items-center space-x-2">
                                 <Button onClick={() => handleOpenModal({ parent })} className="bg-green-500 hover:bg-green-600 !p-2" title="Adicionar Subcategoria">
-                                    <PlusCircle size={16}/>
+                                    <PlusCircle size={16} />
                                 </Button>
-                                <button onClick={() => handleOpenModal({ category: parent })} className="text-blue-500 hover:text-blue-700 p-2" title="Editar Categoria"><Edit size={18}/></button>
-                                <button onClick={() => handleDelete(parent.id)} className="text-red-500 hover:text-red-700 p-2" title="Excluir Categoria"><Trash2 size={18}/></button>
+                                <button onClick={() => handleOpenModal({ category: parent })} className="text-blue-500 hover:text-blue-700 p-2" title="Editar Categoria"><Edit size={18} /></button>
+                                <button onClick={() => handleDelete(parent.id)} className="text-red-500 hover:text-red-700 p-2" title="Excluir Categoria"><Trash2 size={18} /></button>
                             </div>
                         </div>
                         <ul className="mt-3 space-y-2 pl-4">
@@ -1887,8 +1887,8 @@ const CategoryManager = ({ categories, onSave, onDelete, onApplyTemplate }) => {
                                 <li key={sub.id} className="flex justify-between items-center bg-white dark:bg-gray-800 p-2 rounded-lg border dark:border-gray-600">
                                     <span className="text-gray-700 dark:text-gray-300">{sub.name}</span>
                                     <div className="flex items-center space-x-2">
-                                        <button onClick={() => handleOpenModal({ category: sub })} className="text-blue-500 hover:text-blue-700 p-1" title="Editar Subcategoria"><Edit size={16}/></button>
-                                        <button onClick={() => handleDelete(sub.id)} className="text-red-500 hover:text-red-700 p-1" title="Excluir Subcategoria"><Trash2 size={16}/></button>
+                                        <button onClick={() => handleOpenModal({ category: sub })} className="text-blue-500 hover:text-blue-700 p-1" title="Editar Subcategoria"><Edit size={16} /></button>
+                                        <button onClick={() => handleDelete(sub.id)} className="text-red-500 hover:text-red-700 p-1" title="Excluir Subcategoria"><Trash2 size={16} /></button>
                                     </div>
                                 </li>
                             ))}
@@ -1905,15 +1905,15 @@ const CategoryManager = ({ categories, onSave, onDelete, onApplyTemplate }) => {
                 <h2 className="text-3xl font-extrabold text-gray-800 dark:text-gray-200">Gerenciador de Categorias</h2>
                 <div className="flex gap-2">
                     {categories.length > 0 && (
-                         <Button onClick={handleExportCategories} className="bg-teal-600 hover:bg-teal-700">
-                            <Download size={18}/>
+                        <Button onClick={handleExportCategories} className="bg-teal-600 hover:bg-teal-700">
+                            <Download size={18} />
                             <span>Exportar</span>
                         </Button>
                     )}
-                    <Button onClick={() => handleOpenModal({})}><PlusCircle size={18}/><span>Nova Categoria</span></Button>
+                    <Button onClick={() => handleOpenModal({})}><PlusCircle size={18} /><span>Nova Categoria</span></Button>
                 </div>
             </div>
-            
+
             <div className="p-6 bg-blue-50 dark:bg-gray-700/50 rounded-xl border-2 border-blue-200 dark:border-blue-800 mb-8">
                 <h3 className="text-xl font-bold text-blue-800 dark:text-blue-300">Plano de Contas</h3>
                 {categories.length > 0 ? (
@@ -1922,7 +1922,7 @@ const CategoryManager = ({ categories, onSave, onDelete, onApplyTemplate }) => {
                     <>
                         <p className="mt-2 text-sm text-blue-700 dark:text-blue-400">Comece rapidamente usando um modelo pronto ou importe o seu próprio plano de contas.</p>
                         <div className="mt-4 flex gap-4">
-                             <Button onClick={() => setIsTemplateModalOpen(true)} className="bg-blue-600 hover:bg-blue-700">
+                            <Button onClick={() => setIsTemplateModalOpen(true)} className="bg-blue-600 hover:bg-blue-700">
                                 <BookCopy size={16} />
                                 <span>Escolher Modelo</span>
                             </Button>
@@ -1930,7 +1930,7 @@ const CategoryManager = ({ categories, onSave, onDelete, onApplyTemplate }) => {
                     </>
                 )}
             </div>
-            
+
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
                 <CategorySection title="Despesas" categoryList={expenseCategories} />
                 <CategorySection title="Receitas" categoryList={revenueCategories} />
@@ -1944,11 +1944,11 @@ const CategoryManager = ({ categories, onSave, onDelete, onApplyTemplate }) => {
                     <div className="flex justify-end pt-4"><Button type="submit"><span>Guardar</span></Button></div>
                 </form>
             </Modal>
-            
-            <TemplateModal 
-                isOpen={isTemplateModalOpen} 
-                onClose={() => setIsTemplateModalOpen(false)} 
-                onApply={onApplyTemplate} 
+
+            <TemplateModal
+                isOpen={isTemplateModalOpen}
+                onClose={() => setIsTemplateModalOpen(false)}
+                onApply={onApplyTemplate}
             />
         </>
     );
@@ -1963,8 +1963,8 @@ const AccountsManager = ({ accounts, onSave, onDelete, onImport }) => {
         const topLevel = accounts.filter(a => !a.parentId);
         return topLevel.map(p => ({
             ...p,
-            subAccounts: accounts.filter(s => s.parentId === p.id).sort((a,b) => a.name.localeCompare(b.name))
-        })).sort((a,b) => a.name.localeCompare(b.name));
+            subAccounts: accounts.filter(s => s.parentId === p.id).sort((a, b) => a.name.localeCompare(b.name))
+        })).sort((a, b) => a.name.localeCompare(b.name));
     }, [accounts]);
 
     const handleOpenModal = (account = null, parent = null) => {
@@ -1973,11 +1973,11 @@ const AccountsManager = ({ accounts, onSave, onDelete, onImport }) => {
             setFormData(account);
         } else {
             setEditingAccount(null);
-            setFormData({ 
-                name: '', 
-                initialBalance: 0, 
-                accountType: parent ? 'corrente' : 'corrente', 
-                closingDay: '', 
+            setFormData({
+                name: '',
+                initialBalance: 0,
+                accountType: parent ? 'corrente' : 'corrente',
+                closingDay: '',
                 paymentDay: '',
                 parentId: parent ? parent.id : null
             });
@@ -2005,15 +2005,15 @@ const AccountsManager = ({ accounts, onSave, onDelete, onImport }) => {
                 )}
             </div>
             <div className="flex items-center space-x-2">
-                 <span className="font-bold text-gray-800 dark:text-gray-200">{formatCurrency(account.initialBalance)}</span>
-                 {account.accountType === 'corrente' && !isSub && (
-                    <button onClick={() => handleOpenModal(null, account)} className="text-green-500 hover:text-green-700 p-1" title="Adicionar Subconta"><PlusCircle size={16}/></button>
-                 )}
-                 {account.accountType === 'dinheiro' && (
-                    <button onClick={() => onImport(account)} className="text-teal-500 hover:text-teal-700 p-1" title="Importar extrato para esta conta"><Upload size={16}/></button>
-                 )}
-                <button onClick={() => handleOpenModal(account)} className="text-blue-500 hover:text-blue-700 p-1" title="Editar Conta"><Edit size={16}/></button>
-                <button onClick={() => onDelete('accounts', account.id)} className="text-red-500 hover:text-red-700 p-1" title="Excluir Conta"><Trash2 size={16}/></button>
+                <span className="font-bold text-gray-800 dark:text-gray-200">{formatCurrency(account.initialBalance)}</span>
+                {account.accountType === 'corrente' && !isSub && (
+                    <button onClick={() => handleOpenModal(null, account)} className="text-green-500 hover:text-green-700 p-1" title="Adicionar Subconta"><PlusCircle size={16} /></button>
+                )}
+                {account.accountType === 'dinheiro' && (
+                    <button onClick={() => onImport(account)} className="text-teal-500 hover:text-teal-700 p-1" title="Importar extrato para esta conta"><Upload size={16} /></button>
+                )}
+                <button onClick={() => handleOpenModal(account)} className="text-blue-500 hover:text-blue-700 p-1" title="Editar Conta"><Edit size={16} /></button>
+                <button onClick={() => onDelete('accounts', account.id)} className="text-red-500 hover:text-red-700 p-1" title="Excluir Conta"><Trash2 size={16} /></button>
             </div>
         </li>
     );
@@ -2022,7 +2022,7 @@ const AccountsManager = ({ accounts, onSave, onDelete, onImport }) => {
         <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg h-full">
             <div className="flex justify-between items-center mb-4">
                 <h3 className="text-2xl font-bold text-gray-700 dark:text-gray-200">Contas</h3>
-                <Button onClick={() => handleOpenModal()}><PlusCircle size={18}/><span>Nova Conta</span></Button>
+                <Button onClick={() => handleOpenModal()}><PlusCircle size={18} /><span>Nova Conta</span></Button>
             </div>
             <ul className="space-y-4">
                 {hierarchicalAccounts.map(acc => (
@@ -2036,11 +2036,11 @@ const AccountsManager = ({ accounts, onSave, onDelete, onImport }) => {
                     </React.Fragment>
                 ))}
             </ul>
-             <Modal isOpen={isModalOpen} onClose={handleCloseModal} title={editingAccount ? 'Editar Conta' : 'Nova Conta'}>
+            <Modal isOpen={isModalOpen} onClose={handleCloseModal} title={editingAccount ? 'Editar Conta' : 'Nova Conta'}>
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <label className="block dark:text-gray-300">
                         <span className="text-gray-700 dark:text-gray-300">Conta Principal (Opcional)</span>
-                        <AccountSelector 
+                        <AccountSelector
                             accounts={accounts.filter(a => a.accountType === 'corrente' && !a.parentId && a.id !== editingAccount?.id)}
                             selectedAccountId={formData.parentId || ''}
                             onChange={handleChange}
@@ -2052,7 +2052,7 @@ const AccountsManager = ({ accounts, onSave, onDelete, onImport }) => {
                     </label>
 
                     <label className="block dark:text-gray-300"><span className="text-gray-700 dark:text-gray-300">Nome da Conta</span><input type="text" name="name" value={formData.name || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required /></label>
-                     <label className="block dark:text-gray-300">
+                    <label className="block dark:text-gray-300">
                         <span className="text-gray-700 dark:text-gray-300">Tipo de Conta</span>
                         <select name="accountType" value={formData.accountType || 'corrente'} onChange={handleChange} disabled={!!formData.parentId} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300 disabled:bg-gray-200 dark:disabled:bg-gray-600">
                             <option value="corrente">Conta Corrente</option>
@@ -2113,9 +2113,9 @@ const PayeesManager = ({ payees, categories, onSave, onDelete }) => {
         <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg h-full">
             <div className="flex justify-between items-center mb-4">
                 <h3 className="text-2xl font-bold text-gray-700 dark:text-gray-200">Favorecidos</h3>
-                <Button onClick={() => handleOpenModal()}><PlusCircle size={18}/><span>Novo Favorecido</span></Button>
+                <Button onClick={() => handleOpenModal()}><PlusCircle size={18} /><span>Novo Favorecido</span></Button>
             </div>
-             <ul className="space-y-3">
+            <ul className="space-y-3">
                 {payees.map(p => (
                     <li key={p.id} className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                         <div>
@@ -2123,15 +2123,15 @@ const PayeesManager = ({ payees, categories, onSave, onDelete }) => {
                             {p.categoryId && <p className="text-xs text-gray-500 dark:text-gray-400">{getCategoryFullName(p.categoryId, categories)}</p>}
                         </div>
                         <div className="flex items-center space-x-2">
-                            <button onClick={() => handleOpenModal(p)} className="text-blue-500 hover:text-blue-700 p-1" title="Editar Favorecido"><Edit size={16}/></button>
-                            <button onClick={() => onDelete('payees', p.id)} className="text-red-500 hover:text-red-700 p-1" title="Excluir Favorecido"><Trash2 size={16}/></button>
+                            <button onClick={() => handleOpenModal(p)} className="text-blue-500 hover:text-blue-700 p-1" title="Editar Favorecido"><Edit size={16} /></button>
+                            <button onClick={() => onDelete('payees', p.id)} className="text-red-500 hover:text-red-700 p-1" title="Excluir Favorecido"><Trash2 size={16} /></button>
                         </div>
                     </li>
                 ))}
             </ul>
-             <Modal isOpen={isModalOpen} onClose={handleCloseModal} title={editingPayee ? 'Editar Favorecido' : 'Novo Favorecido'}>
+            <Modal isOpen={isModalOpen} onClose={handleCloseModal} title={editingPayee ? 'Editar Favorecido' : 'Novo Favorecido'}>
                 <form onSubmit={handleSubmit} className="space-y-4">
-                     <label className="block dark:text-gray-300"><span className="text-gray-700 dark:text-gray-300">Nome do Favorecido</span><input type="text" name="name" value={formData.name || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required /></label>
+                    <label className="block dark:text-gray-300"><span className="text-gray-700 dark:text-gray-300">Nome do Favorecido</span><input type="text" name="name" value={formData.name || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required /></label>
                     <label className="block dark:text-gray-300">
                         <span className="text-gray-700 dark:text-gray-300">Categoria Padrão (Opcional)</span>
                         <select name="categoryId" value={formData.categoryId || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300">
@@ -2183,7 +2183,7 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
             setError('');
         }
     }, [isOpen]);
-    
+
     const handleFormatStatement = async () => {
         setError('');
         if (!csvData.trim()) {
@@ -2208,7 +2208,7 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
             ${csvData}
             \`\`\`
         `;
-        
+
         const payload = {
             contents: [{ parts: [{ text: prompt }] }],
             safetySettings: [
@@ -2220,7 +2220,7 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
         };
 
         const apiKey = process.env.REACT_APP_GEMINI_API_KEY;
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
         try {
             const response = await fetch(apiUrl, {
@@ -2247,7 +2247,7 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
                 if (candidate?.finishReason === 'SAFETY') {
                     setError("A solicitação foi bloqueada por motivos de segurança. Tente reformular o texto do extrato.");
                 } else {
-                     throw new Error(result.error?.message || "A resposta da API não continha o texto esperado.");
+                    throw new Error(result.error?.message || "A resposta da API não continha o texto esperado.");
                 }
             }
         } catch (error) {
@@ -2270,15 +2270,15 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
             const parsed = lines.map((line, index) => {
                 const parts = line.split(',');
                 if (parts.length !== 3) {
-                     throw new Error(`Linha ${index + 1} inválida. Use o formato exato: data,descrição,valor. A descrição não pode conter vírgulas.`);
+                    throw new Error(`Linha ${index + 1} inválida. Use o formato exato: data,descrição,valor. A descrição não pode conter vírgulas.`);
                 }
                 const [dateStr, description, amountStr] = parts.map(p => p.trim());
-                
+
                 const amount = parseFloat(amountStr.replace(',', '.'));
                 if (isNaN(amount)) {
                     throw new Error(`Valor inválido na linha ${index + 1}: "${amountStr}"`);
                 }
-                 let date;
+                let date;
                 if (dateStr.includes('/')) {
                     const [day, month, year] = dateStr.split('/');
                     if (!day || !month || !year || year.length < 4) {
@@ -2291,7 +2291,7 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
                 if (isNaN(date.getTime())) {
                     throw new Error(`Data inválida na linha ${index + 1}: "${dateStr}"`);
                 }
-                
+
                 let guessedPayeeId = '';
                 let guessedCategoryId = '';
                 const lowerCaseDescription = description.toLowerCase();
@@ -2302,12 +2302,12 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
                         if (payee.categoryId) {
                             guessedCategoryId = payee.categoryId;
                         }
-                        break; 
+                        break;
                     }
                 }
 
                 if (!guessedCategoryId) {
-                     for (const category of categories) {
+                    for (const category of categories) {
                         const categoryNamePattern = new RegExp(`\\b${category.name.toLowerCase()}\\b`);
                         if (categoryNamePattern.test(lowerCaseDescription)) {
                             guessedCategoryId = category.id;
@@ -2332,7 +2332,7 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
             setError(`Erro ao processar: ${e.message}`);
         }
     };
-    
+
     const handleCategorizeAllWithAI = async () => {
         if (transactions.length === 0) return;
         setIsCategorizingAI(true);
@@ -2384,7 +2384,7 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
 
             const apiKey = process.env.REACT_APP_GEMINI_API_KEY;
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
-            
+
             const payload = {
                 contents: [{ parts: [{ text: prompt }] }],
                 generationConfig: {
@@ -2397,7 +2397,7 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
                     { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
                 ],
             };
-            
+
             const response = await fetch(apiUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -2406,10 +2406,10 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
             const result = await response.json();
 
             if (!response.ok) throw new Error(result.error?.message || `API Error: ${response.status}`);
-            
+
             const textResponse = result.candidates?.[0]?.content?.parts?.[0]?.text;
             if (!textResponse) throw new Error("A API retornou uma resposta vazia.");
-            
+
             const parsedResponse = JSON.parse(textResponse);
             const suggestions = parsedResponse.sugestoes;
 
@@ -2420,8 +2420,8 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
                 suggestions.forEach(suggestion => {
                     const index = suggestion.index - 1;
                     if (updatedTransactions[index]) {
-                        if(suggestion.categoryId) updatedTransactions[index].categoryId = suggestion.categoryId;
-                        if(suggestion.payeeId) updatedTransactions[index].payeeId = suggestion.payeeId;
+                        if (suggestion.categoryId) updatedTransactions[index].categoryId = suggestion.categoryId;
+                        if (suggestion.payeeId) updatedTransactions[index].payeeId = suggestion.payeeId;
                     }
                 });
                 return updatedTransactions;
@@ -2459,24 +2459,24 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
                     ></textarea>
                     {error && <p className="text-red-500 text-sm bg-red-50 dark:bg-red-900/20 p-2 rounded-md">{error}</p>}
                     <div className="flex flex-col sm:flex-row gap-4">
-                         <Button onClick={handleFormatStatement} disabled={isFormatting} className="w-full bg-purple-600 hover:bg-purple-700">
-                             {isFormatting ? <RefreshCw className="animate-spin" /> : '✨'}
-                             <span>{isFormatting ? 'A formatar...' : 'Formatar Extrato com IA'}</span>
-                         </Button>
-                         <Button onClick={handleParse} className="w-full bg-blue-600 hover:bg-blue-700">Analisar Dados</Button>
+                        <Button onClick={handleFormatStatement} disabled={isFormatting} className="w-full bg-purple-600 hover:bg-purple-700">
+                            {isFormatting ? <RefreshCw className="animate-spin" /> : '✨'}
+                            <span>{isFormatting ? 'A formatar...' : 'Formatar Extrato com IA'}</span>
+                        </Button>
+                        <Button onClick={handleParse} className="w-full bg-blue-600 hover:bg-blue-700">Analisar Dados</Button>
                     </div>
                 </div>
             )}
             {step === 2 && (
                 <div className="space-y-4">
                     <div className="flex justify-between items-center">
-                         <h3 className="text-lg font-semibold">Verifique e categorize as transações</h3>
-                         <Button onClick={handleCategorizeAllWithAI} disabled={isCategorizingAI} className="bg-purple-600 hover:bg-purple-700">
+                        <h3 className="text-lg font-semibold">Verifique e categorize as transações</h3>
+                        <Button onClick={handleCategorizeAllWithAI} disabled={isCategorizingAI} className="bg-purple-600 hover:bg-purple-700">
                             {isCategorizingAI ? <RefreshCw className="animate-spin" /> : '🤖'}
                             <span>{isCategorizingAI ? 'A sugerir...' : 'Sugerir com IA'}</span>
                         </Button>
                     </div>
-                     {error && <p className="text-red-500 text-sm bg-red-50 dark:bg-red-900/20 p-2 rounded-md">{error}</p>}
+                    {error && <p className="text-red-500 text-sm bg-red-50 dark:bg-red-900/20 p-2 rounded-md">{error}</p>}
                     <div className="max-h-[60vh] overflow-auto">
                         <table className="w-full text-left text-sm">
                             <thead className="bg-gray-100 dark:bg-gray-700 sticky top-0">
@@ -2538,11 +2538,11 @@ const SettingsView = ({ onSaveEntity, onDeleteEntity, onImportTransactions, acco
         setAccountToImport(account);
         setIsImportModalOpen(true);
     };
-    
+
     const handleImportConfirm = (transactions) => {
         onImportTransactions(transactions, accountToImport.id);
     };
-    
+
     const handleApplyTemplate = async (templateData) => {
         const batch = writeBatch(db);
         const idMap = new Map();
@@ -2555,7 +2555,7 @@ const SettingsView = ({ onSaveEntity, onDeleteEntity, onImportTransactions, acco
             idMap.set(oldId, docRef.id); // Mapeia o ID antigo para o novo
             batch.set(docRef, data);
         }
-        
+
         // Agora, salvar as categorias filhas, usando os novos IDs dos pais
         const children = templateData.filter(cat => cat.parentId);
         for (const child of children) {
@@ -2566,9 +2566,9 @@ const SettingsView = ({ onSaveEntity, onDeleteEntity, onImportTransactions, acco
                 const docRef = doc(collection(db, `users/${auth.currentUser.uid}/companies/${activeCompanyId}/categories`));
                 batch.set(docRef, data);
             } else {
-                 console.warn(`Categoria filha "${child.name}" não encontrou o ID do pai "${oldParentId}". Será salva como categoria principal.`);
-                 const docRef = doc(collection(db, `users/${auth.currentUser.uid}/companies/${activeCompanyId}/categories`));
-                 batch.set(docRef, data);
+                console.warn(`Categoria filha "${child.name}" não encontrou o ID do pai "${oldParentId}". Será salva como categoria principal.`);
+                const docRef = doc(collection(db, `users/${auth.currentUser.uid}/companies/${activeCompanyId}/categories`));
+                batch.set(docRef, data);
             }
         }
         await batch.commit();
@@ -2585,7 +2585,7 @@ const SettingsView = ({ onSaveEntity, onDeleteEntity, onImportTransactions, acco
     return (
         <div className="space-y-8">
             <h2 className="text-4xl font-bold text-gray-800 dark:text-gray-200">Configurações da Empresa</h2>
-            
+
             <div className="border-b dark:border-gray-700">
                 <TabButton tab="accounts" label="Contas" />
                 <TabButton tab="payees" label="Favorecidos" />
@@ -2597,11 +2597,11 @@ const SettingsView = ({ onSaveEntity, onDeleteEntity, onImportTransactions, acco
                 {activeTab === 'payees' && <PayeesManager payees={payees} categories={categories} onSave={onSaveEntity} onDelete={onDeleteEntity} />}
                 {activeTab === 'categories' && <CategoryManager categories={categories} onSave={onSaveEntity} onDelete={onDeleteEntity} onApplyTemplate={handleApplyTemplate} />}
             </div>
-            
-            <TransactionImportModal 
-                isOpen={isImportModalOpen} 
-                onClose={() => setIsImportModalOpen(false)} 
-                onImport={handleImportConfirm} 
+
+            <TransactionImportModal
+                isOpen={isImportModalOpen}
+                onClose={() => setIsImportModalOpen(false)}
+                onImport={handleImportConfirm}
                 account={accountToImport}
                 categories={categories}
                 payees={payees}
@@ -2631,8 +2631,8 @@ const ConsolidatedReportsView = ({ allCompaniesData, companies, onBack }) => {
     return (
         <div className="p-8 space-y-8 bg-gray-100 dark:bg-gray-900 min-h-screen">
             <div className="flex items-center justify-between">
-                 <h1 className="text-4xl font-bold text-gray-800 dark:text-gray-200">Relatório Consolidado</h1>
-                 <Button onClick={onBack} className="bg-gray-600 hover:bg-gray-700"><ArrowLeft size={18}/> Voltar</Button>
+                <h1 className="text-4xl font-bold text-gray-800 dark:text-gray-200">Relatório Consolidado</h1>
+                <Button onClick={onBack} className="bg-gray-600 hover:bg-gray-700"><ArrowLeft size={18} /> Voltar</Button>
             </div>
 
             <StatCard title="Saldo Total Consolidado" value={formatCurrency(totalConsolidatedBalance)} icon={<DollarSign className="text-white" />} color="bg-purple-600" />
@@ -2655,7 +2655,7 @@ const ConsolidatedReportsView = ({ allCompaniesData, companies, onBack }) => {
             <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg">
                 <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-200 mb-6">Saldo por Empresa</h2>
                 <ResponsiveContainer width="100%" height={400}>
-                     <BarChart data={chartData}>
+                    <BarChart data={chartData}>
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="name" />
                         <YAxis tickFormatter={formatCurrency} />
@@ -2676,11 +2676,10 @@ const GlobalSettingsView = ({ companies, onSave, onDelete, onBack, onBackup, onR
     const TabButton = ({ tabName, label, active }) => (
         <button
             onClick={() => setActiveTab(tabName)}
-            className={`px-6 py-3 font-semibold rounded-t-lg transition-colors focus:outline-none ${
-                active
+            className={`px-6 py-3 font-semibold rounded-t-lg transition-colors focus:outline-none ${active
                     ? 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 border-b-0'
                     : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-600'
-            }`}
+                }`}
         >
             {label}
         </button>
@@ -2690,7 +2689,7 @@ const GlobalSettingsView = ({ companies, onSave, onDelete, onBack, onBackup, onR
         <div className="p-8 space-y-8 bg-gray-100 dark:bg-gray-900 min-h-screen">
             <div className="flex items-center justify-between">
                 <h1 className="text-4xl font-bold text-gray-800 dark:text-gray-200">Configurações Globais</h1>
-                <Button onClick={onBack} className="bg-gray-600 hover:bg-gray-700"><ArrowLeft size={18}/> Voltar ao Hub</Button>
+                <Button onClick={onBack} className="bg-gray-600 hover:bg-gray-700"><ArrowLeft size={18} /> Voltar ao Hub</Button>
             </div>
 
             <div>
@@ -2739,7 +2738,7 @@ const BackupManager = ({ onBackup, onRestore, backupConfig, onSaveBackupConfig }
             }
         }
     };
-    
+
     const handleFrequencyChange = (e) => {
         onSaveBackupConfig(e.target.value);
     };
@@ -2750,7 +2749,7 @@ const BackupManager = ({ onBackup, onRestore, backupConfig, onSaveBackupConfig }
         <div>
             <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-200 mb-6">Backup e Restauração</h2>
             <div className="space-y-6">
-                 <div className="p-4 border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/20 rounded-lg">
+                <div className="p-4 border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/20 rounded-lg">
                     <h3 className="font-bold text-gray-800 dark:text-gray-300">Backup Automático</h3>
                     <p className="text-sm text-gray-700 dark:text-gray-400 mt-1 mb-3">Configure uma frequência para backups de segurança. A verificação para um novo backup é feita ao iniciar a aplicação.</p>
                     <div className="flex items-center gap-4">
@@ -2794,7 +2793,7 @@ const BackupManager = ({ onBackup, onRestore, backupConfig, onSaveBackupConfig }
 
 const HubScreen = ({ companies, onSelect, onShowReports, onManageCompanies }) => {
     return (
-        <div className="w-full h-screen flex flex-col justify-center items-center bg-gray-800 bg-cover bg-center" style={{backgroundImage: "url(https://images.unsplash.com/photo-1555396273-367ea4eb4db5?q=80&w=2574&auto=format&fit=crop)"}}>
+        <div className="w-full h-screen flex flex-col justify-center items-center bg-gray-800 bg-cover bg-center" style={{ backgroundImage: "url(https://images.unsplash.com/photo-1555396273-367ea4eb4db5?q=80&w=2574&auto=format&fit=crop)" }}>
             <div className="absolute inset-0 bg-black/60"></div>
             <div className="relative z-10 w-full max-w-4xl text-center p-8">
                 <button onClick={onManageCompanies} className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors" title="Gerir Empresas e Categorias">
@@ -2802,7 +2801,7 @@ const HubScreen = ({ companies, onSelect, onShowReports, onManageCompanies }) =>
                 </button>
                 <h1 className="text-5xl font-extrabold text-white mb-4">Bem-vindo ao Financeiro PRO</h1>
                 <p className="text-xl text-white/80 mb-12">Selecione uma empresa para começar ou veja os seus relatórios consolidados.</p>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {companies.map(company => (
                         <button key={company.id} onClick={() => onSelect(company.id)} className="group bg-white/10 hover:bg-white/20 backdrop-blur-md p-6 rounded-2xl text-white text-left transition-all transform hover:scale-105">
@@ -2814,7 +2813,7 @@ const HubScreen = ({ companies, onSelect, onShowReports, onManageCompanies }) =>
                 </div>
 
                 {companies.length > 0 && (
-                     <div className="mt-12">
+                    <div className="mt-12">
                         <Button onClick={onShowReports} className="bg-purple-600 hover:bg-purple-700">
                             <BarChart2 size={20} />
                             <span>Ver Relatório Consolidado</span>
@@ -2847,10 +2846,10 @@ const SubscriptionView = ({ subscription, onSubscribe }) => {
     return (
         <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg max-w-2xl mx-auto">
             <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-200 mb-6">A Minha Assinatura</h2>
-            
+
             <div className={`p-6 rounded-lg border ${isActive ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800' : 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800'}`}>
                 <div className="flex items-center space-x-4">
-                    {isActive ? <ShieldCheck className="text-green-500" size={32}/> : <AlertTriangle className="text-red-500" size={32}/>}
+                    {isActive ? <ShieldCheck className="text-green-500" size={32} /> : <AlertTriangle className="text-red-500" size={32} />}
                     <div>
                         <p className="text-lg font-semibold">{isActive ? 'Assinatura Ativa' : 'Assinatura Expirada'}</p>
                         {subscription?.status === 'trialing' && <p className="text-sm">O seu período de teste termina em: <strong>{endDate}</strong></p>}
@@ -2865,10 +2864,10 @@ const SubscriptionView = ({ subscription, onSubscribe }) => {
                 <p className="text-4xl font-bold mb-2">R$ 49,90<span className="text-lg font-normal">/mês</span></p>
                 <p className="text-gray-600 dark:text-gray-400 mb-6">Acesso ilimitado a todas as funcionalidades.</p>
                 <Button onClick={handleSubscriptionClick} disabled={isSubscribing} className="bg-green-600 hover:bg-green-700 w-full max-w-xs mx-auto">
-                    {isSubscribing ? <RefreshCw className="animate-spin" /> : <CreditCard size={20}/>}
+                    {isSubscribing ? <RefreshCw className="animate-spin" /> : <CreditCard size={20} />}
                     <span>{isSubscribing ? 'A redirecionar...' : (isActive ? 'Gerir Assinatura' : 'Assinar Agora')}</span>
                 </Button>
-                 <p className="text-xs text-gray-500 mt-4">Pagamentos seguros processados pelo Mercado Pago.</p>
+                <p className="text-xs text-gray-500 mt-4">Pagamentos seguros processados pelo Mercado Pago.</p>
             </div>
         </div>
     );
@@ -2884,18 +2883,18 @@ export default function App() {
     const [companies, setCompanies] = useState([]);
     const [activeCompanyId, setActiveCompanyId] = useState(null);
     const [hubView, setHubView] = useState('selector'); // selector, reports, global_settings
-    
+
     const [accounts, setAccounts] = useState([]);
     const [categories, setCategories] = useState([]);
     const [payees, setPayees] = useState([]);
     const [transactions, setTransactions] = useState([]);
     const [budgets, setBudgets] = useState([]);
     const [futureEntries, setFutureEntries] = useState([]);
-    
+
     const [allCompaniesData, setAllCompaniesData] = useState({});
     const [subscription, setSubscription] = useState(null);
     const isSubscribed = subscription?.status === 'active' || subscription?.status === 'trialing';
-    
+
     // --- LÓGICA DE MIGRAÇÃO ---
     const [migrationStatus, setMigrationStatus] = useState('checking'); // checking, needed, not_needed
     const [isMigrating, setIsMigrating] = useState(false);
@@ -2925,7 +2924,7 @@ export default function App() {
                 // --- CHECK MIGRATION AND SUBSCRIPTION ---
                 const profileRef = doc(db, `users/${userId}/profile`, 'userProfile');
                 const subRef = doc(db, `users/${userId}/subscription`, 'current');
-                
+
                 const [profileSnap, subSnap] = await Promise.all([getDoc(profileRef), getDoc(subRef)]);
 
                 // Setup subscription if it doesn't exist
@@ -2953,7 +2952,7 @@ export default function App() {
                         setMigrationStatus('not_needed');
                     }
                 }
-                
+
             } else {
                 setUser(null);
                 setMigrationStatus('checking');
@@ -2962,11 +2961,11 @@ export default function App() {
         });
         return () => unsubscribe();
     }, []);
-    
+
     // eslint-disable-next-line no-undef
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
     const userId = user?.uid;
-    
+
     // Listener da configuração de backup
     useEffect(() => {
         if (!userId) return;
@@ -2981,7 +2980,7 @@ export default function App() {
         });
         return () => unsub();
     }, [userId]);
-    
+
     // Listener da subscrição
     useEffect(() => {
         if (!userId) return;
@@ -3005,7 +3004,7 @@ export default function App() {
         if (!isAuthReady || !userId || migrationStatus !== 'not_needed') {
             return;
         };
-        
+
         const qCompanies = query(collection(db, `users/${userId}/companies`));
         const unsubCompanies = onSnapshot(qCompanies, async (snapshot) => {
             const companyList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -3032,7 +3031,7 @@ export default function App() {
                     getDocs(accountsQuery),
                     getDocs(transactionsQuery)
                 ]);
-                
+
                 const companyAccounts = accountsSnap.docs.map(d => d.data());
                 const companyTransactions = transactionsSnap.docs.map(d => d.data());
 
@@ -3057,7 +3056,7 @@ export default function App() {
         };
         const companyDataPath = `users/${userId}/companies/${activeCompanyId}`;
         const collections = { accounts: setAccounts, payees: setPayees, transactions: setTransactions, budgets: setBudgets, futureEntries: setFutureEntries, categories: setCategories };
-        
+
         const unsubscribes = Object.entries(collections).map(([name, setter]) => {
             const q = query(collection(db, `${companyDataPath}/${name}`));
             return onSnapshot(q, (snapshot) => {
@@ -3094,7 +3093,7 @@ export default function App() {
         const isGlobal = ['companies'].includes(collectionName);
         const basePath = `users/${userId}`;
         let path = isGlobal ? `${basePath}/${collectionName}` : `${basePath}/companies/${activeCompanyId}/${collectionName}`;
-        
+
         if (collectionName === 'transactions' && data.type === 'transfer') {
             const { sourceAccountId, destinationAccountId, amount, date, description, transferId: existingTransferId } = data;
             const transferId = existingTransferId || crypto.randomUUID();
@@ -3124,7 +3123,7 @@ export default function App() {
             };
             const revenueRef = doc(collection(db, fullPath));
             batch.set(revenueRef, revenueData);
-            
+
             await batch.commit();
 
         } else if (collectionName === 'transactions') {
@@ -3137,7 +3136,7 @@ export default function App() {
                 await uploadBytes(storageRef, file);
                 attachmentURL = await getDownloadURL(storageRef);
             }
-            
+
             const dataToSave = { ...data, attachmentURL };
             delete dataToSave.id; // Remover ID temporário se existir
             await setDoc(docRef, dataToSave);
@@ -3151,7 +3150,7 @@ export default function App() {
             } catch (error) { console.error(`Error saving to ${collectionName}:`, error); }
         }
     };
-    
+
     const handleDelete = async (collectionName, item) => {
         if (!userId || !window.confirm('Tem a certeza que deseja apagar este item? Esta ação não pode ser desfeita.')) return;
 
@@ -3180,7 +3179,7 @@ export default function App() {
             try { await deleteDoc(doc(db, path, itemId)); } catch (error) { console.error(`Error deleting from ${collectionName}:`, error); }
         }
     };
-    
+
     const handleBatchDeleteTransactions = async (transactionsToDelete) => {
         if (!userId || transactionsToDelete.length === 0) return;
         if (!window.confirm(`Tem a certeza que deseja apagar ${transactionsToDelete.length} transações? Esta ação não pode ser desfeita.`)) return;
@@ -3188,7 +3187,7 @@ export default function App() {
         const path = `users/${userId}/companies/${activeCompanyId}/transactions`;
         const batch = writeBatch(db);
         const storageDeletePromises = [];
-        const transferIdsProcessed = new Set(); 
+        const transferIdsProcessed = new Set();
 
         for (const item of transactionsToDelete) {
             if (item.attachmentURL) {
@@ -3210,14 +3209,14 @@ export default function App() {
                     });
                 }
             } else if (!item.isTransfer) {
-                 batch.delete(doc(db, path, item.id));
+                batch.delete(doc(db, path, item.id));
             }
         }
-        
+
         try {
             await Promise.all(storageDeletePromises);
             await batch.commit();
-        } catch(error) {
+        } catch (error) {
             console.error("Erro ao apagar transações em lote:", error);
             alert("Ocorreu um erro ao apagar as transações.");
         }
@@ -3230,16 +3229,16 @@ export default function App() {
         transactionsToImport.forEach(t => {
             const docRef = doc(collection(db, path));
             // Remove o id temporário usado para o React key
-            const { id, ...transactionData } = t; 
+            const { id, ...transactionData } = t;
             batch.set(docRef, { ...transactionData, accountId });
         });
         await batch.commit();
     };
-    
+
     const handleReconcile = async (reconciliationData) => {
         if (!userId) return;
         const { id, finalAmount, paymentDate, accountId, notes, originalEntry } = reconciliationData;
-        
+
         const batch = writeBatch(db);
         const companyPath = `users/${userId}/companies/${activeCompanyId}`;
 
@@ -3283,12 +3282,12 @@ export default function App() {
             updateData.dueDate = nextDueDate.toISOString();
             updateData.status = 'pending'; // Volta a ficar pendente para o próximo ciclo
         }
-        
+
         batch.update(entryRef, updateData);
 
         try {
             await batch.commit();
-        } catch(error) {
+        } catch (error) {
             console.error("Error during reconciliation:", error);
         }
     };
@@ -3321,11 +3320,11 @@ export default function App() {
             }
             backupData.data.companies.push(companyData);
         }
-        
+
         const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(backupData, null, 2))}`;
         const link = document.createElement("a");
         link.href = jsonString;
-        link.download = `financeiro_pro_backup_${new Date().toISOString().slice(0,10)}.json`;
+        link.download = `financeiro_pro_backup_${new Date().toISOString().slice(0, 10)}.json`;
         link.click();
 
         // Atualiza a data do último backup na configuração
@@ -3344,12 +3343,12 @@ export default function App() {
                 }
 
                 const userPath = `users/${userId}`;
-                
+
                 // Delete all existing companies data
                 const batch = writeBatch(db);
                 const companiesQuery = query(collection(db, `${userPath}/companies`));
                 const companiesSnap = await getDocs(companiesQuery);
-                for(const docToDelete of companiesSnap.docs) {
+                for (const docToDelete of companiesSnap.docs) {
                     const subcollections = ['accounts', 'transactions', 'payees', 'budgets', 'futureEntries', 'categories'];
                     for (const sub of subcollections) {
                         const subQuery = query(collection(db, `${userPath}/companies/${docToDelete.id}/${sub}`));
@@ -3390,16 +3389,16 @@ export default function App() {
         setIsMigrating(true);
         try {
             const userPath = `users/${userId}`;
-            
+
             const newCompanyRef = doc(collection(db, `${userPath}/companies`));
             await setDoc(newCompanyRef, { name: "Minha Empresa Principal (Migrada)", createdAt: new Date().toISOString() });
-            
+
             // CORREÇÃO: Adicionada a coleção 'categories' à lista de migração.
             const collectionsToMigrate = ['accounts', 'transactions', 'payees', 'budgets', 'futureEntries', 'categories'];
             for (const collName of collectionsToMigrate) {
                 const oldCollPath = `${userPath}/${collName}`;
                 const newCollPath = `${userPath}/companies/${newCompanyRef.id}/${collName}`;
-                
+
                 const oldDocsSnap = await getDocs(collection(db, oldCollPath));
                 if (!oldDocsSnap.empty) {
                     const batch = writeBatch(db);
@@ -3410,7 +3409,7 @@ export default function App() {
                     await batch.commit();
                 }
             }
-            
+
             const profileRef = doc(db, `users/${userId}/profile`, 'userProfile');
             await setDoc(profileRef, { migrationCompleted: true }, { merge: true });
 
@@ -3449,11 +3448,11 @@ export default function App() {
             alert("Ocorreu um erro ao tentar iniciar a sua assinatura. Tente novamente mais tarde.");
         }
     };
-    
+
     if (!isAuthReady) {
         return <LoadingScreen message="A autenticar..." />;
     }
-    
+
     if (!user) {
         return <AuthView onGoogleSignIn={handleGoogleSignIn} />;
     }
@@ -3471,7 +3470,7 @@ export default function App() {
             case 'reports':
                 return <ConsolidatedReportsView allCompaniesData={allCompaniesData} companies={companies} onBack={() => setHubView('selector')} />;
             case 'global_settings':
-                return <GlobalSettingsView companies={companies} onSave={handleSave} onDelete={(coll, id) => handleDelete(coll, {id})} onBack={() => setHubView('selector')} onBackup={handleBackup} onRestore={handleRestore} subscription={subscription} onSubscribe={handleSubscribeClick} backupConfig={backupConfig} onSaveBackupConfig={handleSaveBackupConfig} />;
+                return <GlobalSettingsView companies={companies} onSave={handleSave} onDelete={(coll, id) => handleDelete(coll, { id })} onBack={() => setHubView('selector')} onBackup={handleBackup} onRestore={handleRestore} subscription={subscription} onSubscribe={handleSubscribeClick} backupConfig={backupConfig} onSaveBackupConfig={handleSaveBackupConfig} />;
             case 'selector':
             default:
                 return <HubScreen companies={companies} onSelect={setActiveCompanyId} onShowReports={() => setHubView('reports')} onManageCompanies={() => setHubView('global_settings')} />;
@@ -3485,11 +3484,11 @@ export default function App() {
         const handleReconcileWithCompanyId = (reconciliationData) => handleReconcile(reconciliationData);
 
         const settingsSaveHandler = (collection, data, id) => {
-             handleSave(collection, data, id);
+            handleSave(collection, data, id);
         };
 
         const settingsDeleteHandler = (collection, id) => {
-            handleDelete(collection, {id});
+            handleDelete(collection, { id });
         };
 
         switch (view) {
@@ -3501,12 +3500,12 @@ export default function App() {
             case 'reports': return <ReportsView transactions={transactions} categories={categories} accounts={accounts} />;
             case 'dre': return <DREView transactions={transactions} categories={categories} accounts={accounts} payees={payees} onSave={handleSaveWithCompanyId} onDelete={handleDeleteWithCompanyId} />;
             case 'weeklyCashFlow': return <WeeklyCashFlowView futureEntries={futureEntries} categories={categories} />;
-            case 'settings': return <SettingsView 
+            case 'settings': return <SettingsView
                 onSaveEntity={settingsSaveHandler}
                 onDeleteEntity={settingsDeleteHandler}
-                onImportTransactions={handleImportWithCompanyId} 
-                {...{ accounts, payees, categories, allTransactions: transactions, activeCompanyId }} 
-                />;
+                onImportTransactions={handleImportWithCompanyId}
+                {...{ accounts, payees, categories, allTransactions: transactions, activeCompanyId }}
+            />;
             default: return <DashboardView {...{ transactions, accounts, categories, futureEntries, budgets, dashboardConfig }} onSaveConfig={handleSaveDashboardConfig} />;
         }
     };
@@ -3516,9 +3515,9 @@ export default function App() {
             {icon}<span className="font-medium">{label}</span>
         </button>
     );
-    
+
     const activeCompany = companies.find(c => c.id === activeCompanyId);
-    
+
     const isTransactionsView = view === 'transactions';
 
     return (
@@ -3533,7 +3532,7 @@ export default function App() {
                     </div>
                     <nav className="space-y-2">
                         <NavItem icon={<LayoutDashboard />} label="Dashboard" active={view === 'dashboard'} onClick={() => setView('dashboard')} />
-                        <NavItem icon={<List />} label="Transações" active={view ==='transactions'} onClick={() => setView('transactions')} />
+                        <NavItem icon={<List />} label="Transações" active={view === 'transactions'} onClick={() => setView('transactions')} />
                         <NavItem icon={<CalendarClock />} label="Fluxo de Caixa Semanal" active={view === 'weeklyCashFlow'} onClick={() => setView('weeklyCashFlow')} />
                         <NavItem icon={<GitCompareArrows />} label="Conciliação" active={view === 'reconciliation'} onClick={() => setView('reconciliation')} />
                         <NavItem icon={<CalendarCheck2 />} label="Lançamentos Futuros" active={view === 'futureEntries'} onClick={() => setView('futureEntries')} />
@@ -3548,7 +3547,7 @@ export default function App() {
                         {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
                         <span>Mudar para tema {theme === 'light' ? 'Escuro' : 'Claro'}</span>
                     </button>
-                     <button onClick={() => signOut(auth)} className="flex items-center space-x-3 w-full text-left px-4 py-3 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 font-medium">
+                    <button onClick={() => signOut(auth)} className="flex items-center space-x-3 w-full text-left px-4 py-3 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 font-medium">
                         <LogOut size={20} />
                         <span>Terminar Sessão</span>
                     </button>
@@ -3561,7 +3560,7 @@ export default function App() {
                         <h2 className="text-3xl font-bold mb-2">O seu período de teste terminou!</h2>
                         <p className="text-lg mb-6">Para continuar a usar todas as funcionalidades, por favor, ative a sua assinatura.</p>
                         <Button onClick={() => { setActiveCompanyId(null); setHubView('global_settings'); }} className="bg-green-600 hover:bg-green-700">
-                            <CreditCard size={20}/>
+                            <CreditCard size={20} />
                             <span>Ver Plano de Assinatura</span>
                         </Button>
                     </div>
@@ -3621,7 +3620,7 @@ const TransactionDetailModal = ({ isOpen, onClose, title, transactions, accounts
                 </table>
             </div>
             {editingTransaction && (
-                 <TransactionEditModal
+                <TransactionEditModal
                     isOpen={isEditModalOpen}
                     onClose={handleCloseEditModal}
                     editingTransaction={editingTransaction}
@@ -3676,7 +3675,7 @@ const TransactionEditModal = ({ isOpen, onClose, editingTransaction, accounts, c
     }, [categories, formData.type]);
 
     return (
-         <Modal isOpen={isOpen} onClose={onClose} title="Editar Transação">
+        <Modal isOpen={isOpen} onClose={onClose} title="Editar Transação">
             <form onSubmit={handleSubmit} className="space-y-6">
                 <div><label className="block"><span className="text-gray-700 dark:text-gray-300">Descrição</span><input type="text" name="description" value={formData.description || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required /></label></div>
                 <div className="flex space-x-4">
@@ -3692,7 +3691,7 @@ const TransactionEditModal = ({ isOpen, onClose, editingTransaction, accounts, c
                 </div>
                 <div>
                     <label className="block"><span className="text-gray-700 dark:text-gray-300">Anexar Comprovativo</span>
-                    <input type="file" onChange={(e) => setAttachmentFile(e.target.files[0])} className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
+                        <input type="file" onChange={(e) => setAttachmentFile(e.target.files[0])} className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
                     </label>
                     {formData.attachmentURL && !attachmentFile && <div className="text-xs mt-1">Anexo atual: <a href={formData.attachmentURL} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Ver anexo</a>. Selecione um novo ficheiro para o substituir.</div>}
                 </div>
@@ -3714,7 +3713,7 @@ const WeeklyCashFlowView = ({ futureEntries, categories }) => {
         for (let i = -2; i <= 4; i++) {
             const weekStart = new Date(startOfCurrentWeek);
             weekStart.setDate(weekStart.getDate() + i * 7);
-            
+
             const weekEnd = new Date(weekStart);
             weekEnd.setDate(weekEnd.getDate() + 6);
             weekEnd.setHours(23, 59, 59, 999);
@@ -3779,21 +3778,21 @@ const TemplateModal = ({ isOpen, onClose, onApply }) => {
     const [error, setError] = useState('');
 
     const TEMPLATE_DEFINITIONS = {
-      personal: { name: 'Finanças Pessoais', description: 'Plano de contas para uso pessoal e familiar.', type: 'Finanças Pessoais' },
-      commerce: { name: 'Comércio', description: 'Plano de contas para empresas comerciais.', type: 'Pequeno Comércio Varejista' },
-      services: { name: 'Prestação de Serviços', description: 'Ideal para autônomos, agências e consultorias.', type: 'Empresa de Prestação de Serviços' },
-      industry: { name: 'Indústria', description: 'Plano de contas para pequenas indústrias.', type: 'Pequena Indústria' },
-      restaurant: { name: 'Restaurante', description: 'Plano de contas focado em restaurantes e lancherias.', type: 'Restaurante e Lancheria' },
-      rural: { name: 'Propriedade Rural', description: 'Para gestão de atividades agrícolas e pecuárias.', type: 'Propriedade Rural (Agronegócio)' },
+        personal: { name: 'Finanças Pessoais', description: 'Plano de contas para uso pessoal e familiar.', type: 'Finanças Pessoais' },
+        commerce: { name: 'Comércio', description: 'Plano de contas para empresas comerciais.', type: 'Pequeno Comércio Varejista' },
+        services: { name: 'Prestação de Serviços', description: 'Ideal para autônomos, agências e consultorias.', type: 'Empresa de Prestação de Serviços' },
+        industry: { name: 'Indústria', description: 'Plano de contas para pequenas indústrias.', type: 'Pequena Indústria' },
+        restaurant: { name: 'Restaurante', description: 'Plano de contas focado em restaurantes e lancherias.', type: 'Restaurante e Lancheria' },
+        rural: { name: 'Propriedade Rural', description: 'Para gestão de atividades agrícolas e pecuárias.', type: 'Propriedade Rural (Agronegócio)' },
     };
 
     const handleGenerateTemplate = async (templateKey) => {
         const template = TEMPLATE_DEFINITIONS[templateKey];
         if (!window.confirm(`Tem a certeza de que deseja gerar e aplicar o modelo "${template.name}"? A IA criará um plano de contas para si.`)) return;
-        
+
         setIsLoading(true);
         setError('');
-        
+
         const prompt = `
             **Contexto:** Você é um contador experiente no Brasil, especializado em criar planos de contas para sistemas financeiros.
 
@@ -3825,8 +3824,8 @@ const TemplateModal = ({ isOpen, onClose, onApply }) => {
         `;
 
         const apiKey = process.env.REACT_APP_GEMINI_API_KEY;
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
-        
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+
         try {
             const payload = {
                 contents: [{ parts: [{ text: prompt }] }],
@@ -3841,7 +3840,7 @@ const TemplateModal = ({ isOpen, onClose, onApply }) => {
             if (!response.ok) throw new Error(result.error?.message || `API Error: ${response.status}`);
             const textResponse = result.candidates?.[0]?.content?.parts?.[0]?.text;
             if (!textResponse) throw new Error("A API retornou uma resposta vazia.");
-            
+
             const generatedCategories = JSON.parse(textResponse);
             onApply(generatedCategories);
             onClose();
@@ -3853,7 +3852,7 @@ const TemplateModal = ({ isOpen, onClose, onApply }) => {
             setIsLoading(false);
         }
     };
-    
+
     const handleImportClick = () => {
         fileInputRef.current.click();
     };
@@ -3866,9 +3865,9 @@ const TemplateModal = ({ isOpen, onClose, onApply }) => {
                 try {
                     const importedData = JSON.parse(e.target.result);
                     if (!Array.isArray(importedData) || !importedData.every(cat => cat.name && cat.type && cat.id)) {
-                       throw new Error("Formato de ficheiro inválido. O ficheiro JSON deve ser um array e cada categoria deve ter 'id', 'name' e 'type'.");
+                        throw new Error("Formato de ficheiro inválido. O ficheiro JSON deve ser um array e cada categoria deve ter 'id', 'name' e 'type'.");
                     }
-                    if(window.confirm("Tem a certeza que deseja importar este plano de contas?")) {
+                    if (window.confirm("Tem a certeza que deseja importar este plano de contas?")) {
                         onApply(importedData);
                         onClose();
                     }
@@ -3896,12 +3895,12 @@ const TemplateModal = ({ isOpen, onClose, onApply }) => {
                                 </div>
                             ))}
                         </div>
-                         <div className="p-4 border-2 border-dashed dark:border-gray-600 rounded-lg flex flex-col items-center text-center">
+                        <div className="p-4 border-2 border-dashed dark:border-gray-600 rounded-lg flex flex-col items-center text-center">
                             <h3 className="font-bold text-lg">Importar o seu Próprio Plano</h3>
                             <p className="text-sm text-gray-500 dark:text-gray-400 my-2">Importe um plano de contas de um ficheiro JSON.</p>
                             <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".json" className="hidden" />
                             <Button onClick={handleImportClick} className="w-full max-w-xs bg-green-600 hover:bg-green-700">
-                                <FileJson size={16}/>
+                                <FileJson size={16} />
                                 <span>Importar de Ficheiro</span>
                             </Button>
                         </div>

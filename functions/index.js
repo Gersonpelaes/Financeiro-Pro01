@@ -31,7 +31,7 @@ exports.formatBankStatement = functions
         return res.status(400).send({ error: "O 'prompt' é obrigatório." });
       }
 
-      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${geminiApiKey}`;
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`;
       const payload = { contents: [{ parts: [{ text: prompt }] }] };
 
       try {
