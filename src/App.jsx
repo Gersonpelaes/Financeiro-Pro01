@@ -2383,7 +2383,7 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
             `;
 
             const apiKey = process.env.REACT_APP_GEMINI_API_KEY;
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
             const payload = {
                 contents: [{ parts: [{ text: prompt }] }],
@@ -2677,8 +2677,8 @@ const GlobalSettingsView = ({ companies, onSave, onDelete, onBack, onBackup, onR
         <button
             onClick={() => setActiveTab(tabName)}
             className={`px-6 py-3 font-semibold rounded-t-lg transition-colors focus:outline-none ${active
-                    ? 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 border-b-0'
-                    : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-600'
+                ? 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 border-b-0'
+                : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-600'
                 }`}
         >
             {label}
