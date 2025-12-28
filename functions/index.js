@@ -7,13 +7,11 @@ const fetch = require("node-fetch"); // Usando require com a versão 2 do node-f
 admin.initializeApp();
 
 // --- CONFIGURAÇÃO DOS CLIENTES DE API ---
-const mercadoPagoAccessToken = functions.config().mercadopago.accesstoken;
-const geminiApiKey = functions.config().gemini.apikey;
 
-const mercadoPagoClient = new MercadoPagoConfig({
-  accessToken: mercadoPagoAccessToken,
-  options: { timeout: 5000 },
-});
+// --- HELPER PARA CONFIGURAÇÃO ---
+const getEnvConfig = () => {
+  return functions.config();
+};
 
 /**
  * Função para formatar o extrato bancário usando a API Gemini.
@@ -29,6 +27,14 @@ exports.formatBankStatement = functions
       const { prompt } = req.body.data;
       if (!prompt) {
         return res.status(400).send({ error: "O 'prompt' é obrigatório." });
+      }
+
+      const config = getEnvConfig();
+      const geminiApiKey = config.gemini?.apikey;
+
+      if (!geminiApiKey) {
+        console.error("Gemini API Key não configurada no Firebase Functions.");
+        return res.status(500).send({ error: "Erro de configuração do servidor (API Key)." });
       }
 
       const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`;
@@ -48,13 +54,13 @@ exports.formatBankStatement = functions
         }
 
         const result = await geminiResponse.json();
-        
+
         if (result.candidates && result.candidates[0].content.parts[0].text) {
           const formattedStatement = result.candidates[0].content.parts[0].text;
           return res.status(200).send({ data: { formattedStatement } });
         } else {
-            console.error("Resposta inválida da API Gemini:", JSON.stringify(result));
-            return res.status(500).send({ error: "Resposta inválida da API Gemini." });
+          console.error("Resposta inválida da API Gemini:", JSON.stringify(result));
+          return res.status(500).send({ error: "Resposta inválida da API Gemini." });
         }
 
       } catch (error) {
@@ -82,9 +88,22 @@ exports.createSubscription = functions
       description: "Acesso completo a todas as funcionalidades do Financeiro PRO.",
       price: 49.90,
     };
-    
+
     const notificationUrl = `https://southamerica-east1-${process.env.GCLOUD_PROJECT}.cloudfunctions.net/paymentWebhook`;
-    
+
+    const config = getEnvConfig();
+    const mercadoPagoAccessToken = config.mercadopago?.accesstoken;
+
+    if (!mercadoPagoAccessToken) {
+      console.error("Mercado Pago Access Token não configurado.");
+      throw new functions.https.HttpsError("internal", "Erro de configuração de pagamento.");
+    }
+
+    const mercadoPagoClient = new MercadoPagoConfig({
+      accessToken: mercadoPagoAccessToken,
+      options: { timeout: 5000 },
+    });
+
     const preference = new Preference(mercadoPagoClient);
 
     try {
@@ -108,7 +127,7 @@ exports.createSubscription = functions
           },
           auto_return: "approved",
           external_reference: userId,
-          notification_url: notificationUrl, 
+          notification_url: notificationUrl,
         }
       });
       return { init_point: result.init_point };
@@ -125,31 +144,42 @@ exports.createSubscription = functions
 exports.paymentWebhook = functions
   .region("southamerica-east1")
   .https.onRequest(async (req, res) => {
-      const { query } = req;
-      if (query.type === "payment") {
-        const paymentId = query["data.id"];
-        try {
-          const payment = new Payment(mercadoPagoClient);
-          const paymentDetails = await payment.get({ id: paymentId });
-          const { status, external_reference: userId } = paymentDetails;
-
-          if (userId && status === "approved") {
-            const subscriptionRef = admin.firestore().collection("users").doc(userId).collection("subscription").doc("current");
-            const newEndDate = new Date();
-            newEndDate.setDate(newEndDate.getDate() + 30);
-            await subscriptionRef.set({
-              status: "active",
-              plan: "PRO",
-              last_payment_id: paymentId,
-              updated_at: new Date(),
-              subscription_end: newEndDate,
-            }, { merge: true });
-            console.log(`Assinatura do utilizador ${userId} atualizada para 'active'.`);
-          }
-        } catch (error) {
-          console.error("Erro ao processar webhook do Mercado Pago:", error);
+    const { query } = req;
+    if (query.type === "payment") {
+      const paymentId = query["data.id"];
+      try {
+        const config = getEnvConfig();
+        const mercadoPagoAccessToken = config.mercadopago?.accesstoken;
+        if (!mercadoPagoAccessToken) {
+          console.error("Mercado Pago Access Token não configurado");
+          return res.status(500).send("Configuration error");
         }
+        const mercadoPagoClient = new MercadoPagoConfig({
+          accessToken: mercadoPagoAccessToken,
+          options: { timeout: 5000 },
+        });
+
+        const payment = new Payment(mercadoPagoClient);
+        const paymentDetails = await payment.get({ id: paymentId });
+        const { status, external_reference: userId } = paymentDetails;
+
+        if (userId && status === "approved") {
+          const subscriptionRef = admin.firestore().collection("users").doc(userId).collection("subscription").doc("current");
+          const newEndDate = new Date();
+          newEndDate.setDate(newEndDate.getDate() + 30);
+          await subscriptionRef.set({
+            status: "active",
+            plan: "PRO",
+            last_payment_id: paymentId,
+            updated_at: new Date(),
+            subscription_end: newEndDate,
+          }, { merge: true });
+          console.log(`Assinatura do utilizador ${userId} atualizada para 'active'.`);
+        }
+      } catch (error) {
+        console.error("Erro ao processar webhook do Mercado Pago:", error);
       }
-      res.status(200).send("OK");
+    }
+    res.status(200).send("OK");
   });
 
