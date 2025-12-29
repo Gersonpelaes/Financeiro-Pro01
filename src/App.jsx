@@ -2351,12 +2351,18 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
 
             const expenseCategoriesList = categories.filter(c => c.type === 'expense').map(c => `- ${getCategoryFullName(c.id, categories)} (ID: ${c.id})`).join('\n');
             const revenueCategoriesList = categories.filter(c => c.type === 'revenue').map(c => `- ${getCategoryFullName(c.id, categories)} (ID: ${c.id})`).join('\n');
-
             const payeeList = payees.map(p => `- ${p.name} (ID: ${p.id})`).join('\n');
 
-            const newTransactionsList = transactions.map((t, index) => `${index + 1}. (${t.type === 'expense' ? 'Despesa' : 'Receita'}) ${t.description}`).join('\n');
+            const BATCH_SIZE = 50;
+            const allSuggestions = [];
+            const apiKey = process.env.REACT_APP_GEMINI_API_KEY;
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
-            const prompt = `
+            for (let i = 0; i < transactions.length; i += BATCH_SIZE) {
+                const batch = transactions.slice(i, i + BATCH_SIZE);
+                const batchTransactionsList = batch.map((t, idx) => `${idx + 1}. (${t.type === 'expense' ? 'Despesa' : 'Receita'}) ${t.description}`).join('\n');
+
+                const prompt = `
                 Você é um assistente financeiro especialista. Sua tarefa é analisar novas transações e sugerir o 'categoryId' e o 'payeeId' mais prováveis.
 
                 **Regras Cruciais:**
@@ -2376,69 +2382,80 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
                 ${payeeList}
 
                 **Novas Transações para Analisar:**
-                ${newTransactionsList}
+                ${batchTransactionsList}
 
                 **Formato de Resposta OBRIGATÓRIO (Compacto):**
                 Responda APENAS com um objeto JSON com uma chave "sugestoes", que é um array de arrays. Cada array interno deve ter exatamente 3 elementos na ordem: \`[index, categoryId, payeeId]\`. Exemplo: \`[[0, "cat-id", "payee-id"], [1, "cat2", "payee2"]]\`. Se não tiver certeza, use string vazia ("").
-            `;
+                `;
 
-            const apiKey = process.env.REACT_APP_GEMINI_API_KEY;
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+                const payload = {
+                    contents: [{ parts: [{ text: prompt }] }],
+                    generationConfig: {
+                        responseMimeType: "application/json",
+                    },
+                    safetySettings: [
+                        { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+                        { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+                        { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+                        { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+                    ],
+                };
 
-            const payload = {
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: {
-                    responseMimeType: "application/json",
-                },
-                safetySettings: [
-                    { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
-                    { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
-                    { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
-                    { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
-                ],
-            };
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
 
-            const response = await fetch(apiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            const result = await response.json();
+                if (!response.ok) throw new Error(result.error?.message || `API Error: ${response.status}`);
 
-            if (!response.ok) throw new Error(result.error?.message || `API Error: ${response.status}`);
+                const textResponse = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (!textResponse) throw new Error("A API retornou uma resposta vazia.");
 
-            const textResponse = result.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (!textResponse) throw new Error("A API retornou uma resposta vazia.");
+                // Limpar formatação Markdown se presente
+                const cleanResponse = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
 
-            // Limpar formatação Markdown se presente
-            const cleanResponse = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+                let parsedResponse;
+                try {
+                    parsedResponse = JSON.parse(cleanResponse);
+                } catch (e) {
+                    console.error("Falha a fazer parse do JSON da IA. Resposta bruta:", cleanResponse);
+                    throw new Error(`Erro de leitura da IA: Inesperado fim ou formato. Últimos caracteres: "...${cleanResponse.slice(-100)}"`);
+                }
 
-            let parsedResponse;
-            try {
-                parsedResponse = JSON.parse(cleanResponse);
-            } catch (e) {
-                console.error("Falha a fazer parse do JSON da IA. Resposta bruta:", cleanResponse);
-                throw new Error(`Erro de leitura da IA: Inesperado fim ou formato. Últimos caracteres: "...${cleanResponse.slice(-100)}"`);
+                const rawSuggestions = parsedResponse.sugestoes;
+
+                // Converter formato compacto (array de arrays) para objetos
+                const suggestions = Array.isArray(rawSuggestions)
+                    ? rawSuggestions.map(item => {
+                        if (Array.isArray(item)) {
+                            return { index: item[0], categoryId: item[1], payeeId: item[2] };
+                        }
+                        return item; // Fallback se já for objeto ou outro formato
+                    })
+                    : [];
+
+                if (!suggestions || !Array.isArray(suggestions)) throw new Error("Formato de resposta da IA inválido.");
+
+                suggestions.forEach(suggestion => {
+                    // Ajustar index relativo do batch para index global
+                    // O prompt envia índices 1..N, a IA devolve 1..N (com sorte) ou 0..N-1.
+                    // Assumindo que a IA segue o exemplo [0, ...] e devolve índices do array.
+                    // Na verdade, o exemplo diz `[[0, "cat-id"...]]`. A IA tende a seguir o exemplo.
+                    // SE o prompt diz "1. Descrição", e o exemplo diz index 0, pode haver confusão.
+                    // Mas o código antigo fazia `suggestion.index - 1`. Vamos manter a lógica:
+                    // Se a IA retornar `1`, é o primeiro item.
+                    // Index global = `i + (suggestion.index - 1)`
+                    const globalIndex = i + (suggestion.index - 1);
+                    allSuggestions.push({ ...suggestion, globalIndex });
+                });
             }
-
-            const rawSuggestions = parsedResponse.sugestoes;
-
-            // Converter formato compacto (array de arrays) para objetos
-            const suggestions = Array.isArray(rawSuggestions)
-                ? rawSuggestions.map(item => {
-                    if (Array.isArray(item)) {
-                        return { index: item[0], categoryId: item[1], payeeId: item[2] };
-                    }
-                    return item; // Fallback se já for objeto ou outro formato
-                })
-                : [];
-
-            if (!suggestions || !Array.isArray(suggestions)) throw new Error("Formato de resposta da IA inválido.");
 
             setTransactions(currentTransactions => {
                 const updatedTransactions = [...currentTransactions];
-                suggestions.forEach(suggestion => {
-                    const index = suggestion.index - 1;
+                allSuggestions.forEach(suggestion => {
+                    const index = suggestion.globalIndex;
                     if (updatedTransactions[index]) {
                         if (suggestion.categoryId) updatedTransactions[index].categoryId = suggestion.categoryId;
                         if (suggestion.payeeId) updatedTransactions[index].payeeId = suggestion.payeeId;
