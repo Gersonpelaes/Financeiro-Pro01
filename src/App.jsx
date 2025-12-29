@@ -2412,7 +2412,15 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
 
             // Limpar formatação Markdown se presente
             const cleanResponse = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
-            const parsedResponse = JSON.parse(cleanResponse);
+
+            let parsedResponse;
+            try {
+                parsedResponse = JSON.parse(cleanResponse);
+            } catch (e) {
+                console.error("Falha a fazer parse do JSON da IA. Resposta bruta:", cleanResponse);
+                throw new Error(`Erro de leitura da IA: Inesperado fim ou formato. Últimos caracteres: "...${cleanResponse.slice(-100)}"`);
+            }
+
             const rawSuggestions = parsedResponse.sugestoes;
 
             // Converter formato compacto (array de arrays) para objetos
@@ -3857,7 +3865,15 @@ const TemplateModal = ({ isOpen, onClose, onApply }) => {
 
             // Limpar formatação Markdown se presente
             const cleanResponse = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
-            const generatedCategories = JSON.parse(cleanResponse);
+
+            let generatedCategories;
+            try {
+                generatedCategories = JSON.parse(cleanResponse);
+            } catch (e) {
+                console.error("Falha a fazer parse do JSON da IA. Resposta bruta:", cleanResponse);
+                throw new Error(`Erro de leitura da IA: Inesperado fim ou formato. Últimos caracteres: "...${cleanResponse.slice(-100)}"`);
+            }
+
             onApply(generatedCategories);
             onClose();
 
