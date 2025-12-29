@@ -2379,7 +2379,7 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
                 ${newTransactionsList}
 
                 **Formato de Resposta OBRIGATÓRIO (Compacto):**
-                Responda APENAS com um objeto JSON com uma chave "sugestoes", que é um array de arrays. Cada array interno deve ter exatamente 3 elementos na ordem: `[index, categoryId, payeeId]`. Exemplo: `[[0, "cat-id", "payee-id"], [1, "cat2", "payee2"]]`. Se não tiver certeza, use string vazia ("").
+                Responda APENAS com um objeto JSON com uma chave "sugestoes", que é um array de arrays. Cada array interno deve ter exatamente 3 elementos na ordem: \`[index, categoryId, payeeId]\`. Exemplo: \`[[0, "cat-id", "payee-id"], [1, "cat2", "payee2"]]\`. Se não tiver certeza, use string vazia ("").
             `;
 
             const apiKey = process.env.REACT_APP_GEMINI_API_KEY;
