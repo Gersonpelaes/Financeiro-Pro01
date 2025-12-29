@@ -37,7 +37,7 @@ exports.formatBankStatement = functions
         return res.status(500).send({ error: "Erro de configuração do servidor (API Key)." });
       }
 
-      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-002:generateContent?key=${geminiApiKey}`;
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`;
       const payload = { contents: [{ parts: [{ text: prompt }] }] };
 
       try {
