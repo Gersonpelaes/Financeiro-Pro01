@@ -2220,7 +2220,7 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
         };
 
         const apiKey = process.env.REACT_APP_GEMINI_API_KEY;
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-002:generateContent?key=${apiKey}`;
 
         try {
             const response = await fetch(apiUrl, {
@@ -2383,7 +2383,7 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
             `;
 
             const apiKey = process.env.REACT_APP_GEMINI_API_KEY;
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-002:generateContent?key=${apiKey}`;
 
             const payload = {
                 contents: [{ parts: [{ text: prompt }] }],
@@ -3824,7 +3824,7 @@ const TemplateModal = ({ isOpen, onClose, onApply }) => {
         `;
 
         const apiKey = process.env.REACT_APP_GEMINI_API_KEY;
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-002:generateContent?key=${apiKey}`;
 
         try {
             const payload = {
