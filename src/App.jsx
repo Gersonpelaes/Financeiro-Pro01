@@ -2339,6 +2339,18 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
         setError('');
 
         try {
+            // 1. Filtrar transações que precisam de análise (sem categoria OU sem favorecido)
+            // Mantemos o índice original para poder atualizar o estado corretamente depois.
+            const transactionsToAnalyze = transactions
+                .map((t, index) => ({ ...t, originalIndex: index }))
+                .filter(t => !t.categoryId || !t.payeeId);
+
+            if (transactionsToAnalyze.length === 0) {
+                alert("Todas as transações já estão categorizadas!");
+                setIsCategorizingAI(false);
+                return;
+            }
+
             const examples = allTransactions
                 .filter(t => t.categoryId && t.payeeId)
                 .slice(0, 15)
@@ -2358,8 +2370,10 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
             const apiKey = process.env.REACT_APP_GEMINI_API_KEY;
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
-            for (let i = 0; i < transactions.length; i += BATCH_SIZE) {
-                const batch = transactions.slice(i, i + BATCH_SIZE);
+            // Loop sobre as transações FILTRADAS em lotes
+            for (let i = 0; i < transactionsToAnalyze.length; i += BATCH_SIZE) {
+                const batch = transactionsToAnalyze.slice(i, i + BATCH_SIZE);
+                // O prompt vai listar 1..N para este batch específico
                 const batchTransactionsList = batch.map((t, idx) => `${idx + 1}. (${t.type === 'expense' ? 'Despesa' : 'Receita'}) ${t.description}`).join('\n');
 
                 const prompt = `
@@ -2385,7 +2399,15 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
                 ${batchTransactionsList}
 
                 **Formato de Resposta OBRIGATÓRIO (Compacto):**
-                Responda APENAS com um objeto JSON com uma chave "sugestoes", que é um array de arrays. Cada array interno deve ter exatamente 3 elementos na ordem: \`[index, categoryId, payeeId]\`. Exemplo: \`[[0, "cat-id", "payee-id"], [1, "cat2", "payee2"]]\`. Se não tiver certeza, use string vazia ("").
+                Responda APENAS com um objeto JSON com uma chave "sugestoes", que é um array de arrays.
+                Cada array interno deve ter exatamente 3 elementos: \`[numero_da_lista, categoryId, payeeId]\`.
+
+                *   **numero_da_lista**: O número sequencial da transação na lista acima (1, 2, 3...).
+                *   **categoryId**: O ID da categoria sugerida.
+                *   **payeeId**: O ID do favorecido sugerido.
+
+                Exemplo: \`[[1, "cat-id", "payee-id"], [2, "cat2", "payee2"]]\`.
+                Se não tiver certeza, use string vazia ("").
                 `;
 
                 const payload = {
@@ -2426,39 +2448,51 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
 
                 const rawSuggestions = parsedResponse.sugestoes;
 
-                // Converter formato compacto (array de arrays) para objetos
-                const suggestions = Array.isArray(rawSuggestions)
-                    ? rawSuggestions.map(item => {
-                        if (Array.isArray(item)) {
-                            return { index: item[0], categoryId: item[1], payeeId: item[2] };
+                if (!rawSuggestions || !Array.isArray(rawSuggestions)) continue; // Pula se formato inválido, ou lança erro
+
+                // Processar sugestões deste lote
+                rawSuggestions.forEach(item => {
+                    if (Array.isArray(item) && item.length >= 3) {
+                        const listNumber = item[0]; // O número 1, 2, 3... da lista do prompt
+                        const categoryId = item[1];
+                        const payeeId = item[2];
+
+                        // Mapear de volta para o item do batch e então para o índice original
+                        // listNumber é 1-based, então índice do array é listNumber - 1
+                        const batchIndex = listNumber - 1;
+
+                        // Segurança: verificar se o índice existe no batch
+                        if (batch[batchIndex]) {
+                            const originalIndex = batch[batchIndex].originalIndex;
+                            allSuggestions.push({
+                                originalIndex: originalIndex,
+                                categoryId: categoryId,
+                                payeeId: payeeId
+                            });
                         }
-                        return item; // Fallback se já for objeto ou outro formato
-                    })
-                    : [];
-
-                if (!suggestions || !Array.isArray(suggestions)) throw new Error("Formato de resposta da IA inválido.");
-
-                suggestions.forEach(suggestion => {
-                    // Ajustar index relativo do batch para index global
-                    // O prompt envia índices 1..N, a IA devolve 1..N (com sorte) ou 0..N-1.
-                    // Assumindo que a IA segue o exemplo [0, ...] e devolve índices do array.
-                    // Na verdade, o exemplo diz `[[0, "cat-id"...]]`. A IA tende a seguir o exemplo.
-                    // SE o prompt diz "1. Descrição", e o exemplo diz index 0, pode haver confusão.
-                    // Mas o código antigo fazia `suggestion.index - 1`. Vamos manter a lógica:
-                    // Se a IA retornar `1`, é o primeiro item.
-                    // Index global = `i + (suggestion.index - 1)`
-                    const globalIndex = i + (suggestion.index - 1);
-                    allSuggestions.push({ ...suggestion, globalIndex });
+                    }
                 });
             }
 
             setTransactions(currentTransactions => {
                 const updatedTransactions = [...currentTransactions];
                 allSuggestions.forEach(suggestion => {
-                    const index = suggestion.globalIndex;
+                    const index = suggestion.originalIndex;
                     if (updatedTransactions[index]) {
-                        if (suggestion.categoryId) updatedTransactions[index].categoryId = suggestion.categoryId;
-                        if (suggestion.payeeId) updatedTransactions[index].payeeId = suggestion.payeeId;
+                        // Preservar valores existentes se a IA não mandou nada ou se já existiam (filtragem já cuidou disso, mas segurança extra)
+                        // Lógica: Se o usuário já tinha categoria, não sobrescreve. A filtragem inicial já evitou enviar itens completos.
+                        // Mas aqui temos itens PARCIALMENTE preenchidos (ex: tinha payee, faltava cat).
+                        // O filtro inicial pegou "!categoryId || !payeeId".
+                        // Se transaction tinha payeeId mas não categoryId:
+                        // A IA deve sugerir ambos. Nós só aplicamos se o campo atual estiver vazio OU se quisermos confiar na IA.
+                        // O pedido do usuário: "E A QUE JÁ ESTÃO COM CATEGORIA OU FAVORECIDOS PREENCHIDOS" (PRESERVAR).
+
+                        if (!updatedTransactions[index].categoryId && suggestion.categoryId) {
+                            updatedTransactions[index].categoryId = suggestion.categoryId;
+                        }
+                        if (!updatedTransactions[index].payeeId && suggestion.payeeId) {
+                            updatedTransactions[index].payeeId = suggestion.payeeId;
+                        }
                     }
                 });
                 return updatedTransactions;
