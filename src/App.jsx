@@ -2410,7 +2410,9 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
             const textResponse = result.candidates?.[0]?.content?.parts?.[0]?.text;
             if (!textResponse) throw new Error("A API retornou uma resposta vazia.");
 
-            const parsedResponse = JSON.parse(textResponse);
+            // Limpar formatação Markdown se presente
+            const cleanResponse = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+            const parsedResponse = JSON.parse(cleanResponse);
             const suggestions = parsedResponse.sugestoes;
 
             if (!suggestions || !Array.isArray(suggestions)) throw new Error("Formato de resposta da IA inválido.");
@@ -3841,7 +3843,9 @@ const TemplateModal = ({ isOpen, onClose, onApply }) => {
             const textResponse = result.candidates?.[0]?.content?.parts?.[0]?.text;
             if (!textResponse) throw new Error("A API retornou uma resposta vazia.");
 
-            const generatedCategories = JSON.parse(textResponse);
+            // Limpar formatação Markdown se presente
+            const cleanResponse = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+            const generatedCategories = JSON.parse(cleanResponse);
             onApply(generatedCategories);
             onClose();
 
