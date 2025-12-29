@@ -2389,6 +2389,7 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
                 contents: [{ parts: [{ text: prompt }] }],
                 generationConfig: {
                     responseMimeType: "application/json",
+                    maxOutputTokens: 8192,
                 },
                 safetySettings: [
                     { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
@@ -3831,7 +3832,10 @@ const TemplateModal = ({ isOpen, onClose, onApply }) => {
         try {
             const payload = {
                 contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: { responseMimeType: "application/json" },
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    maxOutputTokens: 8192,
+                },
             };
             const response = await fetch(apiUrl, {
                 method: 'POST',
