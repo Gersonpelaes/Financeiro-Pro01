@@ -3843,7 +3843,6 @@ const TemplateModal = ({ isOpen, onClose, onApply }) => {
                 contents: [{ parts: [{ text: prompt }] }],
                 generationConfig: {
                     responseMimeType: "application/json",
-                    maxOutputTokens: 8192,
                 },
             };
             const response = await fetch(apiUrl, {
