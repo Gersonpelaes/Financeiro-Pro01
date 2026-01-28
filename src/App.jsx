@@ -408,6 +408,11 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
     const [newPayeeName, setNewPayeeName] = useState('');
     const [newlyAddedPayeeName, setNewlyAddedPayeeName] = useState(null);
 
+    // Estados de Filtro e Visualização
+    const [filterStartDate, setFilterStartDate] = useState('');
+    const [filterEndDate, setFilterEndDate] = useState('');
+    const [showDailyBalance, setShowDailyBalance] = useState(false);
+
     // Estados de Simulação
     const [isSimulating, setIsSimulating] = useState(false);
     const [simulationRange, setSimulationRange] = useState({ start: '', end: '' });
@@ -447,8 +452,17 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
 
     const filteredTransactions = useMemo(() => {
         if (accountIdsToFilter.length === 0) return [];
-        return transactions.filter(t => accountIdsToFilter.includes(t.accountId));
-    }, [transactions, accountIdsToFilter]);
+        let filtered = transactions.filter(t => accountIdsToFilter.includes(t.accountId));
+
+        if (filterStartDate) {
+            filtered = filtered.filter(t => t.date.substring(0, 10) >= filterStartDate);
+        }
+        if (filterEndDate) {
+            filtered = filtered.filter(t => t.date.substring(0, 10) <= filterEndDate);
+        }
+
+        return filtered;
+    }, [transactions, accountIdsToFilter, filterStartDate, filterEndDate]);
 
     const groupInitialBalance = useMemo(() => {
         if (!selectedAccount) return 0;
@@ -488,25 +502,67 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
 
         combinedTransactions.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-        let runningBalance = groupInitialBalance;
+        // Calcular saldo acumulado
+        // Nota: O saldo acumulado deve considerar TODAS as transações anteriores ao filtro de data para estar correto.
+        // Se estamos filtrando por data, o 'runningBalance' exibido será apenas relativo ao que está na tela + saldo inicial?
+        // OU deve ser o saldo real da conta naquele dia?
+        // Para ser útil, deve ser o saldo real.
+        // Para calcular o saldo real de cada transação, precisamos considerar TUDO que veio antes, mesmo fora do filtro visual.
+        // SOLUÇÃO: Calcular runningBalance em TUDO da conta, e DEPOIS aplicar o filtro de visualização (data).
 
-        const processed = combinedTransactions
-            .slice()
-            .reverse()
-            .map(t => {
-                const amount = t.type === 'revenue' ? t.amount : -t.amount;
-                runningBalance += amount;
-                return { ...t, runningBalance };
-            });
+        // RECÁLCULO DO FLUXO:
+        // 1. Pegar TODAS transações da conta (sem filtro de data).
+        // 2. Ordenar cronologicamente total.
+        // 3. Calcular runningBalance de tudo partindo do groupInitialBalance.
+        // 4. Filtrar visualmente pelo date range.
 
-        return processed.reverse();
-    }, [filteredTransactions, selectedAccount, isSimulating, simulationRange, futureEntries, groupInitialBalance]);
+        // PASSO 1 e 2:
+        let allAccountTransactions = transactions.filter(t => accountIdsToFilter.includes(t.accountId));
+
+        // Adicionar simuladas se necessário (assumindo que simulação respeita o range interno dela mesma)
+        if (isSimulating && simulationRange.start && simulationRange.end) {
+            // ... lógica de simulação já filtra pelo range da simulação ...
+            // Vamos simplificar: se tem range de data visual, a simulação pode ficar estranha se não alinhar.
+            // Manter lógica atual de simulação misturada.
+            const simStartDate = new Date(simulationRange.start + 'T00:00:00');
+            const simEndDate = new Date(simulationRange.end + 'T23:59:59');
+            const futureSimulations = futureEntries.filter(e => {
+                const d = new Date(e.dueDate);
+                return e.status !== 'reconciled' && d >= simStartDate && d <= simEndDate;
+            }).map(e => ({ ...e, id: `sim-${e.id}`, date: e.dueDate, accountId: selectedAccountId, isSimulated: true }));
+            allAccountTransactions.push(...futureSimulations);
+        }
+
+        allAccountTransactions.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+        let currentRunning = groupInitialBalance;
+        const allWithBalance = allAccountTransactions.map(t => {
+            const amount = t.type === 'revenue' ? t.amount : -t.amount;
+            currentRunning += amount;
+            return { ...t, runningBalance: currentRunning };
+        });
+
+        // PASSO 4: Aplicar filtro de data visual (agora com saldo correto) e inverter para display
+        let visibleTransactions = allWithBalance;
+        if (filterStartDate) {
+            visibleTransactions = visibleTransactions.filter(t => t.date.substring(0, 10) >= filterStartDate);
+        }
+        if (filterEndDate) {
+            visibleTransactions = visibleTransactions.filter(t => t.date.substring(0, 10) <= filterEndDate);
+        }
+
+        return visibleTransactions.reverse(); // Mais recente primeiro
+    }, [transactions, accountIdsToFilter, isSimulating, simulationRange, futureEntries, groupInitialBalance, filterStartDate, filterEndDate]);
 
     const currentBalance = useMemo(() => {
         if (!selectedAccount) return 0;
-        if (transactionsWithBalance.length === 0) return groupInitialBalance;
-        return transactionsWithBalance[0].runningBalance;
-    }, [transactionsWithBalance, selectedAccount, groupInitialBalance]);
+        // O saldo atual da conta é sempre o da última transação processada (independente do filtro visual)
+        // Precisamos recalcular sem o filtro de visualização para mostrar o saldo TOPO correto
+        let allTrans = transactions.filter(t => accountIdsToFilter.includes(t.accountId));
+        const balance = allTrans.reduce((acc, t) => acc + (t.type === 'revenue' ? t.amount : -t.amount), groupInitialBalance);
+        return balance;
+    }, [transactions, accountIdsToFilter, groupInitialBalance]);
+
 
     const handleSelectTransaction = (id) => {
         setSelectedTransactions(prev => {
@@ -638,6 +694,38 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
         setIsSimulationModalOpen(false);
     };
 
+    const handleMoveToFuture = async () => {
+        if (selectedTransactions.size === 0) return;
+        if (!window.confirm(`Tem a certeza que deseja mover ${selectedTransactions.size} transacções para Lançamentos Futuros?`)) return;
+
+        const transactionsToMove = transactions.filter(t => selectedTransactions.has(t.id));
+
+        // 1. Criar Future Entries
+        for (const t of transactionsToMove) {
+            const futureEntry = {
+                description: t.description,
+                amount: t.amount,
+                type: t.type,
+                dueDate: t.date, // Mantém a data original como vencimento
+                entryType: 'unico',
+                status: 'pending', // Volta a ser pendente
+                categoryId: t.categoryId,
+                payeeId: t.payeeId || '',
+                accountId: t.accountId, // Associa à mesma conta (opcional, mas útil para contexto)
+            };
+            // Usamos onSave para salvar na coleção 'futureEntries'
+            // Nota: handleMoveToFuture precisa de acesso a onSave. Certifique-se que foi passado nas props ou wrapper.
+            // O componente TransactionsView JÁ RECEBE onSave.
+            await onSave('futureEntries', futureEntry);
+        }
+
+        // 2. Apagar Transações Originais
+        // onBatchDelete já lida com anexos e transferências
+        await onBatchDelete(transactionsToMove);
+
+        setSelectedTransactions(new Set());
+    };
+
     const groupedCategories = useMemo(() => {
         const type = formData.type || 'expense';
         const parents = categories.filter(c => !c.parentId && c.type === type);
@@ -651,36 +739,77 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
         <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg h-full flex flex-col">
             <div className="flex-shrink-0">
                 <div className="flex flex-wrap justify-between items-center mb-6 gap-4">
-                    <div>
-                        <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-200">Extrato da Conta</h2>
-                        <AccountSelector
-                            accounts={accounts}
-                            selectedAccountId={selectedAccountId}
-                            onChange={(e) => setSelectedAccountId(e.target.value)}
-                            className="!mt-2"
-                        />
+                    <div className="flex items-end gap-4">
+                        <div>
+                            <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-200">Extrato da Conta</h2>
+                            <AccountSelector
+                                accounts={accounts}
+                                selectedAccountId={selectedAccountId}
+                                onChange={(e) => setSelectedAccountId(e.target.value)}
+                                className="!mt-2"
+                            />
+                        </div>
+                        {/* Novos Filtros de Data */}
+                        <div>
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Período</p>
+                            <div className="flex gap-2 items-center">
+                                <input
+                                    type="date"
+                                    value={filterStartDate}
+                                    onChange={(e) => setFilterStartDate(e.target.value)}
+                                    className="p-1 border dark:border-gray-600 rounded text-sm dark:bg-gray-700 dark:text-gray-300"
+                                />
+                                <span className="text-gray-400">-</span>
+                                <input
+                                    type="date"
+                                    value={filterEndDate}
+                                    onChange={(e) => setFilterEndDate(e.target.value)}
+                                    className="p-1 border dark:border-gray-600 rounded text-sm dark:bg-gray-700 dark:text-gray-300"
+                                />
+                            </div>
+                        </div>
+                        {/* Toggle Saldo Diário */}
+                        <div className="flex items-center pt-6">
+                            <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700 dark:text-gray-300 select-none">
+                                <input
+                                    type="checkbox"
+                                    checked={showDailyBalance}
+                                    onChange={(e) => setShowDailyBalance(e.target.checked)}
+                                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                />
+                                Saldo no Dia
+                            </label>
+                        </div>
                     </div>
-                    <div className="text-right">
-                        <p className="text-gray-500 dark:text-gray-400">{isSimulating ? 'Saldo Simulado' : 'Saldo Atual'}</p>
-                        <p className="text-2xl font-bold text-gray-800 dark:text-gray-200">{formatCurrency(currentBalance)}</p>
-                    </div>
-                    <div className="flex items-center gap-4">
-                        {selectedTransactions.size > 0 && (
-                            <Button onClick={handleDeleteSelected} className="bg-red-600 hover:bg-red-700">
-                                <Trash2 size={20} />
-                                <span>Apagar ({selectedTransactions.size})</span>
-                            </Button>
-                        )}
-                        {isSimulating ? (
-                            <Button onClick={() => setIsSimulating(false)} className="bg-gray-600 hover:bg-gray-700">
-                                <ArrowLeft size={20} /><span>Voltar ao Extrato</span>
-                            </Button>
-                        ) : (
-                            <Button onClick={handleOpenSimulationModal} className="bg-yellow-500 hover:bg-yellow-600">
-                                <Clock size={20} /><span>Simular Futuro</span>
-                            </Button>
-                        )}
-                        <Button onClick={() => handleOpenModal()}><PlusCircle size={20} /><span>Adicionar Transação</span></Button>
+                    <div className="flex gap-6 items-center">
+                        <div className="text-right">
+                            <p className="text-gray-500 dark:text-gray-400">{isSimulating ? 'Saldo Simulado' : 'Saldo Atual'}</p>
+                            <p className="text-2xl font-bold text-gray-800 dark:text-gray-200">{formatCurrency(currentBalance)}</p>
+                        </div>
+                        <div className="flex items-center gap-4">
+                            {selectedTransactions.size > 0 && (
+                                <>
+                                    <Button onClick={handleMoveToFuture} className="bg-purple-600 hover:bg-purple-700">
+                                        <CalendarClock size={20} />
+                                        <span>Mover para Futuro</span>
+                                    </Button>
+                                    <Button onClick={handleDeleteSelected} className="bg-red-600 hover:bg-red-700">
+                                        <Trash2 size={20} />
+                                        <span>Apagar ({selectedTransactions.size})</span>
+                                    </Button>
+                                </>
+                            )}
+                            {isSimulating ? (
+                                <Button onClick={() => setIsSimulating(false)} className="bg-gray-600 hover:bg-gray-700">
+                                    <ArrowLeft size={20} /><span>Voltar ao Extrato</span>
+                                </Button>
+                            ) : (
+                                <Button onClick={handleOpenSimulationModal} className="bg-yellow-500 hover:bg-yellow-600">
+                                    <Clock size={20} /><span>Simular Futuro</span>
+                                </Button>
+                            )}
+                            <Button onClick={() => handleOpenModal()}><PlusCircle size={20} /><span>Adicionar Transação</span></Button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -701,7 +830,7 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
                             <th className="p-4">Descrição</th>
                             <th className="p-4">Categoria</th>
                             <th className="p-4 text-right">Valor</th>
-                            <th className="p-4 text-right">Saldo</th>
+                            {showDailyBalance && <th className="p-4 text-right">Saldo</th>}
                             <th className="p-4">Ações</th>
                         </tr>
                     </thead>
@@ -732,7 +861,7 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
                                     {t.isSimulated && <span className="text-xs ml-2 text-yellow-700 dark:text-yellow-400 font-bold">[SIMULAÇÃO]</span>}
                                 </td>
                                 <td className={`p-4 font-bold text-right ${t.type === 'revenue' ? 'text-green-600' : 'text-red-600'}`}>{t.type === 'revenue' ? '+' : '-'} {formatCurrency(t.amount)}</td>
-                                <td className="p-4 font-mono text-right text-gray-700 dark:text-gray-300">{formatCurrency(t.runningBalance)}</td>
+                                {showDailyBalance && <td className="p-4 font-mono text-right text-gray-700 dark:text-gray-300">{formatCurrency(t.runningBalance)}</td>}
                                 <td className="p-4">
                                     {!t.isSimulated && (
                                         <div className="flex space-x-2">
@@ -827,7 +956,7 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
 };
 
 // --- VIEW DE RELATÓRIOS MELHORADA ---
-const ReportsView = ({ transactions, categories, accounts }) => {
+const ReportsView = ({ transactions, categories, accounts, futureEntries }) => {
     const [compareMonths, setCompareMonths] = useState({
         month1: getYearMonth(new Date()),
         month2: getYearMonth(new Date(new Date().setMonth(new Date().getMonth() - 1))),
@@ -905,6 +1034,79 @@ const ReportsView = ({ transactions, categories, accounts }) => {
         }).sort((a, b) => b.value1 - a.value1);
     }, [compareMonths, transactions, categories]);
 
+    // --- NOVA LÓGICA DE PREVISÃO MENSAL ---
+    const forecastData = useMemo(() => {
+        const currentMonth = getYearMonth(new Date());
+
+        // 1. Média Histórica (últimos 3 meses, excluindo atual)
+        const historyMonths = [];
+        for (let i = 1; i <= 3; i++) {
+            const d = new Date();
+            d.setMonth(d.getMonth() - i);
+            historyMonths.push(getYearMonth(d));
+        }
+
+        const historicalExpenses = {}; // categoryId -> total amount
+        const counts = {}; // categoryId -> num months present (optional, or just divide by 3)
+
+        transactions.filter(t => historyMonths.includes(getYearMonth(t.date)) && t.type === 'expense' && !t.isTransfer).forEach(t => {
+            historicalExpenses[t.categoryId] = (historicalExpenses[t.categoryId] || 0) + t.amount;
+        });
+
+        // 2. Realizado no Mês Atual
+        const realizedExpenses = {};
+        transactions.filter(t => getYearMonth(t.date) === currentMonth && t.type === 'expense' && !t.isTransfer).forEach(t => {
+            realizedExpenses[t.categoryId] = (realizedExpenses[t.categoryId] || 0) + t.amount;
+        });
+
+        // 3. Futuro (Agendado) no Mês Atual
+        const futureExpenses = {};
+        if (futureEntries) {
+            futureEntries.filter(e => getYearMonth(e.dueDate) === currentMonth && e.type === 'expense' && e.status !== 'reconciled').forEach(e => {
+                futureExpenses[e.categoryId] = (futureExpenses[e.categoryId] || 0) + e.amount;
+            });
+        }
+
+        // Combinar Dados
+        const allCategoryIds = [...new Set([...Object.keys(historicalExpenses), ...Object.keys(realizedExpenses), ...Object.keys(futureExpenses)])];
+
+        // Agrupar por Categorias Pai
+        const parentGroups = {};
+
+        allCategoryIds.forEach(catId => {
+            const category = categories.find(c => c.id === catId);
+            if (!category) return;
+
+            const parentId = category.parentId || category.id; // Se for pai, agrupa nele mesmo
+            const parent = categories.find(c => c.id === parentId);
+            if (!parent) return;
+
+            if (!parentGroups[parentId]) {
+                parentGroups[parentId] = {
+                    id: parentId,
+                    name: parent.name,
+                    avg: 0,
+                    realized: 0,
+                    future: 0,
+                    predicted: 0
+                };
+            }
+
+            const avg = (historicalExpenses[catId] || 0) / 3;
+            const real = realizedExpenses[catId] || 0;
+            const fut = futureExpenses[catId] || 0;
+
+            parentGroups[parentId].avg += avg;
+            parentGroups[parentId].realized += real;
+            parentGroups[parentId].future += fut;
+            parentGroups[parentId].predicted += (real + fut);
+        });
+
+        return Object.values(parentGroups).sort((a, b) => b.predicted - a.predicted);
+
+    }, [transactions, futureEntries, categories]);
+
+
     return (
         <div className="space-y-8">
             <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg">
@@ -920,6 +1122,47 @@ const ReportsView = ({ transactions, categories, accounts }) => {
                     </LineChart>
                 </ResponsiveContainer>
             </div>
+
+            {/* --- NOVA SEÇÃO DE PREVISÃO ORÇAMENTÁRIA --- */}
+            <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg">
+                <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-200 mb-4">Previsão Orçamentária Mensal (Smart Forecast)</h2>
+                <p className="text-gray-500 dark:text-gray-400 mb-6">
+                    Com base no histórico dos últimos 3 meses e nos lançamentos futuros agendados para este mês.
+                </p>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                        <thead>
+                            <tr className="border-b-2 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
+                                <th className="p-3">Categoria</th>
+                                <th className="p-3 text-right">Média Histórica (3m)</th>
+                                <th className="p-3 text-right">Realizado (Atual)</th>
+                                <th className="p-3 text-right">Agendado (Futuro)</th>
+                                <th className="p-3 text-right">Previsão Final</th>
+                                <th className="p-3 text-right">Desvio</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {forecastData.map(item => {
+                                const deviation = item.predicted - item.avg;
+                                const isOver = deviation > 0;
+                                return (
+                                    <tr key={item.id} className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                                        <td className="p-3 font-medium">{item.name}</td>
+                                        <td className="p-3 text-right text-gray-500">{formatCurrency(item.avg)}</td>
+                                        <td className="p-3 text-right font-bold text-blue-600">{formatCurrency(item.realized)}</td>
+                                        <td className="p-3 text-right text-orange-500">{formatCurrency(item.future)}</td>
+                                        <td className="p-3 text-right font-bold dark:text-white">{formatCurrency(item.predicted)}</td>
+                                        <td className={`p-3 text-right font-bold ${isOver ? 'text-red-500' : 'text-green-500'}`}>
+                                            {formatCurrency(deviation)} {isOver && <span className="text-xs ml-1">(Acima)</span>}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
             <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg">
                 <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-200 mb-4">Análise Comparativa de Despesas</h2>
                 <div className="flex gap-4 mb-6 items-center flex-wrap">
@@ -1540,17 +1783,30 @@ const FutureEntriesView = ({ futureEntries, accounts, categories, payees, onSave
 };
 
 // --- NOVA VIEW: DRE ---
-const DREView = ({ transactions, categories, accounts, payees, onSave, onDelete }) => {
+const DREView = ({ transactions, categories, accounts, payees, onSave, onDelete, futureEntries }) => {
     const [period, setPeriod] = useState(getYearMonth(new Date().toISOString()));
+    const [includeFuture, setIncludeFuture] = useState(false);
     const [detailModalOpen, setDetailModalOpen] = useState(false);
     const [modalTitle, setModalTitle] = useState('');
     const [modalTransactions, setModalTransactions] = useState([]);
 
     const dreData = useMemo(() => {
-        const filtered = transactions.filter(t => getYearMonth(t.date) === period && !t.isTransfer);
+        let relevantTransactions = transactions.filter(t => getYearMonth(t.date) === period && !t.isTransfer);
 
-        const revenues = filtered.filter(t => t.type === 'revenue');
-        const expenses = filtered.filter(t => t.type === 'expense');
+        if (includeFuture && futureEntries) {
+            const futureInPeriod = futureEntries.filter(e => {
+                // Inclui se estiver no período e não estiver reconciliado (para não duplicar com transactions)
+                return getYearMonth(e.dueDate) === period && e.status !== 'reconciled';
+            }).map(e => ({
+                ...e,
+                date: e.dueDate,
+                isFuture: true // Flag para identificar
+            }));
+            relevantTransactions = [...relevantTransactions, ...futureInPeriod];
+        }
+
+        const revenues = relevantTransactions.filter(t => t.type === 'revenue');
+        const expenses = relevantTransactions.filter(t => t.type === 'expense');
 
         const totalRevenue = revenues.reduce((sum, t) => sum + t.amount, 0);
 
@@ -1588,10 +1844,16 @@ const DREView = ({ transactions, categories, accounts, payees, onSave, onDelete 
 
         return { revenueData, expenseData, totalRevenue, totalExpense, netResult };
 
-    }, [period, transactions, categories]);
+    }, [period, transactions, categories, futureEntries, includeFuture]);
 
     const handleCategoryClick = (item) => {
-        const filtered = transactions.filter(t => {
+        let relevantTransactions = transactions.filter(t => getYearMonth(t.date) === period && !t.isTransfer);
+        if (includeFuture && futureEntries) {
+            const futureInPeriod = futureEntries.filter(e => getYearMonth(e.dueDate) === period && e.status !== 'reconciled').map(e => ({ ...e, date: e.dueDate, isFuture: true }));
+            relevantTransactions = [...relevantTransactions, ...futureInPeriod];
+        }
+
+        const filtered = relevantTransactions.filter(t => {
             const isSamePeriod = getYearMonth(t.date) === period;
             // If it's a parent category, include all subcategories
             const subIds = categories.filter(c => c.parentId === item.id).map(c => c.id);
@@ -1610,7 +1872,7 @@ const DREView = ({ transactions, categories, accounts, payees, onSave, onDelete 
         }
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
-        doc.text(`DRE - ${period}`, 14, 16);
+        doc.text(`DRE - ${period} ${includeFuture ? '(Previsão)' : ''}`, 14, 16);
 
         const head = [['Descrição', 'Valor', '% Faturamento']];
         const body = [];
@@ -1662,6 +1924,15 @@ const DREView = ({ transactions, categories, accounts, payees, onSave, onDelete 
                 <div className="flex justify-between items-center mb-6">
                     <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-200">DRE - Demonstrativo de Resultados</h2>
                     <div className="flex items-center gap-4">
+                        <label className="flex items-center gap-2 cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-300">
+                            <input
+                                type="checkbox"
+                                checked={includeFuture}
+                                onChange={(e) => setIncludeFuture(e.target.checked)}
+                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            Incluir Futuros (Previsão)
+                        </label>
                         <input
                             type="month"
                             value={period}
@@ -2152,13 +2423,15 @@ const PayeesManager = ({ payees, categories, onSave, onDelete }) => {
 };
 
 // --- MODAL DE IMPORTAÇÃO DE TRANSAÇÕES (ATUALIZADO) ---
-const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories, payees, allTransactions }) => {
+const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories, payees, allTransactions, onSave }) => {
     const [step, setStep] = useState(1);
     const [csvData, setCsvData] = useState('');
     const [transactions, setTransactions] = useState([]);
     const [error, setError] = useState('');
     const [isFormatting, setIsFormatting] = useState(false);
     const [isCategorizingAI, setIsCategorizingAI] = useState(false);
+    const [isAddPayeeModalOpen, setIsAddPayeeModalOpen] = useState(false);
+    const [newPayeeName, setNewPayeeName] = useState('');
 
     const groupedCategories = useMemo(() => {
         const buildHierarchy = (type) => {
@@ -2516,6 +2789,49 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
         onClose();
     };
 
+    // Auto-select new payee for specific row
+    const [activeAddPayeeRowId, setActiveAddPayeeRowId] = useState(null);
+    const [newlyAddedPayeeName, setNewlyAddedPayeeName] = useState(null);
+
+    useEffect(() => {
+        if (newlyAddedPayeeName && payees.length > 0 && activeAddPayeeRowId) {
+            const newPayee = payees.find(p => p.name === newlyAddedPayeeName);
+            if (newPayee) {
+                setTransactions(prev => prev.map(t => (t.id === activeAddPayeeRowId ? { ...t, payeeId: newPayee.id } : t)));
+                setNewlyAddedPayeeName(null);
+                setActiveAddPayeeRowId(null);
+            }
+        }
+    }, [payees, newlyAddedPayeeName, activeAddPayeeRowId]);
+
+
+    const handleAddPayee = async () => {
+        const trimmedName = newPayeeName.trim();
+        if (!trimmedName) {
+            alert('O nome do favorecido não pode estar vazio.');
+            return;
+        }
+        if (payees.some(p => p.name.toLowerCase() === trimmedName.toLowerCase())) {
+            alert('Este favorecido já existe.');
+            return;
+        }
+
+        try {
+            await onSave('payees', { name: trimmedName });
+            setNewlyAddedPayeeName(trimmedName); // Trigger effect
+            setNewPayeeName('');
+            setIsAddPayeeModalOpen(false);
+        } catch (e) {
+            alert('Erro ao salvar favorecido: ' + e.message);
+        }
+    };
+
+    const handleOpenAddPayeeModal = (transactionId) => {
+        setActiveAddPayeeRowId(transactionId);
+        setIsAddPayeeModalOpen(true);
+    };
+
+
     return (
         <Modal isOpen={isOpen} onClose={onClose} title={`Importar Transações para ${account?.name}`} size="xl">
             {step === 1 && (
@@ -2579,10 +2895,15 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
                                             </select>
                                         </td>
                                         <td className="p-2">
-                                            <select value={t.payeeId} onChange={e => handleRowChange(t.id, 'payeeId', e.target.value)} className="w-full p-1 border dark:border-gray-600 rounded-md bg-white dark:bg-gray-800">
-                                                <option value="">Nenhum</option>
-                                                {payees.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                                            </select>
+                                            <div className="flex gap-1">
+                                                <select value={t.payeeId} onChange={e => handleRowChange(t.id, 'payeeId', e.target.value)} className="w-full p-1 border dark:border-gray-600 rounded-md bg-white dark:bg-gray-800">
+                                                    <option value="">Nenhum</option>
+                                                    {payees.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                                </select>
+                                                <button onClick={() => handleOpenAddPayeeModal(t.id)} className="text-blue-500 hover:text-blue-700 px-1" title="Adicionar Favorecido">
+                                                    <PlusCircle size={18} />
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}
@@ -2595,6 +2916,19 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
                     </div>
                 </div>
             )}
+
+            <Modal isOpen={isAddPayeeModalOpen} onClose={() => setIsAddPayeeModalOpen(false)} title="Novo Favorecido" size="sm">
+                <div className="space-y-4">
+                    <label className="block dark:text-gray-300">
+                        <span className="text-gray-700 dark:text-gray-300">Nome do Favorecido</span>
+                        <input type="text" value={newPayeeName} onChange={(e) => setNewPayeeName(e.target.value)} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" autoFocus />
+                    </label>
+                    <div className="flex justify-end pt-2 gap-2">
+                        <Button onClick={() => setIsAddPayeeModalOpen(false)} className="bg-gray-500 hover:bg-gray-600">Cancelar</Button>
+                        <Button onClick={handleAddPayee}>Salvar</Button>
+                    </div>
+                </div>
+            </Modal>
         </Modal>
     );
 };
@@ -2677,6 +3011,7 @@ const SettingsView = ({ onSaveEntity, onDeleteEntity, onImportTransactions, acco
                 categories={categories}
                 payees={payees}
                 allTransactions={allTransactions}
+                onSave={onSaveEntity}
             />
         </div>
     );
@@ -3568,8 +3903,8 @@ export default function App() {
             case 'reconciliation': return <ReconciliationView transactions={transactions} accounts={accounts} categories={categories} payees={payees} onSaveTransaction={handleSaveWithCompanyId} allTransactions={transactions} />;
             case 'futureEntries': return <FutureEntriesView futureEntries={futureEntries} accounts={accounts} categories={categories} payees={payees} onSave={handleSaveWithCompanyId} onDelete={handleDeleteWithCompanyId} onReconcile={handleReconcileWithCompanyId} />;
             case 'budgets': return <BudgetsView budgets={budgets} categories={categories} transactions={transactions} onSave={handleSaveWithCompanyId} onDelete={handleDeleteWithCompanyId} />;
-            case 'reports': return <ReportsView transactions={transactions} categories={categories} accounts={accounts} />;
-            case 'dre': return <DREView transactions={transactions} categories={categories} accounts={accounts} payees={payees} onSave={handleSaveWithCompanyId} onDelete={handleDeleteWithCompanyId} />;
+            case 'reports': return <ReportsView transactions={transactions} categories={categories} accounts={accounts} futureEntries={futureEntries} />;
+            case 'dre': return <DREView transactions={transactions} categories={categories} accounts={accounts} payees={payees} onSave={handleSaveWithCompanyId} onDelete={handleDeleteWithCompanyId} futureEntries={futureEntries} />;
             case 'weeklyCashFlow': return <WeeklyCashFlowView futureEntries={futureEntries} categories={categories} />;
             case 'settings': return <SettingsView
                 onSaveEntity={settingsSaveHandler}
