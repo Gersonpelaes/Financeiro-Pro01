@@ -43,10 +43,10 @@ const Modal = ({ isOpen, onClose, title, children, size = 'md' }) => {
     if (!isOpen) return null;
     const sizeClass = { md: 'max-w-md', lg: 'max-w-4xl', xl: 'max-w-6xl' }[size] || 'max-w-md';
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4" onClick={onClose}>
-            <div className={`bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full ${sizeClass} p-8 m-4 transform transition-all`} onClick={e => e.stopPropagation()}>
-                <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-200">{title}</h2>
+        <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-2 sm:p-4" onClick={onClose}>
+            <div className={`bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full ${sizeClass} p-4 sm:p-8 transform transition-all max-h-[95vh] overflow-y-auto`} onClick={e => e.stopPropagation()}>
+                <div className="flex justify-between items-center mb-4 sm:mb-6">
+                    <h2 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-200 pr-4">{title}</h2>
                     <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-3xl leading-none">&times;</button>
                 </div>
                 {children}
@@ -635,6 +635,15 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
 
     const handleCloseModal = () => setIsModalOpen(false);
 
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('action') === 'new_transaction' && accounts.length > 0) {
+            handleOpenModal();
+            const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+            window.history.replaceState({path:newUrl}, '', newUrl);
+        }
+    }, [accounts]);
+
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => {
@@ -814,7 +823,7 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
                 </div>
             </div>
             <div className="overflow-auto flex-grow">
-                <table className="w-full text-left">
+                <table className="w-full text-left min-w-[800px]">
                     <thead className="sticky top-0 bg-white dark:bg-gray-800 z-10">
                         <tr className="border-b-2 border-gray-200 dark:border-gray-700">
                             <th className="p-4 w-12 text-center">
@@ -1337,6 +1346,7 @@ const ReconciliationView = ({ transactions, accounts, categories, payees, onSave
                 categories={categories}
                 payees={payees}
                 allTransactions={allTransactions}
+                onSave={onSaveTransaction}
             />
 
             <ReconciliationTransferModal
@@ -2792,12 +2802,13 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
     // Auto-select new payee for specific row
     const [activeAddPayeeRowId, setActiveAddPayeeRowId] = useState(null);
     const [newlyAddedPayeeName, setNewlyAddedPayeeName] = useState(null);
+    const [newPayeeCategoryId, setNewPayeeCategoryId] = useState('');
 
     useEffect(() => {
         if (newlyAddedPayeeName && payees.length > 0 && activeAddPayeeRowId) {
             const newPayee = payees.find(p => p.name === newlyAddedPayeeName);
             if (newPayee) {
-                setTransactions(prev => prev.map(t => (t.id === activeAddPayeeRowId ? { ...t, payeeId: newPayee.id } : t)));
+                setTransactions(prev => prev.map(t => (t.id === activeAddPayeeRowId ? { ...t, payeeId: newPayee.id, categoryId: newPayee.categoryId || t.categoryId } : t)));
                 setNewlyAddedPayeeName(null);
                 setActiveAddPayeeRowId(null);
             }
@@ -2817,9 +2828,10 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
         }
 
         try {
-            await onSave('payees', { name: trimmedName });
+            await onSave('payees', { name: trimmedName, categoryId: newPayeeCategoryId });
             setNewlyAddedPayeeName(trimmedName); // Trigger effect
             setNewPayeeName('');
+            setNewPayeeCategoryId('');
             setIsAddPayeeModalOpen(false);
         } catch (e) {
             alert('Erro ao salvar favorecido: ' + e.message);
@@ -2865,7 +2877,7 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
                     </div>
                     {error && <p className="text-red-500 text-sm bg-red-50 dark:bg-red-900/20 p-2 rounded-md">{error}</p>}
                     <div className="max-h-[60vh] overflow-auto">
-                        <table className="w-full text-left text-sm">
+                        <table className="w-full text-left text-sm min-w-[800px]">
                             <thead className="bg-gray-100 dark:bg-gray-700 sticky top-0">
                                 <tr>
                                     <th className="p-2">Data</th>
@@ -2922,6 +2934,20 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
                     <label className="block dark:text-gray-300">
                         <span className="text-gray-700 dark:text-gray-300">Nome do Favorecido</span>
                         <input type="text" value={newPayeeName} onChange={(e) => setNewPayeeName(e.target.value)} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" autoFocus />
+                    </label>
+                    <label className="block dark:text-gray-300">
+                        <span className="text-gray-700 dark:text-gray-300">Categoria Padrão (Opcional)</span>
+                        <select
+                            value={newPayeeCategoryId}
+                            onChange={(e) => setNewPayeeCategoryId(e.target.value)}
+                            className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300"
+                        >
+                            <option value="">Nenhum</option>
+                            {/* Reusing the grouping logic for display if available, or just listing all sorted */}
+                            {categories.sort((a, b) => a.name.localeCompare(b.name)).map(c => (
+                                <option key={c.id} value={c.id}>{c.name}</option>
+                            ))}
+                        </select>
                     </label>
                     <div className="flex justify-end pt-2 gap-2">
                         <Button onClick={() => setIsAddPayeeModalOpen(false)} className="bg-gray-500 hover:bg-gray-600">Cancelar</Button>
@@ -3281,10 +3307,14 @@ const SubscriptionView = ({ subscription, onSubscribe }) => {
 
 // --- COMPONENTE PRINCIPAL ---
 export default function App() {
-    const [view, setView] = useState('dashboard');
+    const [view, setView] = useState(() => {
+        const params = new URLSearchParams(window.location.search);
+        return params.get('action') === 'new_transaction' ? 'transactions' : 'dashboard';
+    });
     const [user, setUser] = useState(null);
     const [isAuthReady, setIsAuthReady] = useState(false);
     const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
     const [companies, setCompanies] = useState([]);
     const [activeCompanyId, setActiveCompanyId] = useState(null);
@@ -3927,10 +3957,20 @@ export default function App() {
     const isTransactionsView = view === 'transactions';
 
     return (
-        <div className={`flex h-screen bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200 font-sans`}>
-            <aside className="w-72 bg-white dark:bg-gray-800 p-6 flex-shrink-0 flex flex-col shadow-lg">
+        <div className={`flex h-screen bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200 font-sans overflow-hidden`}>
+            {isMobileMenuOpen && (
+                <div 
+                    className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden" 
+                    onClick={() => setIsMobileMenuOpen(false)}
+                />
+            )}
+            <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-white dark:bg-gray-800 p-6 flex flex-col shadow-lg transform transition-transform duration-300 md:relative md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} overflow-y-auto`}>
+                <div className="flex justify-between items-center mb-4 md:hidden">
+                    <h1 className="text-xl font-bold text-blue-700 dark:text-blue-400">Financeiro PRO</h1>
+                    <button onClick={() => setIsMobileMenuOpen(false)} className="text-gray-500 hover:text-gray-700"><X size={24} /></button>
+                </div>
                 <div className="flex-grow">
-                    <h1 className="text-2xl font-bold text-blue-700 dark:text-blue-400 mb-4">Financeiro PRO</h1>
+                    <h1 className="text-2xl font-bold text-blue-700 dark:text-blue-400 mb-4 hidden md:block">Financeiro PRO</h1>
                     <div className="mb-8 p-3 bg-gray-100 dark:bg-gray-700/50 rounded-lg">
                         <p className="text-sm text-gray-500 dark:text-gray-400">Empresa Ativa</p>
                         <p className="font-bold text-lg text-gray-800 dark:text-gray-200">{activeCompany?.name}</p>
@@ -3959,7 +3999,13 @@ export default function App() {
                     </button>
                 </div>
             </aside>
-            <main className={`flex-1 p-8 relative ${isTransactionsView ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+            <main className={`flex-1 flex flex-col p-4 md:p-8 relative ${isTransactionsView ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+                <div className="flex items-center mb-4 md:hidden flex-shrink-0">
+                    <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 -ml-2 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg">
+                        <Menu size={24} />
+                    </button>
+                    <h2 className="text-xl font-bold text-blue-700 dark:text-blue-400 ml-2">Financeiro PRO</h2>
+                </div>
                 {!isSubscribed && (
                     <div className="absolute inset-0 bg-black/70 z-40 flex flex-col justify-center items-center text-white p-8 text-center">
                         <AlertTriangle size={64} className="text-yellow-400 mb-4" />
@@ -3996,8 +4042,8 @@ const TransactionDetailModal = ({ isOpen, onClose, title, transactions, accounts
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title={title} size="lg">
-            <div className="max-h-[60vh] overflow-y-auto">
-                <table className="w-full text-left">
+            <div className="max-h-[60vh] overflow-auto">
+                <table className="w-full text-left min-w-[600px]">
                     <thead>
                         <tr className="border-b-2 dark:border-gray-700">
                             <th className="p-2">Data</th>
