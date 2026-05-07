@@ -6,6 +6,8 @@ import { getFunctions, httpsCallable } from 'firebase/functions';
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
 import { PlusCircle, Upload, Trash2, Edit, TrendingUp, TrendingDown, DollarSign, Settings, LayoutDashboard, List, BarChart2, Target, ArrowLeft, ArrowRightLeft, Repeat, CheckCircle, AlertTriangle, Clock, CalendarCheck2, Building, GitCompareArrows, ArrowUp, ArrowDown, Paperclip, FileText, LogOut, Download, UploadCloud, Sun, Moon, FileOutput, CalendarClock, Menu, X, ShieldCheck, CreditCard, RefreshCw, BookCopy, FileJson, Wallet, Percent, Archive, Receipt, Landmark, AreaChart } from 'lucide-react';
+import Papa from 'papaparse';
+import * as XLSX from 'xlsx';
 
 // --- CONFIGURAÇÃO DO FIREBASE ---
 const firebaseConfig = {
@@ -2467,137 +2469,59 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
         }
     }, [isOpen]);
 
-    const handleFormatStatement = async () => {
-        setError('');
-        if (!csvData.trim()) {
-            setError('A área de texto está vazia. Cole o seu extrato primeiro.');
-            return;
-        }
-        setIsFormatting(true);
+    const findBestMatch = (description) => {
+        let guessedPayeeId = '';
+        let guessedCategoryId = '';
+        const lowerCaseDescription = description.toLowerCase();
 
-        const prompt = `
-            Analise o seguinte texto de um extrato bancário e converta CADA transação encontrada para o formato CSV.
-            O formato de saída OBRIGATÓRIO para cada linha é: DD/MM/YYYY,Descrição Curta,Valor
-
-            REGRAS IMPORTANTES:
-            1.  **DATA**: Use estritamente o formato DD/MM/YYYY.
-            2.  **DESCRIÇÃO**: Crie uma descrição curta e objetiva. NÃO use vírgulas na descrição.
-            3.  **VALOR**: Use ponto como separador decimal. Despesas DEVEM ser negativas (ex: -50.25). Receitas DEVEM ser positivas (ex: 1200.00).
-            4.  **IGNORAR**: Ignore completamente linhas que não são transações, como saldos, informações de cabeçalho, rodapés, etc.
-            5.  **SAÍDA**: Retorne apenas as linhas CSV, sem nenhum texto ou explicação adicional.
-
-            Texto do extrato para processar:
-            \`\`\`
-            ${csvData}
-            \`\`\`
-        `;
-
-        const payload = {
-            contents: [{ parts: [{ text: prompt }] }],
-            safetySettings: [
-                { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
-                { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
-                { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
-                { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
-            ],
-        };
-
-        const apiKey = process.env.REACT_APP_GEMINI_API_KEY;
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-
-        try {
-            const response = await fetch(apiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-
-            const result = await response.json();
-
-            if (!response.ok) {
-                console.error("Erro na API:", result);
-                throw new Error(result.error?.message || `A API retornou o status ${response.status}`);
-            }
-
-            const candidate = result.candidates?.[0];
-            const text = candidate?.content?.parts?.[0]?.text;
-
-            if (text) {
-                const cleanedText = text.replace(/```csv/g, '').replace(/```/g, '').trim();
-                setCsvData(cleanedText);
-            } else {
-                console.error("Resposta inesperada da API:", result);
-                if (candidate?.finishReason === 'SAFETY') {
-                    setError("A solicitação foi bloqueada por motivos de segurança. Tente reformular o texto do extrato.");
-                } else {
-                    throw new Error(result.error?.message || "A resposta da API não continha o texto esperado.");
+        // 1. Memória Histórica (Aprende com o que o usuário já categorizou)
+        if (allTransactions) {
+            for (const pastTx of allTransactions) {
+                if (pastTx.description.toLowerCase() === lowerCaseDescription && pastTx.categoryId) {
+                    guessedCategoryId = pastTx.categoryId;
+                    guessedPayeeId = pastTx.payeeId || '';
+                    return { guessedCategoryId, guessedPayeeId };
                 }
             }
-        } catch (error) {
-            console.error("Falha ao formatar extrato com IA:", error);
-            setError(`Erro: ${error.message}. Tente novamente ou verifique o console.`);
-        } finally {
-            setIsFormatting(false);
         }
+
+        // 2. Motor de Regras Locais (Verifica se contém nomes de favorecidos)
+        for (const payee of payees) {
+            if (lowerCaseDescription.includes(payee.name.toLowerCase())) {
+                guessedPayeeId = payee.id;
+                if (payee.categoryId) {
+                    guessedCategoryId = payee.categoryId;
+                }
+                break;
+            }
+        }
+
+        // 3. Correspondência Básica de Categorias
+        if (!guessedCategoryId) {
+            for (const category of categories) {
+                const categoryNamePattern = new RegExp(`\\b${category.name.toLowerCase()}\\b`);
+                if (categoryNamePattern.test(lowerCaseDescription)) {
+                    guessedCategoryId = category.id;
+                    break;
+                }
+            }
+        }
+
+        return { guessedCategoryId, guessedPayeeId };
     };
 
-
-    const handleParse = () => {
-        setError('');
-        if (!csvData.trim()) {
-            setError('A área de texto está vazia.');
-            return;
-        }
+    const processParsedData = (dataArray) => {
         try {
-            const lines = csvData.trim().split('\n');
-            const parsed = lines.map((line, index) => {
-                const parts = line.split(',');
-                if (parts.length !== 3) {
-                    throw new Error(`Linha ${index + 1} inválida. Use o formato exato: data,descrição,valor. A descrição não pode conter vírgulas.`);
-                }
-                const [dateStr, description, amountStr] = parts.map(p => p.trim());
-
-                const amount = parseFloat(amountStr.replace(',', '.'));
-                if (isNaN(amount)) {
-                    throw new Error(`Valor inválido na linha ${index + 1}: "${amountStr}"`);
-                }
-                let date;
-                if (dateStr.includes('/')) {
-                    const [day, month, year] = dateStr.split('/');
-                    if (!day || !month || !year || year.length < 4) {
-                        throw new Error(`Formato de data inválido na linha ${index + 1}. Use DD/MM/YYYY.`);
-                    }
-                    date = new Date(`${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T12:00:00.000Z`);
-                } else {
-                    date = new Date(dateStr + "T12:00:00.000Z");
-                }
-                if (isNaN(date.getTime())) {
-                    throw new Error(`Data inválida na linha ${index + 1}: "${dateStr}"`);
+            const parsed = dataArray.map((row, index) => {
+                const date = row.date;
+                const description = row.description;
+                const amount = parseFloat(row.amount);
+                
+                if (isNaN(amount) || !date || isNaN(date.getTime())) {
+                    return null;
                 }
 
-                let guessedPayeeId = '';
-                let guessedCategoryId = '';
-                const lowerCaseDescription = description.toLowerCase();
-
-                for (const payee of payees) {
-                    if (lowerCaseDescription.includes(payee.name.toLowerCase())) {
-                        guessedPayeeId = payee.id;
-                        if (payee.categoryId) {
-                            guessedCategoryId = payee.categoryId;
-                        }
-                        break;
-                    }
-                }
-
-                if (!guessedCategoryId) {
-                    for (const category of categories) {
-                        const categoryNamePattern = new RegExp(`\\b${category.name.toLowerCase()}\\b`);
-                        if (categoryNamePattern.test(lowerCaseDescription)) {
-                            guessedCategoryId = category.id;
-                            break;
-                        }
-                    }
-                }
+                const { guessedCategoryId, guessedPayeeId } = findBestMatch(description);
 
                 return {
                     id: crypto.randomUUID(),
@@ -2608,11 +2532,126 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
                     categoryId: guessedCategoryId,
                     payeeId: guessedPayeeId,
                 };
-            });
+            }).filter(Boolean);
+            
+            if(parsed.length === 0) throw new Error("Nenhuma transação válida encontrada.");
+            
             setTransactions(parsed);
             setStep(2);
         } catch (e) {
             setError(`Erro ao processar: ${e.message}`);
+        }
+    };
+
+    const handleFileUpload = async (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+        setError('');
+        setIsFormatting(true);
+
+        const fileName = file.name.toLowerCase();
+
+        try {
+            if (fileName.endsWith('.ofx')) {
+                const text = await file.text();
+                const transactions = [];
+                const stmtTrnRegex = /<STMTTRN>([\s\S]*?)<\/STMTTRN>/g;
+                let match;
+                while ((match = stmtTrnRegex.exec(text)) !== null) {
+                    const trn = match[1];
+                    const dateMatch = trn.match(/<DTPOSTED>([0-9]{8})/);
+                    const amountMatch = trn.match(/<TRNAMT>([-\d.]+)/);
+                    const nameMatch = trn.match(/<MEMO>(.*?)(?=<|$)/) || trn.match(/<NAME>(.*?)(?=<|$)/);
+
+                    if (dateMatch && amountMatch) {
+                        const dateStr = dateMatch[1];
+                        const date = new Date(Date.UTC(parseInt(dateStr.substring(0,4)), parseInt(dateStr.substring(4,6))-1, parseInt(dateStr.substring(6,8)), 12, 0, 0));
+                        const amount = parseFloat(amountMatch[1]);
+                        const description = nameMatch ? nameMatch[1].replace(/<\/?[^>]+(>|$)/g, "").trim() : 'Sem descrição';
+                        
+                        transactions.push({ date, description, amount });
+                    }
+                }
+                processParsedData(transactions);
+
+            } else if (fileName.endsWith('.csv')) {
+                Papa.parse(file, {
+                    header: false,
+                    skipEmptyLines: true,
+                    complete: (results) => {
+                        const data = results.data;
+                        const transactions = [];
+                        data.forEach(row => {
+                            let dateStr = row[0];
+                            let desc = row[1];
+                            let amountStr = row[2] || (row.length > 2 ? row[row.length - 1] : '');
+                            
+                            if (dateStr && desc && amountStr && typeof amountStr === 'string') {
+                                let date;
+                                if (dateStr.includes('/')) {
+                                    const parts = dateStr.split('/');
+                                    if(parts.length === 3) date = new Date(Date.UTC(parts[2], parseInt(parts[1])-1, parts[0], 12, 0, 0));
+                                } else if (dateStr.includes('-')) {
+                                    date = new Date(dateStr + "T12:00:00.000Z");
+                                }
+                                
+                                const amount = parseFloat(amountStr.replace(/\./g, '').replace(',', '.'));
+                                if (date && !isNaN(date.getTime()) && !isNaN(amount)) {
+                                    transactions.push({ date, description: desc, amount });
+                                }
+                            }
+                        });
+                        processParsedData(transactions);
+                    }
+                });
+
+            } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+                const buffer = await file.arrayBuffer();
+                const workbook = XLSX.read(buffer, { type: 'array' });
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                
+                const transactions = [];
+                json.forEach(row => {
+                    if (row.length >= 3) {
+                        let dateIdx = -1;
+                        let amtIdx = -1;
+                        let descIdx = -1;
+                        
+                        row.forEach((cell, i) => {
+                            if (typeof cell === 'number' && amtIdx === -1 && i > 0 && i !== dateIdx) amtIdx = i;
+                            else if (typeof cell === 'number' && dateIdx === -1 && cell > 40000) dateIdx = i; // Excel date number heuristic
+                            else if (typeof cell === 'string' && cell.includes('/') && dateIdx === -1) dateIdx = i;
+                            else if (typeof cell === 'string' && descIdx === -1 && i !== dateIdx) descIdx = i;
+                        });
+                        
+                        if (dateIdx !== -1 && amtIdx !== -1 && descIdx !== -1) {
+                            let date;
+                            const dateVal = row[dateIdx];
+                            if (typeof dateVal === 'number') {
+                                date = new Date(Math.round((dateVal - 25569) * 86400 * 1000));
+                            } else {
+                                const parts = dateVal.split('/');
+                                if(parts.length === 3) date = new Date(Date.UTC(parts[2], parseInt(parts[1])-1, parts[0], 12, 0, 0));
+                            }
+                            const amount = parseFloat(row[amtIdx]);
+                            if (date && !isNaN(date.getTime()) && !isNaN(amount)) {
+                                transactions.push({ date, description: row[descIdx], amount });
+                            }
+                        }
+                    }
+                });
+                processParsedData(transactions);
+            } else {
+                setError("Formato de arquivo não suportado. Use .ofx, .csv ou .xlsx");
+            }
+        } catch (err) {
+            setError(`Erro ao ler o arquivo: ${err.message}`);
+        } finally {
+            setIsFormatting(false);
+            // Reset the input value so the same file can be uploaded again if needed
+            event.target.value = '';
         }
     };
 
@@ -2847,23 +2886,37 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
     return (
         <Modal isOpen={isOpen} onClose={onClose} title={`Importar Transações para ${account?.name}`} size="xl">
             {step === 1 && (
-                <div className="space-y-4">
-                    <p className="text-sm text-gray-600 dark:text-gray-400">Cole o seu extrato de qualquer banco abaixo. Depois, clique em "Formatar Extrato com IA" para converter os dados automaticamente.</p>
-                    <textarea
-                        value={csvData}
-                        onChange={(e) => setCsvData(e.target.value)}
-                        rows="10"
-                        className="w-full p-2 border dark:border-gray-600 rounded-lg font-mono text-sm dark:bg-gray-700 dark:text-gray-300"
-                        placeholder="Cole o seu extrato bancário bruto aqui..."
-                    ></textarea>
-                    {error && <p className="text-red-500 text-sm bg-red-50 dark:bg-red-900/20 p-2 rounded-md">{error}</p>}
-                    <div className="flex flex-col sm:flex-row gap-4">
-                        <Button onClick={handleFormatStatement} disabled={isFormatting} className="w-full bg-purple-600 hover:bg-purple-700">
-                            {isFormatting ? <RefreshCw className="animate-spin" /> : '✨'}
-                            <span>{isFormatting ? 'A formatar...' : 'Formatar Extrato com IA'}</span>
-                        </Button>
-                        <Button onClick={handleParse} className="w-full bg-blue-600 hover:bg-blue-700">Analisar Dados</Button>
+                <div className="space-y-6">
+                    <div className="text-center p-8 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-2xl bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                        <UploadCloud className="mx-auto h-16 w-16 text-blue-500 mb-4" />
+                        <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-2">Importar Extrato Bancário</h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+                            Faça o upload do seu extrato. O sistema irá ler, adaptar-se ao formato do seu banco e aplicar as suas regras de categorização automaticamente.
+                        </p>
+                        
+                        <input
+                            type="file"
+                            accept=".ofx,.csv,.xlsx,.xls"
+                            onChange={handleFileUpload}
+                            className="hidden"
+                            id="file-upload"
+                            disabled={isFormatting}
+                        />
+                        <label 
+                            htmlFor="file-upload"
+                            className={`cursor-pointer inline-flex items-center justify-center space-x-2 text-white font-semibold py-3 px-6 rounded-xl shadow-md transition-all transform hover:scale-105 ${isFormatting ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
+                        >
+                            {isFormatting ? <RefreshCw className="animate-spin" /> : <FileText />}
+                            <span>{isFormatting ? 'A analisar arquivo...' : 'Selecionar Arquivo (.ofx, .csv, .xlsx)'}</span>
+                        </label>
                     </div>
+
+                    {error && (
+                        <div className="flex items-center space-x-2 text-red-600 bg-red-50 dark:bg-red-900/20 p-4 rounded-lg border border-red-200 dark:border-red-800">
+                            <AlertTriangle size={20} />
+                            <p className="text-sm">{error}</p>
+                        </div>
+                    )}
                 </div>
             )}
             {step === 2 && (
