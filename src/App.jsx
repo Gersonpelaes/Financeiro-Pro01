@@ -1345,6 +1345,7 @@ const ReconciliationView = ({ transactions, accounts, categories, payees, onSave
                 onClose={() => setIsImportModalOpen(false)}
                 onImport={handleImport}
                 account={accounts.find(a => a.id === selectedAccountId)}
+                accounts={accounts}
                 categories={categories}
                 payees={payees}
                 allTransactions={allTransactions}
@@ -2435,7 +2436,7 @@ const PayeesManager = ({ payees, categories, onSave, onDelete }) => {
 };
 
 // --- MODAL DE IMPORTAÇÃO DE TRANSAÇÕES (ATUALIZADO) ---
-const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories, payees, allTransactions, onSave }) => {
+const TransactionImportModal = ({ isOpen, onClose, onImport, account, accounts, categories, payees, allTransactions, onSave }) => {
     const [step, setStep] = useState(1);
     const [csvData, setCsvData] = useState('');
     const [transactions, setTransactions] = useState([]);
@@ -2949,8 +2950,21 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
                                         </td>
                                         <td className={`p-2 font-semibold ${t.type === 'revenue' ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(t.amount)}</td>
                                         <td className="p-2">
-                                            <select value={t.categoryId} onChange={e => handleRowChange(t.id, 'categoryId', e.target.value)} className="w-full p-1 border dark:border-gray-600 rounded-md bg-white dark:bg-gray-800">
+                                            <select 
+                                                value={t.isTransfer ? 'TRANSFER' : (t.categoryId || '')} 
+                                                onChange={e => {
+                                                    if (e.target.value === 'TRANSFER') {
+                                                        handleRowChange(t.id, 'isTransfer', true);
+                                                        handleRowChange(t.id, 'categoryId', '');
+                                                    } else {
+                                                        handleRowChange(t.id, 'isTransfer', false);
+                                                        handleRowChange(t.id, 'categoryId', e.target.value);
+                                                    }
+                                                }} 
+                                                className="w-full p-1 border dark:border-gray-600 rounded-md bg-white dark:bg-gray-800"
+                                            >
                                                 <option value="">Selecione...</option>
+                                                <option value="TRANSFER" className="font-bold text-blue-600">➡️ É uma Transferência</option>
                                                 {(groupedCategories[t.type] || []).map(parent => (
                                                     <optgroup key={parent.id} label={parent.name}>
                                                         <option value={parent.id}>{parent.name} (Principal)</option>
@@ -2960,15 +2974,28 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, categories
                                             </select>
                                         </td>
                                         <td className="p-2">
-                                            <div className="flex gap-1">
-                                                <select value={t.payeeId} onChange={e => handleRowChange(t.id, 'payeeId', e.target.value)} className="w-full p-1 border dark:border-gray-600 rounded-md bg-white dark:bg-gray-800">
-                                                    <option value="">Nenhum</option>
-                                                    {payees.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                            {t.isTransfer ? (
+                                                <select 
+                                                    value={t.transferAccountId || ''} 
+                                                    onChange={e => handleRowChange(t.id, 'transferAccountId', e.target.value)} 
+                                                    className="w-full p-1 border border-blue-400 rounded-md bg-blue-50 dark:bg-blue-900/20"
+                                                >
+                                                    <option value="">Selecione a Conta...</option>
+                                                    {accounts?.filter(a => a.id !== account?.id).map(a => (
+                                                        <option key={a.id} value={a.id}>{a.name}</option>
+                                                    ))}
                                                 </select>
-                                                <button onClick={() => handleOpenAddPayeeModal(t.id)} className="text-blue-500 hover:text-blue-700 px-1" title="Adicionar Favorecido">
-                                                    <PlusCircle size={18} />
-                                                </button>
-                                            </div>
+                                            ) : (
+                                                <div className="flex gap-1">
+                                                    <select value={t.payeeId || ''} onChange={e => handleRowChange(t.id, 'payeeId', e.target.value)} className="w-full p-1 border dark:border-gray-600 rounded-md bg-white dark:bg-gray-800">
+                                                        <option value="">Nenhum</option>
+                                                        {payees.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                                    </select>
+                                                    <button onClick={() => handleOpenAddPayeeModal(t.id)} className="text-blue-500 hover:text-blue-700 px-1" title="Adicionar Favorecido">
+                                                        <PlusCircle size={18} />
+                                                    </button>
+                                                </div>
+                                            )}
                                         </td>
                                     </tr>
                                 ))}
@@ -3087,6 +3114,7 @@ const SettingsView = ({ onSaveEntity, onDeleteEntity, onImportTransactions, acco
                 onClose={() => setIsImportModalOpen(false)}
                 onImport={handleImportConfirm}
                 account={accountToImport}
+                accounts={accounts}
                 categories={categories}
                 payees={payees}
                 allTransactions={allTransactions}
@@ -3715,11 +3743,41 @@ export default function App() {
         if (!userId) return;
         const path = `users/${userId}/companies/${activeCompanyId}/transactions`;
         const batch = writeBatch(db);
+        const accountImportName = accounts.find(a => a.id === accountId)?.name || 'conta';
+
         transactionsToImport.forEach(t => {
-            const docRef = doc(collection(db, path));
-            // Remove o id temporário usado para o React key
-            const { id, ...transactionData } = t;
-            batch.set(docRef, { ...transactionData, accountId });
+            const { id, isTransfer, transferAccountId, ...transactionData } = t;
+            
+            if (isTransfer && transferAccountId) {
+                const transferId = crypto.randomUUID();
+                const isExpense = transactionData.amount < 0 || transactionData.type === 'expense';
+                
+                // 1. Transação na conta importada
+                const docRefMain = doc(collection(db, path));
+                batch.set(docRefMain, { 
+                    ...transactionData, 
+                    accountId, 
+                    isTransfer: true, 
+                    transferId 
+                });
+
+                // 2. Transação espelho na conta de destino/origem selecionada
+                const otherAccountName = accounts.find(a => a.id === transferAccountId)?.name || 'outra conta';
+                const docRefMirror = doc(collection(db, path));
+                batch.set(docRefMirror, { 
+                    ...transactionData, 
+                    accountId: transferAccountId, 
+                    type: isExpense ? 'revenue' : 'expense',
+                    description: isExpense 
+                        ? `Transferência de ${accountImportName} - ${transactionData.description}` 
+                        : `Transferência para ${accountImportName} - ${transactionData.description}`,
+                    isTransfer: true, 
+                    transferId 
+                });
+            } else {
+                const docRef = doc(collection(db, path));
+                batch.set(docRef, { ...transactionData, accountId });
+            }
         });
         await batch.commit();
     };
