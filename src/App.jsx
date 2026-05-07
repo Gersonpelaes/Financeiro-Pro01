@@ -2473,12 +2473,21 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, accounts, 
     const findBestMatch = (description) => {
         let guessedPayeeId = '';
         let guessedCategoryId = '';
-        const lowerCaseDescription = description.toLowerCase();
+        
+        // Remove acentos e todos os caracteres não-letras (útil para ignorar números de ID e datas na memória histórica)
+        const cleanForExactMatch = (str) => str ? str.normalize('NFD').replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z]/g, '') : '';
+        // Remove acentos, mantém espaços e números (útil para o includes dos fornecedores)
+        const cleanForIncludes = (str) => str ? str.normalize('NFD').replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim() : '';
+
+        const exactDesc = cleanForExactMatch(description);
+        const includesDesc = cleanForIncludes(description);
+
+        if (!exactDesc) return { guessedCategoryId, guessedPayeeId };
 
         // 1. Memória Histórica (Aprende com o que o usuário já categorizou)
         if (allTransactions) {
             for (const pastTx of allTransactions) {
-                if (pastTx.description.toLowerCase() === lowerCaseDescription && pastTx.categoryId) {
+                if (cleanForExactMatch(pastTx.description) === exactDesc && pastTx.categoryId) {
                     guessedCategoryId = pastTx.categoryId;
                     guessedPayeeId = pastTx.payeeId || '';
                     return { guessedCategoryId, guessedPayeeId };
@@ -2488,7 +2497,8 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, accounts, 
 
         // 2. Motor de Regras Locais (Verifica se contém nomes de favorecidos)
         for (const payee of payees) {
-            if (lowerCaseDescription.includes(payee.name.toLowerCase())) {
+            const cleanPayee = cleanForIncludes(payee.name);
+            if (cleanPayee.length >= 3 && includesDesc.includes(cleanPayee)) {
                 guessedPayeeId = payee.id;
                 if (payee.categoryId) {
                     guessedCategoryId = payee.categoryId;
@@ -2500,8 +2510,8 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, accounts, 
         // 3. Correspondência Básica de Categorias
         if (!guessedCategoryId) {
             for (const category of categories) {
-                const categoryNamePattern = new RegExp(`\\b${category.name.toLowerCase()}\\b`);
-                if (categoryNamePattern.test(lowerCaseDescription)) {
+                const cleanCat = cleanForIncludes(category.name);
+                if (cleanCat.length >= 3 && includesDesc.includes(cleanCat)) {
                     guessedCategoryId = category.id;
                     break;
                 }
