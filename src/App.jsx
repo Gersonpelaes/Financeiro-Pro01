@@ -2336,6 +2336,13 @@ const AccountsManager = ({ accounts, onSave, onDelete, onImport }) => {
                     </label>
 
                     <label className="block dark:text-gray-300"><span className="text-gray-700 dark:text-gray-300">Nome da Conta</span><input type="text" name="name" value={formData.name || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required /></label>
+                    
+                    <label className="block dark:text-gray-300">
+                        <span className="text-gray-700 dark:text-gray-300">Palavras-chave p/ Extrato (Opcional, separadas por vírgula)</span>
+                        <input type="text" name="keywords" value={formData.keywords || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" placeholder="Ex: 12345-6, Conta Caixa, 0001" />
+                        <span className="text-xs text-gray-500">Ajuda o sistema a identificar automaticamente transferências para esta conta no extrato.</span>
+                    </label>
+
                     <label className="block dark:text-gray-300">
                         <span className="text-gray-700 dark:text-gray-300">Tipo de Conta</span>
                         <select name="accountType" value={formData.accountType || 'corrente'} onChange={handleChange} disabled={!!formData.parentId} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300 disabled:bg-gray-200 dark:disabled:bg-gray-600">
@@ -2478,11 +2485,14 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, accounts, 
         const cleanForExactMatch = (str) => str ? str.normalize('NFD').replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z]/g, '') : '';
         // Remove acentos, mantém espaços e números (útil para o includes dos fornecedores)
         const cleanForIncludes = (str) => str ? str.normalize('NFD').replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim() : '';
+        // Remove tudo menos letras e números (útil para matching de números de conta sem hífen/espaço)
+        const cleanForKeywords = (str) => str ? str.normalize('NFD').replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, '') : '';
 
         const exactDesc = cleanForExactMatch(description);
         const includesDesc = cleanForIncludes(description);
+        const keywordDesc = cleanForKeywords(description);
 
-        if (!exactDesc) return { guessedCategoryId, guessedPayeeId };
+        if (!exactDesc) return { guessedCategoryId, guessedPayeeId, guessedTransferAccountId: '' };
 
         // 1. Memória Histórica (Aprende com o que o usuário já categorizou)
         if (allTransactions) {
@@ -2518,7 +2528,32 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, accounts, 
             }
         }
 
-        return { guessedCategoryId, guessedPayeeId };
+        // 4. Detecção de Transferências entre Contas
+        let guessedTransferAccountId = '';
+        if (accounts) {
+            for (const acc of accounts) {
+                if (account && acc.id === account.id) continue;
+                
+                if (acc.keywords) {
+                    const keywordsList = acc.keywords.split(',').map(k => k.trim()).filter(Boolean);
+                    for (const kw of keywordsList) {
+                        const cleanKw = cleanForKeywords(kw);
+                        // Verifica se a palavra-chave compactada está dentro da descrição compactada
+                        if (cleanKw.length >= 3 && keywordDesc.includes(cleanKw)) {
+                            guessedTransferAccountId = acc.id;
+                            break;
+                        }
+                    }
+                }
+                if (guessedTransferAccountId) break;
+            }
+        }
+
+        if (guessedTransferAccountId) {
+            return { guessedCategoryId: '', guessedPayeeId: '', guessedTransferAccountId };
+        }
+
+        return { guessedCategoryId, guessedPayeeId, guessedTransferAccountId: '' };
     };
 
     const processParsedData = (dataArray) => {
@@ -2532,7 +2567,7 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, accounts, 
                     return null;
                 }
 
-                const { guessedCategoryId, guessedPayeeId } = findBestMatch(description);
+                const { guessedCategoryId, guessedPayeeId, guessedTransferAccountId } = findBestMatch(description);
 
                 return {
                     id: crypto.randomUUID(),
@@ -2540,8 +2575,10 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, accounts, 
                     description: description,
                     amount: Math.abs(amount),
                     type: amount >= 0 ? 'revenue' : 'expense',
-                    categoryId: guessedCategoryId,
-                    payeeId: guessedPayeeId,
+                    categoryId: guessedTransferAccountId ? '' : guessedCategoryId,
+                    payeeId: guessedTransferAccountId ? '' : guessedPayeeId,
+                    isTransfer: !!guessedTransferAccountId,
+                    transferAccountId: guessedTransferAccountId,
                 };
             }).filter(Boolean);
             
