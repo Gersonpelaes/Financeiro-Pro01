@@ -2609,13 +2609,23 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, accounts, 
                     const trn = match[1];
                     const dateMatch = trn.match(/<DTPOSTED>([0-9]{8})/);
                     const amountMatch = trn.match(/<TRNAMT>([-\d.]+)/);
-                    const nameMatch = trn.match(/<MEMO>(.*?)(?=<|$)/) || trn.match(/<NAME>(.*?)(?=<|$)/);
+                    const memoMatch = trn.match(/<MEMO>([^<]+)/);
+                    const nameMatch = trn.match(/<NAME>([^<]+)/);
+                    
+                    let rawDesc = '';
+                    if (memoMatch && nameMatch && memoMatch[1].trim() !== nameMatch[1].trim()) {
+                        rawDesc = `${nameMatch[1].trim()} - ${memoMatch[1].trim()}`;
+                    } else if (memoMatch) {
+                        rawDesc = memoMatch[1];
+                    } else if (nameMatch) {
+                        rawDesc = nameMatch[1];
+                    }
 
                     if (dateMatch && amountMatch) {
                         const dateStr = dateMatch[1];
                         const date = new Date(Date.UTC(parseInt(dateStr.substring(0,4)), parseInt(dateStr.substring(4,6))-1, parseInt(dateStr.substring(6,8)), 12, 0, 0));
                         const amount = parseFloat(amountMatch[1]);
-                        const description = nameMatch ? nameMatch[1].replace(/<\/?[^>]+(>|$)/g, "").trim() : 'Sem descrição';
+                        const description = rawDesc ? rawDesc.replace(/[\r\n]+/g, ' ').trim() : 'Sem descrição';
                         
                         transactions.push({ date, description, amount });
                     }
