@@ -2496,21 +2496,35 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, accounts, 
 
         // 1. Memória Histórica (Aprende com o que o usuário já categorizou)
         if (allTransactions) {
+            let bestTransferAccountId = '';
+            let bestCategoryId = '';
+            let bestPayeeId = '';
+            let foundOrphanTransfer = false;
+
             for (const pastTx of allTransactions) {
                 if (cleanForExactMatch(pastTx.description) === exactDesc) {
                     if (pastTx.isTransfer) {
-                        let mirrorTxAccId = '';
                         if (pastTx.transferId) {
                             const mirrorTx = allTransactions.find(t => t.transferId === pastTx.transferId && t.id !== pastTx.id);
-                            if (mirrorTx) mirrorTxAccId = mirrorTx.accountId;
+                            if (mirrorTx) {
+                                bestTransferAccountId = mirrorTx.accountId;
+                                break; // Encontrou a transferência perfeita, não precisa procurar mais
+                            }
                         }
-                        return { guessedCategoryId: '', guessedPayeeId: '', guessedTransferAccountId: mirrorTxAccId || 'UNKNOWN' };
+                        foundOrphanTransfer = true; // Achou uma transferência, mas sem destino conhecido ainda
                     } else if (pastTx.categoryId) {
-                        guessedCategoryId = pastTx.categoryId;
-                        guessedPayeeId = pastTx.payeeId || '';
-                        return { guessedCategoryId, guessedPayeeId, guessedTransferAccountId: '' };
+                        bestCategoryId = pastTx.categoryId;
+                        bestPayeeId = pastTx.payeeId || '';
                     }
                 }
+            }
+
+            if (bestTransferAccountId) {
+                return { guessedCategoryId: '', guessedPayeeId: '', guessedTransferAccountId: bestTransferAccountId };
+            } else if (foundOrphanTransfer) {
+                return { guessedCategoryId: '', guessedPayeeId: '', guessedTransferAccountId: 'UNKNOWN' };
+            } else if (bestCategoryId) {
+                return { guessedCategoryId: bestCategoryId, guessedPayeeId: bestPayeeId, guessedTransferAccountId: '' };
             }
         }
 
