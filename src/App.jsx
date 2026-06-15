@@ -2497,10 +2497,17 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, accounts, 
         // 1. Memória Histórica (Aprende com o que o usuário já categorizou)
         if (allTransactions) {
             for (const pastTx of allTransactions) {
-                if (cleanForExactMatch(pastTx.description) === exactDesc && pastTx.categoryId) {
-                    guessedCategoryId = pastTx.categoryId;
-                    guessedPayeeId = pastTx.payeeId || '';
-                    return { guessedCategoryId, guessedPayeeId };
+                if (cleanForExactMatch(pastTx.description) === exactDesc) {
+                    if (pastTx.isTransfer && pastTx.transferId) {
+                        const mirrorTx = allTransactions.find(t => t.transferId === pastTx.transferId && t.id !== pastTx.id);
+                        if (mirrorTx) {
+                            return { guessedCategoryId: '', guessedPayeeId: '', guessedTransferAccountId: mirrorTx.accountId };
+                        }
+                    } else if (pastTx.categoryId) {
+                        guessedCategoryId = pastTx.categoryId;
+                        guessedPayeeId = pastTx.payeeId || '';
+                        return { guessedCategoryId, guessedPayeeId, guessedTransferAccountId: '' };
+                    }
                 }
             }
         }
@@ -3000,7 +3007,7 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, accounts, 
                             </thead>
                             <tbody>
                                 {transactions.map(t => (
-                                    <tr key={t.id} className="border-b dark:border-gray-700">
+                                    <tr key={t.id} className={`border-b dark:border-gray-700 ${t.isTransfer ? 'bg-blue-50/50 dark:bg-blue-900/20' : ''}`}>
                                         <td className="p-2">{formatDate(t.date)}</td>
                                         <td className="p-2">
                                             <input type="text" value={t.description} onChange={e => handleRowChange(t.id, 'description', e.target.value)} className="w-full p-1 border dark:border-gray-600 rounded-md dark:bg-gray-800" />
