@@ -2498,11 +2498,13 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, accounts, 
         if (allTransactions) {
             for (const pastTx of allTransactions) {
                 if (cleanForExactMatch(pastTx.description) === exactDesc) {
-                    if (pastTx.isTransfer && pastTx.transferId) {
-                        const mirrorTx = allTransactions.find(t => t.transferId === pastTx.transferId && t.id !== pastTx.id);
-                        if (mirrorTx) {
-                            return { guessedCategoryId: '', guessedPayeeId: '', guessedTransferAccountId: mirrorTx.accountId };
+                    if (pastTx.isTransfer) {
+                        let mirrorTxAccId = '';
+                        if (pastTx.transferId) {
+                            const mirrorTx = allTransactions.find(t => t.transferId === pastTx.transferId && t.id !== pastTx.id);
+                            if (mirrorTx) mirrorTxAccId = mirrorTx.accountId;
                         }
+                        return { guessedCategoryId: '', guessedPayeeId: '', guessedTransferAccountId: mirrorTxAccId || 'UNKNOWN' };
                     } else if (pastTx.categoryId) {
                         guessedCategoryId = pastTx.categoryId;
                         guessedPayeeId = pastTx.payeeId || '';
@@ -2585,7 +2587,7 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, accounts, 
                     categoryId: guessedTransferAccountId ? '' : guessedCategoryId,
                     payeeId: guessedTransferAccountId ? '' : guessedPayeeId,
                     isTransfer: !!guessedTransferAccountId,
-                    transferAccountId: guessedTransferAccountId,
+                    transferAccountId: guessedTransferAccountId === 'UNKNOWN' ? '' : guessedTransferAccountId,
                 };
             }).filter(Boolean);
             
