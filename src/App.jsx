@@ -2495,14 +2495,15 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, accounts, 
         if (!exactDesc) return { guessedCategoryId, guessedPayeeId, guessedTransferAccountId: '' };
 
         // 1. Memória Histórica (Aprende com o que o usuário já categorizou)
+        let foundOrphanTransfer = false;
         if (allTransactions) {
             let bestTransferAccountId = '';
             let bestCategoryId = '';
             let bestPayeeId = '';
-            let foundOrphanTransfer = false;
 
             for (const pastTx of allTransactions) {
-                if (cleanForExactMatch(pastTx.description) === exactDesc) {
+                const pastExact = cleanForExactMatch(pastTx.description);
+                if (pastExact === exactDesc) {
                     if (pastTx.isTransfer) {
                         if (pastTx.transferId) {
                             const mirrorTx = allTransactions.find(t => t.transferId === pastTx.transferId && t.id !== pastTx.id);
@@ -2516,16 +2517,21 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, accounts, 
                         bestCategoryId = pastTx.categoryId;
                         bestPayeeId = pastTx.payeeId || '';
                     }
+                } else if (pastTx.isTransfer && includesDesc.length >= 5 && cleanForIncludes(pastTx.description).includes(includesDesc)) {
+                    if (account && pastTx.accountId !== account.id) {
+                        bestTransferAccountId = pastTx.accountId;
+                        break;
+                    }
                 }
             }
 
             if (bestTransferAccountId) {
                 return { guessedCategoryId: '', guessedPayeeId: '', guessedTransferAccountId: bestTransferAccountId };
-            } else if (foundOrphanTransfer) {
-                return { guessedCategoryId: '', guessedPayeeId: '', guessedTransferAccountId: 'UNKNOWN' };
             } else if (bestCategoryId) {
+                // PRIORIDADE CORRIGIDA: Categoria válida SEMPRE ganha de transferência órfã
                 return { guessedCategoryId: bestCategoryId, guessedPayeeId: bestPayeeId, guessedTransferAccountId: '' };
             }
+            // Se encontrou apenas orphan transfer, não retorna agora para dar chance às Rules 2, 3 e 4
         }
 
         // 2. Motor de Regras Locais (Verifica se contém nomes de favorecidos)
@@ -2574,6 +2580,11 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, accounts, 
 
         if (guessedTransferAccountId) {
             return { guessedCategoryId: '', guessedPayeeId: '', guessedTransferAccountId };
+        }
+
+        // Se nenhuma outra regra se aplicou e sabíamos que era um orphan transfer:
+        if (foundOrphanTransfer) {
+            return { guessedCategoryId: '', guessedPayeeId: '', guessedTransferAccountId: 'UNKNOWN' };
         }
 
         return { guessedCategoryId, guessedPayeeId, guessedTransferAccountId: '' };
