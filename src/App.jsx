@@ -3742,11 +3742,25 @@ export default function App() {
 
 
         if (collectionName === 'transactions' && item.isTransfer) {
-            const batch = writeBatch(db);
-            const q = query(collection(db, path), where("transferId", "==", item.transferId));
-            const querySnapshot = await getDocs(q);
-            querySnapshot.forEach((doc) => batch.delete(doc.ref));
-            await batch.commit();
+            try {
+                if (item.transferId) {
+                    const batch = writeBatch(db);
+                    const q = query(collection(db, path), where("transferId", "==", item.transferId));
+                    const querySnapshot = await getDocs(q);
+                    
+                    if (!querySnapshot.empty) {
+                        querySnapshot.forEach((doc) => batch.delete(doc.ref));
+                        // Garante que o próprio item seja deletado caso a query falhe por algum motivo de index
+                        batch.delete(doc(db, path, itemId));
+                        await batch.commit();
+                        return;
+                    }
+                }
+                // Fallback para transferências legadas/órfãs sem transferId
+                await deleteDoc(doc(db, path, itemId));
+            } catch (error) {
+                console.error("Erro ao deletar transferência:", error);
+            }
         } else {
             if (collectionName === 'transactions' && item.attachmentURL) {
                 try {
@@ -3788,8 +3802,11 @@ export default function App() {
                     querySnapshot.forEach((doc) => {
                         batch.delete(doc.ref);
                     });
+                    // Fallback explícito para garantir a deleção
+                    batch.delete(doc(db, path, item.id));
                 }
-            } else if (!item.isTransfer) {
+            } else {
+                // Deleta itens normais OU transferências órfãs/legadas (sem transferId)
                 batch.delete(doc(db, path, item.id));
             }
         }
