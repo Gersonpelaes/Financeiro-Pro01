@@ -8,6 +8,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 import { PlusCircle, Upload, Trash2, Edit, TrendingUp, TrendingDown, DollarSign, Settings, LayoutDashboard, List, BarChart2, Target, ArrowLeft, ArrowRightLeft, Repeat, CheckCircle, AlertTriangle, Clock, CalendarCheck2, Building, GitCompareArrows, ArrowUp, ArrowDown, Paperclip, FileText, LogOut, Download, UploadCloud, Sun, Moon, FileOutput, CalendarClock, Menu, X, ShieldCheck, CreditCard, RefreshCw, BookCopy, FileJson, Wallet, Percent, Archive, Receipt, Landmark, AreaChart } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
+import PosView from './PosModule';
 
 // --- CONFIGURAÇÃO DO FIREBASE ---
 const firebaseConfig = {
@@ -399,8 +400,7 @@ const DashboardView = ({ transactions, accounts, categories, futureEntries, budg
     );
 };
 
-const TransactionsView = ({ transactions, accounts, categories, payees, onSave, onDelete, onBatchDelete, futureEntries, onImportTransactions }) => {
-    const [selectedAccountId, setSelectedAccountId] = useState('');
+const TransactionsView = ({ transactions, accounts, categories, payees, onSave, onDelete, onBatchDelete, futureEntries, onImportTransactions, activeCompanyId, db , selectedAccountId, setSelectedAccountId, onOpenReconciliation}) => {
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingTransaction, setEditingTransaction] = useState(null);
@@ -418,6 +418,9 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
 
     // Estados de Simulação
     const [isSimulating, setIsSimulating] = useState(false);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [rowsPerPage, setRowsPerPage] = useState(100);
+
     const [simulationRange, setSimulationRange] = useState({ start: '', end: '' });
     const [isSimulationModalOpen, setIsSimulationModalOpen] = useState(false);
 
@@ -820,8 +823,8 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
                                     <Clock size={20} /><span>Simular Futuro</span>
                                 </Button>
                             )}
-                            <Button onClick={() => setIsImportModalOpen(true)} disabled={!selectedAccountId || selectedAccountId === 'all'} className="bg-green-600 hover:bg-green-700">
-                                <Upload size={20} /><span>Conciliar Extrato</span>
+                            <Button onClick={onOpenReconciliation} disabled={!selectedAccountId || selectedAccountId === 'all'} className="bg-blue-600 hover:bg-blue-700">
+                                <GitCompareArrows size={20} /><span>Conciliar Extrato</span>
                             </Button>
                             <Button onClick={() => handleOpenModal()}><PlusCircle size={20} /><span>Adicionar Transação</span></Button>
                         </div>
@@ -966,6 +969,7 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
                     </div>
                 </div>
             </Modal>
+            
             <TransactionImportModal
                 isOpen={isImportModalOpen}
                 onClose={() => setIsImportModalOpen(false)}
@@ -1229,8 +1233,7 @@ const ReportsView = ({ transactions, categories, accounts, futureEntries }) => {
 };
 
 // --- VIEW DE CONCILIAÇÃO BANCÁRIA ---
-const ReconciliationView = ({ transactions, accounts, categories, payees, onSaveTransaction, allTransactions }) => {
-    const [selectedAccountId, setSelectedAccountId] = useState('');
+const ReconciliationView = ({ transactions, accounts, categories, payees, onSaveTransaction, allTransactions , selectedAccountId, setSelectedAccountId}) => {
     const [statementData, setStatementData] = useState([]);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
@@ -3512,6 +3515,8 @@ export default function App() {
     const [transactions, setTransactions] = useState([]);
     const [budgets, setBudgets] = useState([]);
     const [futureEntries, setFutureEntries] = useState([]);
+    const [globalAccountId, setGlobalAccountId] = useState('');
+    const [isPosModalOpen, setIsPosModalOpen] = useState(false);
 
     const [allCompaniesData, setAllCompaniesData] = useState({});
     const [subscription, setSubscription] = useState(null);
@@ -4162,8 +4167,8 @@ export default function App() {
 
         switch (view) {
             case 'dashboard': return <DashboardView {...{ transactions, accounts, categories, futureEntries, budgets, dashboardConfig }} onSaveConfig={handleSaveDashboardConfig} />;
-            case 'transactions': return <TransactionsView transactions={transactions} accounts={accounts} categories={categories} payees={payees} futureEntries={futureEntries} onSave={handleSaveWithCompanyId} onDelete={handleDeleteWithCompanyId} onBatchDelete={handleBatchDeleteTransactions} onImportTransactions={handleImportWithCompanyId} />;
-            case 'reconciliation': return <ReconciliationView transactions={transactions} accounts={accounts} categories={categories} payees={payees} onSaveTransaction={handleSaveWithCompanyId} allTransactions={transactions} />;
+            case 'transactions': return <TransactionsView transactions={transactions} accounts={accounts} categories={categories} payees={payees} futureEntries={futureEntries} onSave={handleSaveWithCompanyId} onDelete={handleDeleteWithCompanyId} onBatchDelete={handleBatchDeleteTransactions} onImportTransactions={handleImportWithCompanyId} activeCompanyId={activeCompanyId} db={db} selectedAccountId={globalAccountId} setSelectedAccountId={setGlobalAccountId} onOpenReconciliation={() => setView('reconciliation')} />;
+            case 'reconciliation': return <ReconciliationView transactions={transactions} accounts={accounts} categories={categories} payees={payees} onSaveTransaction={handleSaveWithCompanyId} allTransactions={transactions} selectedAccountId={globalAccountId} setSelectedAccountId={setGlobalAccountId} />;
             case 'futureEntries': return <FutureEntriesView futureEntries={futureEntries} accounts={accounts} categories={categories} payees={payees} onSave={handleSaveWithCompanyId} onDelete={handleDeleteWithCompanyId} onReconcile={handleReconcileWithCompanyId} />;
             case 'budgets': return <BudgetsView budgets={budgets} categories={categories} transactions={transactions} onSave={handleSaveWithCompanyId} onDelete={handleDeleteWithCompanyId} />;
             case 'reports': return <ReportsView transactions={transactions} categories={categories} accounts={accounts} futureEntries={futureEntries} />;
@@ -4189,6 +4194,116 @@ export default function App() {
 
     const isTransactionsView = view === 'transactions';
 
+
+    const handleSaveClosing = (closingData, accountId) => {
+        if (!accountId || accountId === 'all') {
+            alert('Selecione a Conta Caixa para gerar as transações.');
+            return;
+        }
+
+        // 1. Receitas em Dinheiro
+        const dinheiroAlmoco = Object.values(closingData.almoco?.dinheiro || {}).reduce((a, b) => a + b, 0);
+        const dinheiroJantar = Object.values(closingData.jantar?.dinheiro || {}).reduce((a, b) => a + b, 0);
+        const recebimentosDinheiro = (closingData.recebimentosContasAssinadas || []).filter(r => r.formaPagamento === 'dinheiro').reduce((sum, r) => sum + r.valorRecebido, 0);
+        
+        const totalDinheiroVendas = dinheiroAlmoco + dinheiroJantar + recebimentosDinheiro;
+        
+        if (totalDinheiroVendas > 0) {
+            handleSave('transactions', {
+                date: closingData.date,
+                description: 'Vendas e Recebimentos (Dinheiro)',
+                amount: totalDinheiroVendas,
+                type: 'revenue',
+                accountId: accountId,
+                categoryId: 'vendas',
+                payeeId: '',
+                tags: ['fechamento-caixa', 'vendas'],
+                notes: 'Lançamento automático via Fechamento de Caixa',
+                isPaid: true
+            });
+        }
+
+        // 2. Despesas em Dinheiro (Pagamentos Diretos)
+        (closingData.pagamentosCaixa || []).forEach(p => {
+            if (p.valor > 0 && (p.formaPagamento === 'dinheiro' || !p.formaPagamento)) {
+                handleSave('transactions', {
+                    date: closingData.date,
+                    description: `Pagamento: ${p.referente}`,
+                    amount: p.valor,
+                    type: 'expense',
+                    accountId: accountId,
+                    categoryId: 'outros',
+                    payeeId: '',
+                    tags: ['fechamento-caixa', 'pagamento-direto'],
+                    notes: 'Lançamento automático via Fechamento de Caixa',
+                    isPaid: true
+                });
+            }
+        });
+
+        // 3. Pagamento de Entregadores em Dinheiro
+        (closingData.entregadores || []).forEach(e => {
+            if (e.formaPagamento === 'dinheiro' || !e.formaPagamento) {
+                const deliveryCosts = (e.brotas * closingData.deliveryRates.brotas) + (e.torrinha * closingData.deliveryRates.torrinha) + (e.retorno * closingData.deliveryRates.retorno) + (e.outras * closingData.deliveryRates.outras);
+                const valorTotalEntregador = e.diaria + deliveryCosts;
+                
+                if (valorTotalEntregador > 0) {
+                    handleSave('transactions', {
+                        date: closingData.date,
+                        description: `Entregador: ${e.nome}`,
+                        amount: valorTotalEntregador,
+                        type: 'expense',
+                        accountId: accountId,
+                        categoryId: 'outros',
+                        payeeId: '',
+                        tags: ['fechamento-caixa', 'entregador'],
+                        notes: 'Lançamento automático via Fechamento de Caixa',
+                        isPaid: true
+                    });
+                }
+            }
+        });
+
+        // 4. Sangria (Saídas de Dinheiro)
+        (closingData.sangria || []).forEach(s => {
+            if (s.valor > 0) {
+                handleSave('transactions', {
+                    date: closingData.date,
+                    description: `Sangria: ${s.responsavel}`,
+                    amount: s.valor,
+                    type: 'expense',
+                    accountId: accountId,
+                    categoryId: 'transferencia',
+                    payeeId: '',
+                    tags: ['fechamento-caixa', 'sangria'],
+                    notes: 'Lançamento automático via Fechamento de Caixa',
+                    isPaid: true
+                });
+            }
+        });
+
+        // 5. Suprimento (Entradas de Dinheiro)
+        (closingData.suprimento || []).forEach(s => {
+            if (s.valor > 0) {
+                handleSave('transactions', {
+                    date: closingData.date,
+                    description: `Suprimento: ${s.responsavel}`,
+                    amount: s.valor,
+                    type: 'revenue',
+                    accountId: accountId,
+                    categoryId: 'transferencia',
+                    payeeId: '',
+                    tags: ['fechamento-caixa', 'suprimento'],
+                    notes: 'Lançamento automático via Fechamento de Caixa',
+                    isPaid: true
+                });
+            }
+        });
+
+        alert('Fechamento de Caixa salvo e transações em dinheiro geradas com sucesso!');
+    };
+
+
     return (
         <div className={`flex h-screen bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200 font-sans overflow-hidden`}>
             {isMobileMenuOpen && (
@@ -4213,7 +4328,14 @@ export default function App() {
                         <NavItem icon={<LayoutDashboard />} label="Dashboard" active={view === 'dashboard'} onClick={() => setView('dashboard')} />
                         <NavItem icon={<List />} label="Transações" active={view === 'transactions'} onClick={() => setView('transactions')} />
                         <NavItem icon={<CalendarClock />} label="Fluxo de Caixa Semanal" active={view === 'weeklyCashFlow'} onClick={() => setView('weeklyCashFlow')} />
-                        <NavItem icon={<GitCompareArrows />} label="Conciliação" active={view === 'reconciliation'} onClick={() => setView('reconciliation')} />
+                        <NavItem icon={<Landmark />} label="Controle de Vendas/Caixa" active={isPosModalOpen} onClick={() => {
+                            if (!globalAccountId || globalAccountId === 'all') {
+                                alert('Por favor, selecione a Conta Caixa na aba de Transações primeiro, para que o fechamento seja lançado na conta correta.');
+                                setView('transactions');
+                            } else {
+                                setIsPosModalOpen(true);
+                            }
+                        }} />
                         <NavItem icon={<CalendarCheck2 />} label="Lançamentos Futuros" active={view === 'futureEntries'} onClick={() => setView('futureEntries')} />
                         <NavItem icon={<Target />} label="Orçamentos" active={view === 'budgets'} onClick={() => setView('budgets')} />
                         <NavItem icon={<BarChart2 />} label="Relatórios" active={view === 'reports'} onClick={() => setView('reports')} />
@@ -4253,6 +4375,27 @@ export default function App() {
                 <div className={`${isTransactionsView ? 'h-full' : ''} ${!isSubscribed ? 'blur-sm' : ''}`}>
                     {renderView()}
                 </div>
+                {isPosModalOpen && (
+                <div className="fixed inset-0 z-[60] bg-white overflow-auto flex flex-col">
+                    <div className="flex justify-between items-center p-4 bg-gray-800 text-white">
+                        <h2 className="text-xl font-bold">Controle de Vendas/Caixa</h2>
+                        <button onClick={() => setIsPosModalOpen(false)} className="text-gray-300 hover:text-white p-2">
+                            <X size={24} />
+                        </button>
+                    </div>
+                    <div className="flex-grow overflow-auto relative">
+                        <PosView 
+                            companyId={activeCompanyId} 
+                            db={db} 
+                            payees={payees} 
+                            onSaveClosing={(data) => {
+                                handleSaveClosing(data, globalAccountId);
+                                setIsPosModalOpen(false);
+                            }}
+                        />
+                    </div>
+                </div>
+            )}
             </main>
         </div>
     );
