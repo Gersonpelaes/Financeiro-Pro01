@@ -399,8 +399,9 @@ const DashboardView = ({ transactions, accounts, categories, futureEntries, budg
     );
 };
 
-const TransactionsView = ({ transactions, accounts, categories, payees, onSave, onDelete, onBatchDelete, futureEntries }) => {
+const TransactionsView = ({ transactions, accounts, categories, payees, onSave, onDelete, onBatchDelete, futureEntries, onImportTransactions }) => {
     const [selectedAccountId, setSelectedAccountId] = useState('');
+    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingTransaction, setEditingTransaction] = useState(null);
     const [formData, setFormData] = useState({});
@@ -819,6 +820,9 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
                                     <Clock size={20} /><span>Simular Futuro</span>
                                 </Button>
                             )}
+                            <Button onClick={() => setIsImportModalOpen(true)} disabled={!selectedAccountId || selectedAccountId === 'all'} className="bg-green-600 hover:bg-green-700">
+                                <Upload size={20} /><span>Conciliar Extrato</span>
+                            </Button>
                             <Button onClick={() => handleOpenModal()}><PlusCircle size={20} /><span>Adicionar Transação</span></Button>
                         </div>
                     </div>
@@ -962,6 +966,16 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
                     </div>
                 </div>
             </Modal>
+            <TransactionImportModal
+                isOpen={isImportModalOpen}
+                onClose={() => setIsImportModalOpen(false)}
+                onImport={onImportTransactions}
+                account={accounts.find(a => a.id === selectedAccountId)}
+                accounts={accounts}
+                categories={categories}
+                payees={payees}
+                allTransactions={transactions}
+            />
         </div>
     );
 };
@@ -4148,7 +4162,7 @@ export default function App() {
 
         switch (view) {
             case 'dashboard': return <DashboardView {...{ transactions, accounts, categories, futureEntries, budgets, dashboardConfig }} onSaveConfig={handleSaveDashboardConfig} />;
-            case 'transactions': return <TransactionsView transactions={transactions} accounts={accounts} categories={categories} payees={payees} futureEntries={futureEntries} onSave={handleSaveWithCompanyId} onDelete={handleDeleteWithCompanyId} onBatchDelete={handleBatchDeleteTransactions} />;
+            case 'transactions': return <TransactionsView transactions={transactions} accounts={accounts} categories={categories} payees={payees} futureEntries={futureEntries} onSave={handleSaveWithCompanyId} onDelete={handleDeleteWithCompanyId} onBatchDelete={handleBatchDeleteTransactions} onImportTransactions={handleImportWithCompanyId} />;
             case 'reconciliation': return <ReconciliationView transactions={transactions} accounts={accounts} categories={categories} payees={payees} onSaveTransaction={handleSaveWithCompanyId} allTransactions={transactions} />;
             case 'futureEntries': return <FutureEntriesView futureEntries={futureEntries} accounts={accounts} categories={categories} payees={payees} onSave={handleSaveWithCompanyId} onDelete={handleDeleteWithCompanyId} onReconcile={handleReconcileWithCompanyId} />;
             case 'budgets': return <BudgetsView budgets={budgets} categories={categories} transactions={transactions} onSave={handleSaveWithCompanyId} onDelete={handleDeleteWithCompanyId} />;
