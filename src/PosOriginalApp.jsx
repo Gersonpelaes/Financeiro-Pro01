@@ -18,8 +18,8 @@ const CogIcon = (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" fi
 
 
 // --- Configuração do Firebase ---
-const firebaseConfig = {"apiKey":"AIzaSyC-Kh6tIALtYmJrGtCtfRt81VsgY9ufq1A","authDomain":"controle-financeiro-pwa.firebaseapp.com","projectId":"controle-financeiro-pwa","storageBucket":"controle-financeiro-pwa.appspot.com","messagingSenderId":"212349422403","appId":"1:212349422403:web:369557b4713ea18b623df6","measurementId":"G-B12RWYS63F"};
-const app = initializeApp(firebaseConfig);
+const firebaseConfig = process.env.REACT_APP_POS_FIREBASE_CONFIG ? JSON.parse(process.env.REACT_APP_POS_FIREBASE_CONFIG) : {};
+const app = getApps().find(a => a.name === 'pos_module_app') || initializeApp(firebaseConfig, 'pos_module_app');
 const db = getFirestore(app);
 const auth = getAuth(app);
 const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : 'default-app-id';

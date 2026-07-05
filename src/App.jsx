@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps } from 'firebase/app';
 import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
 import { getFirestore, collection, doc, addDoc, getDocs, writeBatch, query, onSnapshot, deleteDoc, setDoc, where, getDoc, limit } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
@@ -11,16 +11,16 @@ import * as XLSX from 'xlsx';
 import PosOriginalApp from './PosOriginalApp';
 
 // --- CONFIGURAÇÃO DO FIREBASE ---
-const firebaseConfig = {
-    apiKey: "AIzaSyAssnm4OKxyI_IMFijKcU1wKDf0iGEFYAw",
-    authDomain: "meu-finaceiro.firebaseapp.com",
-    projectId: "meu-finaceiro",
-    storageBucket: "meu-finaceiro.firebasestorage.app",
-    messagingSenderId: "204846182105",
-    appId: "1:204846182105:web:695589e7181040bf5958c8",
+const firebaseConfig = process.env.REACT_APP_MAIN_FIREBASE_CONFIG ? JSON.parse(process.env.REACT_APP_MAIN_FIREBASE_CONFIG) : {
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_AUTH_DOMAIN",
+    projectId: "YOUR_PROJECT_ID",
+    storageBucket: "YOUR_STORAGE_BUCKET",
+    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+    appId: "YOUR_APP_ID"
 };
 
-const app = initializeApp(firebaseConfig);
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
