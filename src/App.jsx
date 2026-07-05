@@ -8,7 +8,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 import { PlusCircle, Upload, Trash2, Edit, TrendingUp, TrendingDown, DollarSign, Settings, LayoutDashboard, List, BarChart2, Target, ArrowLeft, ArrowRightLeft, Repeat, CheckCircle, AlertTriangle, Clock, CalendarCheck2, Building, GitCompareArrows, ArrowUp, ArrowDown, Paperclip, FileText, LogOut, Download, UploadCloud, Sun, Moon, FileOutput, CalendarClock, Menu, X, ShieldCheck, CreditCard, RefreshCw, BookCopy, FileJson, Wallet, Percent, Archive, Receipt, Landmark, AreaChart } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
-import PosView from './PosModule';
+import PosOriginalApp from './PosOriginalApp';
 
 // --- CONFIGURAÇÃO DO FIREBASE ---
 const firebaseConfig = {
@@ -4384,11 +4384,8 @@ export default function App() {
                         </button>
                     </div>
                     <div className="flex-grow overflow-auto relative">
-                        <PosView 
-                            companyId={activeCompanyId} 
-                            db={db} 
-                            payees={payees} 
-                            onSaveClosing={(data) => {
+                        <PosOriginalApp 
+                            onSyncClosingData={(data) => {
                                 handleSaveClosing(data, globalAccountId);
                                 setIsPosModalOpen(false);
                             }}

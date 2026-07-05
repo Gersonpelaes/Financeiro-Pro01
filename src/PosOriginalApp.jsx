@@ -1,4 +1,3 @@
-/* eslint-disable no-unused-vars */
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, doc, setDoc, getDoc, deleteDoc, writeBatch, runTransaction, serverTimestamp, where, updateDoc } from 'firebase/firestore';
@@ -19,8 +18,13 @@ const CogIcon = (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" fi
 
 
 // --- Configuração do Firebase ---
-// Removida: será passado via props
-const appId = 'default-app-id';
+const firebaseConfig = {"apiKey":"AIzaSyC-Kh6tIALtYmJrGtCtfRt81VsgY9ufq1A","authDomain":"controle-financeiro-pwa.firebaseapp.com","projectId":"controle-financeiro-pwa","storageBucket":"controle-financeiro-pwa.appspot.com","messagingSenderId":"212349422403","appId":"1:212349422403:web:369557b4713ea18b623df6","measurementId":"G-B12RWYS63F"};
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : 'default-app-id';
+
+// --- Constantes ---
 const supplierCategories = ['Materia Prima', 'Folha de pagamento', 'Gasto operacional', 'Gasto de produção', 'Impostos', 'Despesas finaceiras'];
 const allPaymentMethods = ['dinheiro', 'credito', 'debito', 'pix', 'vr', 'ifoodAiqfome', 'contaAssinada'];
 const expensePaymentMethods = ['dinheiro', 'cartao', 'pix'];
@@ -35,7 +39,7 @@ const initialCompanies = [
     { id: 'emporio_peixaria_brotas', name: 'Empório e Peixaria Brotas', password: '2020' },
     { id: 'jackburguers', name: 'Jackburguers', password: '3030' },
 ];
-const configDocPath = `app_config/companies`;
+const configDocPath = `artifacts/${appId}/public/data/app_config/companies`;
 
 
 // --- Estrutura de dados inicial para o formulário de fechamento ---
@@ -494,7 +498,7 @@ const SignedAccountsTable = ({ data, beneficiaries, onChange, onAdd, onRemove, o
 };
 
 
-function AddClosingScreen({ onSave, onCancel, companyId, initialDate, beneficiaries, closings, onAddBeneficiary, onManageBeneficiaries, showModal, db }) {
+function AddClosingScreen({ onSave, onCancel, companyId, initialDate, beneficiaries, closings, onAddBeneficiary, onManageBeneficiaries, showModal }) {
     const defaultDate = initialDate || new Date().toISOString().slice(0, 10);
     const [formData, setFormData] = useState({ ...initialClosingData, date: defaultDate });
     const [isEditing, setIsEditing] = useState(false);
@@ -542,7 +546,7 @@ function AddClosingScreen({ onSave, onCancel, companyId, initialDate, beneficiar
 
             setIsLoading(true);
             try {
-                const docRef = doc(db, `companies/${companyId}/daily_closings`, formData.date);
+                const docRef = doc(db, `artifacts/${appId}/public/data/companies/${companyId}/daily_closings`, formData.date);
                 const docSnap = await getDoc(docRef);
                 if (docSnap.exists()) {
                     const data = docSnap.data();
@@ -1264,8 +1268,9 @@ const Header = ({ companyName, onLogout }) => {
 
 
 // --- Componente Principal ---
-export default function PosView({ companyId, db, payees, onSaveClosing }) {
-    const authenticatedCompany = { id: companyId, name: 'Caixa' };
+export default function PosOriginalApp({ onSyncClosingData }) {
+    const [authenticatedCompany, setAuthenticatedCompany] = useState(null);
+    const [companies, setCompanies] = useState([]);
     const [isAuthReady, setIsAuthReady] = useState(false);
     const [loadingConfig, setLoadingConfig] = useState(true);
     const [activeView, setActiveView] = useState('history'); // history, add, reports
@@ -1342,10 +1347,32 @@ export default function PosView({ companyId, db, payees, onSaveClosing }) {
     };
 
     useEffect(() => {
+        const authAndListen = async () => {
+            try {
+                if (typeof window.__initial_auth_token !== 'undefined' && window.__initial_auth_token) { await signInWithCustomToken(auth, window.__initial_auth_token); }
+                else { await signInAnonymously(auth); }
+            } catch (error) { console.error("Firebase auth failed:", error); }
+            onAuthStateChanged(auth, (user) => setIsAuthReady(true));
+        };
+        authAndListen();
+    }, []);
+
+    useEffect(() => {
+        if (!isAuthReady) return;
+        const docRef = doc(db, configDocPath);
+        const unsubscribe = onSnapshot(docRef, (docSnap) => {
+            if (docSnap.exists() && docSnap.data().list) { setCompanies(docSnap.data().list); }
+            else { setDoc(docRef, { list: initialCompanies }); setCompanies(initialCompanies); }
+            setLoadingConfig(false);
+        }, (error) => { console.error("Error fetching companies config:", error); setCompanies(initialCompanies); setLoadingConfig(false); });
+        return () => unsubscribe();
+    }, [isAuthReady]);
+
+    useEffect(() => {
         if (!authenticatedCompany) return;
         setLoadingClosings(true);
 
-        const closingsCollectionPath = `companies/${authenticatedCompany.id}/daily_closings`;
+        const closingsCollectionPath = `artifacts/${appId}/public/data/companies/${authenticatedCompany.id}/daily_closings`;
         const qClosings = query(collection(db, closingsCollectionPath));
         const unsubClosings = onSnapshot(qClosings, (snapshot) => {
             const closingsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -1353,7 +1380,7 @@ export default function PosView({ companyId, db, payees, onSaveClosing }) {
             setLoadingClosings(false);
         }, (error) => { console.error("Erro ao buscar fechamentos:", error); setLoadingClosings(false); });
 
-        const beneficiariesCollectionPath = `companies/${authenticatedCompany.id}/beneficiaries`;
+        const beneficiariesCollectionPath = `artifacts/${appId}/public/data/companies/${authenticatedCompany.id}/beneficiaries`;
         const qBeneficiaries = query(collection(db, beneficiariesCollectionPath), orderBy('name'));
         const unsubBeneficiaries = onSnapshot(qBeneficiaries, (snapshot) => {
             const beneficiariesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -1364,7 +1391,8 @@ export default function PosView({ companyId, db, payees, onSaveClosing }) {
     }, [authenticatedCompany]);
 
 
-    const handleLogout = () => { setActiveView('history'); };
+    const handleLoginSuccess = (company) => { setAuthenticatedCompany(company); };
+    const handleLogout = () => { setAuthenticatedCompany(null); setActiveView('history'); };
 
     const handleSave = async (data) => {
         showModal(
@@ -1373,8 +1401,13 @@ export default function PosView({ companyId, db, payees, onSaveClosing }) {
             async () => {
                 try {
                     const docId = data.date;
-                    const docRef = doc(db, `companies/${authenticatedCompany.id}/daily_closings`, docId);
+                    const docRef = doc(db, `artifacts/${appId}/public/data/companies/${authenticatedCompany.id}/daily_closings`, docId);
                     await setDoc(docRef, data, { merge: true });
+                    if (onSyncClosingData) {
+                        try {
+                            onSyncClosingData(data);
+                        } catch(e) { console.error(e); }
+                    }
                     showModal("Sucesso!", `Fechamento de ${new Date(data.date + 'T12:00:00').toLocaleDateString('pt-BR')} salvo com sucesso!`);
                     setActiveView('history');
                 } catch (error) {
@@ -1390,7 +1423,7 @@ export default function PosView({ companyId, db, payees, onSaveClosing }) {
         showModal("Confirmar Exclusão", `Tem certeza que deseja excluir o fechamento do dia ${formattedDate}?`,
             async () => {
                 try {
-                    await deleteDoc(doc(db, `companies/${authenticatedCompany.id}/daily_closings`, id));
+                    await deleteDoc(doc(db, `artifacts/${appId}/public/data/companies/${authenticatedCompany.id}/daily_closings`, id));
                     showModal('Sucesso', 'O fechamento foi excluído.');
                 }
                 catch (error) { console.error("Erro ao excluir:", error); showModal('Erro', 'Falha ao excluir.'); }
@@ -1400,7 +1433,7 @@ export default function PosView({ companyId, db, payees, onSaveClosing }) {
 
     const handleSaveBeneficiary = async (name) => {
         try {
-            const beneficiariesCollectionPath = `companies/${authenticatedCompany.id}/beneficiaries`;
+            const beneficiariesCollectionPath = `artifacts/${appId}/public/data/companies/${authenticatedCompany.id}/beneficiaries`;
             await addDoc(collection(db, beneficiariesCollectionPath), { name });
             showModal("Sucesso", `Beneficiário "${name}" cadastrado.`);
             setIsBeneficiaryModalOpen(false);
@@ -1409,7 +1442,7 @@ export default function PosView({ companyId, db, payees, onSaveClosing }) {
 
     const handleUpdateBeneficiary = async (id, newName) => {
         try {
-            const docRef = doc(db, `companies/${authenticatedCompany.id}/beneficiaries`, id);
+            const docRef = doc(db, `artifacts/${appId}/public/data/companies/${authenticatedCompany.id}/beneficiaries`, id);
             await updateDoc(docRef, { name: newName });
             showModal("Sucesso", "Nome do beneficiário atualizado.");
         } catch (error) {
@@ -1422,7 +1455,7 @@ export default function PosView({ companyId, db, payees, onSaveClosing }) {
         showModal("Confirmar Exclusão", `Tem certeza que deseja excluir o beneficiário "${name}"? Esta ação não pode ser desfeita.`,
             async () => {
                 try {
-                    const docRef = doc(db, `companies/${authenticatedCompany.id}/beneficiaries`, id);
+                    const docRef = doc(db, `artifacts/${appId}/public/data/companies/${authenticatedCompany.id}/beneficiaries`, id);
                     await deleteDoc(docRef);
                     showModal("Sucesso", "Beneficiário excluído.");
                 } catch (error) {
@@ -1438,13 +1471,13 @@ export default function PosView({ companyId, db, payees, onSaveClosing }) {
     const handleAddNew = () => { setEditingDate(null); setActiveView('add'); }
 
     const renderPage = () => {
-        
-        
+        if (!isAuthReady || loadingConfig) { return <LoadingScreen />; }
+        if (!authenticatedCompany) { return <LoginScreen companies={companies} onLoginSuccess={handleLoginSuccess} />; }
 
         let currentView;
         switch (activeView) {
             case 'add':
-                currentView = <AddClosingScreen onSave={handleSave} onCancel={() => setActiveView('history')} companyId={authenticatedCompany.id} initialDate={editingDate} beneficiaries={beneficiaries} closings={closings} onAddBeneficiary={() => setIsBeneficiaryModalOpen(true)} onManageBeneficiaries={() => setIsManageBeneficiariesModalOpen(true)} showModal={showModal} db={db} />;
+                currentView = <AddClosingScreen onSave={handleSave} onCancel={() => setActiveView('history')} companyId={authenticatedCompany.id} initialDate={editingDate} beneficiaries={beneficiaries} closings={closings} onAddBeneficiary={() => setIsBeneficiaryModalOpen(true)} onManageBeneficiaries={() => setIsManageBeneficiariesModalOpen(true)} showModal={showModal} />;
                 break;
             case 'reports':
                 currentView = <ReportsScreen closings={closings} beneficiaries={beneficiaries} companyName={authenticatedCompany.name} onLogout={handleLogout} onShowMessage={showModal} exportToPdf={exportToPdf} scriptsReady={scriptsReady} />;
