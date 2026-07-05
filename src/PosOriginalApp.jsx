@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, doc, setDoc, getDoc, deleteDoc, writeBatch, runTransaction, serverTimestamp, where, updateDoc } from 'firebase/firestore';
 import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
 
@@ -19,7 +19,12 @@ const CogIcon = (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" fi
 
 // --- Configuração do Firebase ---
 const firebaseConfig = process.env.REACT_APP_POS_FIREBASE_CONFIG ? JSON.parse(process.env.REACT_APP_POS_FIREBASE_CONFIG) : {};
-const app = getApps().find(a => a.name === 'pos_module_app') || initializeApp(firebaseConfig, 'pos_module_app');
+let app;
+try {
+    app = getApp('pos_module_app');
+} catch (e) {
+    app = initializeApp(firebaseConfig, 'pos_module_app');
+}
 const db = getFirestore(app);
 const auth = getAuth(app);
 const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : 'default-app-id';
