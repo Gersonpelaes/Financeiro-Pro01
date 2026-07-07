@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, doc, setDoc, getDoc, deleteDoc, writeBatch, runTransaction, serverTimestamp, where, updateDoc } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, doc, setDoc, getDoc, deleteDoc, writeBatch, runTransaction, serverTimestamp, where, updateDoc, getDocs } from 'firebase/firestore';
 import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
 
 // --- Ícones em SVG para a UI ---
@@ -36,7 +36,7 @@ const expensePaymentMethods = ['dinheiro', 'cartao', 'pix'];
 const paymentMethodLabels = { dinheiro: 'Dinheiro', credito: 'Crédito', debito: 'Débito', pix: 'Pix', vr: 'Vale Refeição', ifoodAiqfome: 'iFood/Aiqfome', contaAssinada: 'Conta Assinada', cartao: 'Cartão' };
 
 // --- Dados Iniciais das Empresas ---
-const initialCompanies = [
+export const initialCompanies = [
     { id: 'remo_brotas', name: 'Remo Brotas', password: '7410' },
     { id: 'jack_pepira', name: 'Jack Pepira', password: '8522' },
     { id: 'o_forno', name: 'O Forno', password: '9633' },
@@ -44,6 +44,23 @@ const initialCompanies = [
     { id: 'emporio_peixaria_brotas', name: 'Empório e Peixaria Brotas', password: '2020' },
     { id: 'jackburguers', name: 'Jackburguers', password: '3030' },
 ];
+
+export const fetchPosClosings = async (companyId, startDate, endDate) => {
+    try {
+        const q = query(
+            collection(db, `artifacts/${appId}/public/data/companies/${companyId}/daily_closings`),
+            where('date', '>=', startDate),
+            where('date', '<=', endDate)
+        );
+        const snapshot = await getDocs(q);
+        const closings = [];
+        snapshot.forEach(doc => closings.push({ id: doc.id, ...doc.data() }));
+        return closings;
+    } catch (error) {
+        console.error("Erro ao buscar fechamentos do POS:", error);
+        return [];
+    }
+};
 const configDocPath = `artifacts/${appId}/public/data/app_config/companies`;
 
 

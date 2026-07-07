@@ -4,11 +4,11 @@ import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signO
 import { getFirestore, collection, doc, addDoc, getDocs, writeBatch, query, onSnapshot, deleteDoc, setDoc, where, getDoc, limit } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import PosOriginalApp, { fetchPosClosings, initialCompanies } from './PosOriginalApp';
 import { PlusCircle, Upload, Trash2, Edit, TrendingUp, TrendingDown, DollarSign, Settings, LayoutDashboard, List, BarChart2, Target, ArrowLeft, ArrowRightLeft, Repeat, CheckCircle, AlertTriangle, Clock, CalendarCheck2, Building, GitCompareArrows, ArrowUp, ArrowDown, Paperclip, FileText, LogOut, Download, UploadCloud, Sun, Moon, FileOutput, CalendarClock, Menu, X, ShieldCheck, CreditCard, RefreshCw, BookCopy, FileJson, Wallet, Percent, Archive, Receipt, Landmark, AreaChart } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
-import PosOriginalApp from './PosOriginalApp';
 
 // --- CONFIGURAÇÃO DO FIREBASE ---
 const firebaseConfig = process.env.REACT_APP_MAIN_FIREBASE_CONFIG ? JSON.parse(process.env.REACT_APP_MAIN_FIREBASE_CONFIG) : {
@@ -975,6 +975,7 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
                 </div>
             </Modal>
             
+
             <TransactionImportModal
                 isOpen={isImportModalOpen}
                 onClose={() => setIsImportModalOpen(false)}
@@ -1237,10 +1238,152 @@ const ReportsView = ({ transactions, categories, accounts, futureEntries }) => {
     );
 };
 
+// --- MODAL DE IMPORTAÇÃO DO POS ---
+const PosImportModal = ({ isOpen, onClose, onImport }) => {
+    const [startDate, setStartDate] = useState(new Date(new Date().setDate(new Date().getDate() - 7)).toISOString().slice(0, 10));
+    const [endDate, setEndDate] = useState(new Date().toISOString().slice(0, 10));
+    const [companyId, setCompanyId] = useState(initialCompanies[0]?.id || '');
+    const [isLoading, setIsLoading] = useState(false);
+
+    if (!isOpen) return null;
+
+    const handleImport = async () => {
+        if (!companyId) return;
+        setIsLoading(true);
+        try {
+            const closings = await fetchPosClosings(companyId, startDate, endDate);
+            
+            const importedTransactions = [];
+            
+            closings.forEach(closingData => {
+                // 1. Receitas em Dinheiro
+                const dinheiroAlmoco = Object.values(closingData.almoco?.dinheiro || {}).reduce((a, b) => a + b, 0);
+                const dinheiroJantar = Object.values(closingData.jantar?.dinheiro || {}).reduce((a, b) => a + b, 0);
+                const recebimentosDinheiro = (closingData.recebimentosContasAssinadas || []).filter(r => r.formaPagamento === 'dinheiro').reduce((sum, r) => sum + r.valorRecebido, 0);
+                const totalDinheiroVendas = dinheiroAlmoco + dinheiroJantar + recebimentosDinheiro;
+                
+                if (totalDinheiroVendas > 0) {
+                    importedTransactions.push({
+                        id: 'pos-venda-' + closingData.date,
+                        date: closingData.date,
+                        description: 'Vendas e Recebimentos (Dinheiro)',
+                        amount: totalDinheiroVendas,
+                        type: 'revenue',
+                        categoryId: 'vendas',
+                        notes: 'Importado do Módulo Vendas'
+                    });
+                }
+
+                // 2. Despesas em Dinheiro
+                (closingData.pagamentosCaixa || []).forEach((p, idx) => {
+                    if (p.valor > 0 && (p.formaPagamento === 'dinheiro' || !p.formaPagamento)) {
+                        importedTransactions.push({
+                            id: 'pos-pag-' + closingData.date + '-' + idx,
+                            date: closingData.date,
+                            description: `Pagamento: ${p.referente}`,
+                            amount: p.valor,
+                            type: 'expense',
+                            categoryId: 'outros',
+                            notes: 'Importado do Módulo Vendas'
+                        });
+                    }
+                });
+
+                // 3. Entregadores
+                (closingData.entregadores || []).forEach((e, idx) => {
+                    if (e.formaPagamento === 'dinheiro' || !e.formaPagamento) {
+                        const deliveryRates = closingData.deliveryRates || { brotas: 0, torrinha: 0, retorno: 0, outras: 0 };
+                        const deliveryCosts = (e.brotas * deliveryRates.brotas) + (e.torrinha * deliveryRates.torrinha) + (e.retorno * deliveryRates.retorno) + (e.outras * deliveryRates.outras);
+                        const valorTotalEntregador = e.diaria + deliveryCosts;
+                        if (valorTotalEntregador > 0) {
+                            importedTransactions.push({
+                                id: 'pos-entregador-' + closingData.date + '-' + idx,
+                                date: closingData.date,
+                                description: `Entregador: ${e.nome}`,
+                                amount: valorTotalEntregador,
+                                type: 'expense',
+                                categoryId: 'outros',
+                                notes: 'Importado do Módulo Vendas'
+                            });
+                        }
+                    }
+                });
+
+                // 4. Sangria
+                (closingData.sangria || []).forEach((s, idx) => {
+                    if (s.valor > 0) {
+                        importedTransactions.push({
+                            id: 'pos-sangria-' + closingData.date + '-' + idx,
+                            date: closingData.date,
+                            description: `Sangria: ${s.responsavel}`,
+                            amount: s.valor,
+                            type: 'expense',
+                            categoryId: 'transferencia',
+                            notes: 'Importado do Módulo Vendas'
+                        });
+                    }
+                });
+
+                // 5. Suprimento
+                (closingData.suprimento || []).forEach((s, idx) => {
+                    if (s.valor > 0) {
+                        importedTransactions.push({
+                            id: 'pos-suprimento-' + closingData.date + '-' + idx,
+                            date: closingData.date,
+                            description: `Suprimento: ${s.responsavel}`,
+                            amount: s.valor,
+                            type: 'revenue',
+                            categoryId: 'transferencia',
+                            notes: 'Importado do Módulo Vendas'
+                        });
+                    }
+                });
+            });
+
+            onImport(importedTransactions);
+            onClose();
+        } catch (err) {
+            alert('Erro ao importar: ' + err.message);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title="Importar do Módulo Vendas">
+            <div className="space-y-4">
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Empresa</label>
+                    <select value={companyId} onChange={e => setCompanyId(e.target.value)} className="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                        {initialCompanies.map(c => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                    </select>
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Data Inicial</label>
+                    <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Data Final</label>
+                    <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+                </div>
+                <div className="flex justify-end space-x-2 pt-4">
+                    <Button onClick={onClose} variant="secondary">Cancelar</Button>
+                    <Button onClick={handleImport} disabled={isLoading} className="bg-blue-600 hover:bg-blue-700">
+                        {isLoading ? 'Importando...' : 'Importar'}
+                    </Button>
+                </div>
+            </div>
+        </Modal>
+    );
+};
+
 // --- VIEW DE CONCILIAÇÃO BANCÁRIA ---
 const ReconciliationView = ({ transactions, accounts, categories, payees, onSaveTransaction, allTransactions , selectedAccountId, setSelectedAccountId}) => {
     const [statementData, setStatementData] = useState([]);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+    const [isPosImportModalOpen, setIsPosImportModalOpen] = useState(false);
 
     // Novos estados para o modal de transferência
     const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
@@ -1322,6 +1465,9 @@ const ReconciliationView = ({ transactions, accounts, categories, payees, onSave
                     <Button onClick={() => setIsImportModalOpen(true)} disabled={!selectedAccountId}>
                         <Upload size={18} /> Importar Extrato
                     </Button>
+                    <Button onClick={() => setIsPosImportModalOpen(true)} disabled={!selectedAccountId} className="bg-green-600 hover:bg-green-700">
+                        <Download size={18} /> Baixar do Módulo Vendas
+                    </Button>
                 </div>
             </div>
 
@@ -1362,6 +1508,7 @@ const ReconciliationView = ({ transactions, accounts, categories, payees, onSave
                 </div>
             )}
 
+            <PosImportModal isOpen={isPosImportModalOpen} onClose={() => setIsPosImportModalOpen(false)} onImport={(data) => setStatementData(prev => [...prev, ...data])} />
             <TransactionImportModal
                 isOpen={isImportModalOpen}
                 onClose={() => setIsImportModalOpen(false)}
