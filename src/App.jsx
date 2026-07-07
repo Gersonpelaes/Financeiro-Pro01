@@ -1384,6 +1384,7 @@ const ReconciliationView = ({ transactions, accounts, categories, payees, onSave
     const [statementData, setStatementData] = useState([]);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [isPosImportModalOpen, setIsPosImportModalOpen] = useState(false);
+    const [posTransactions, setPosTransactions] = useState(null);
 
     // Novos estados para o modal de transferência
     const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
@@ -1508,17 +1509,33 @@ const ReconciliationView = ({ transactions, accounts, categories, payees, onSave
                 </div>
             )}
 
-            <PosImportModal isOpen={isPosImportModalOpen} onClose={() => setIsPosImportModalOpen(false)} onImport={(data) => setStatementData(prev => [...prev, ...data])} />
+            <PosImportModal 
+                isOpen={isPosImportModalOpen} 
+                onClose={() => setIsPosImportModalOpen(false)} 
+                onImport={(data) => {
+                    setPosTransactions(data);
+                    setIsPosImportModalOpen(false);
+                    setIsImportModalOpen(true);
+                }} 
+            />
             <TransactionImportModal
                 isOpen={isImportModalOpen}
-                onClose={() => setIsImportModalOpen(false)}
-                onImport={handleImport}
+                onClose={() => {
+                    setIsImportModalOpen(false);
+                    setPosTransactions(null);
+                }}
+                onImport={(parsedTransactions) => {
+                    setStatementData(prev => [...prev, ...parsedTransactions]);
+                    setIsImportModalOpen(false);
+                    setPosTransactions(null);
+                }}
                 account={accounts.find(a => a.id === selectedAccountId)}
                 accounts={accounts}
                 categories={categories}
                 payees={payees}
                 allTransactions={allTransactions}
                 onSave={onSaveTransaction}
+                externalTransactions={posTransactions}
             />
 
             <ReconciliationTransferModal
@@ -2612,7 +2629,7 @@ const PayeesManager = ({ payees, categories, onSave, onDelete }) => {
 };
 
 // --- MODAL DE IMPORTAÇÃO DE TRANSAÇÕES (ATUALIZADO) ---
-const TransactionImportModal = ({ isOpen, onClose, onImport, account, accounts, categories, payees, allTransactions, onSave }) => {
+const TransactionImportModal = ({ isOpen, onClose, onImport, account, accounts, categories, payees, allTransactions, onSave, externalTransactions }) => {
     const [step, setStep] = useState(1);
     const [csvData, setCsvData] = useState('');
     const [transactions, setTransactions] = useState([]);
@@ -2643,8 +2660,11 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, accounts, 
             setCsvData('');
             setTransactions([]);
             setError('');
+        } else if (externalTransactions && externalTransactions.length > 0) {
+            setTransactions(externalTransactions);
+            setStep(3);
         }
-    }, [isOpen]);
+    }, [isOpen, externalTransactions]);
 
     const findBestMatch = (description) => {
         let guessedPayeeId = '';
