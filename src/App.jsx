@@ -2662,7 +2662,7 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, accounts, 
             setError('');
         } else if (externalTransactions && externalTransactions.length > 0) {
             setTransactions(externalTransactions);
-            setStep(3);
+            setStep(2);
         }
     }, [isOpen, externalTransactions]);
 
