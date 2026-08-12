@@ -6,7 +6,7 @@ import { getFunctions, httpsCallable } from 'firebase/functions';
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import PosOriginalApp, { fetchPosClosings, initialCompanies } from './PosOriginalApp';
-import { PlusCircle, Upload, Trash2, Edit, TrendingUp, TrendingDown, DollarSign, Settings, LayoutDashboard, List, BarChart2, Target, ArrowLeft, ArrowRightLeft, Repeat, CheckCircle, AlertTriangle, Clock, CalendarCheck2, Building, GitCompareArrows, ArrowUp, ArrowDown, Paperclip, FileText, LogOut, Download, UploadCloud, Sun, Moon, FileOutput, CalendarClock, Menu, X, ShieldCheck, CreditCard, RefreshCw, BookCopy, FileJson, Wallet, Percent, Archive, Receipt, Landmark, AreaChart } from 'lucide-react';
+import { PlusCircle, Upload, Trash2, Edit, TrendingUp, TrendingDown, DollarSign, Settings, LayoutDashboard, List, BarChart2, Target, ArrowLeft, ArrowRightLeft, Repeat, CheckCircle, AlertTriangle, Clock, CalendarCheck2, Building, GitCompareArrows, ArrowUp, ArrowDown, Paperclip, FileText, LogOut, Download, UploadCloud, Sun, Moon, FileOutput, CalendarClock, Menu, X, ShieldCheck, CreditCard, RefreshCw, BookCopy, FileJson, Wallet, Percent, Archive, Receipt, Landmark, AreaChart, Eye, EyeOff } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 
@@ -2229,8 +2229,14 @@ const CompaniesManager = ({ companies, onSave, onDelete }) => {
             <ul className="space-y-3">
                 {companies.map(c => (
                     <li key={c.id} className="flex justify-between items-center p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg border dark:border-gray-700">
-                        <p className="font-semibold text-gray-700 dark:text-gray-300">{c.name}</p>
+                        <p className={`font-semibold ${c.isActive === false ? 'text-gray-400 dark:text-gray-500 line-through' : 'text-gray-700 dark:text-gray-300'}`}>{c.name}</p>
                         <div className="flex items-center space-x-2">
+                            <button onClick={() => {
+                                const newStatus = c.isActive === false ? true : false;
+                                onSave('companies', { ...c, isActive: newStatus }, c.id);
+                            }} className={`${c.isActive === false ? 'text-gray-400 hover:text-gray-600' : 'text-green-500 hover:text-green-700'} p-1`} title={c.isActive === false ? "Ativar Empresa" : "Desativar Empresa"}>
+                                {c.isActive === false ? <EyeOff size={16} /> : <Eye size={16} />}
+                            </button>
                             <button onClick={() => handleOpenModal(c)} className="text-blue-500 hover:text-blue-700 p-1" title="Renomear Empresa"><Edit size={16} /></button>
                             <button onClick={() => onDelete('companies', c.id)} className="text-red-500 hover:text-red-700 p-1" title="Excluir Empresa"><Trash2 size={16} /></button>
                         </div>
@@ -3596,7 +3602,7 @@ const HubScreen = ({ companies, onSelect, onShowReports, onManageCompanies }) =>
                 <p className="text-xl text-white/80 mb-12">Selecione uma empresa para começar ou veja os seus relatórios consolidados.</p>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {companies.map(company => (
+                    {companies.filter(c => c.isActive !== false).map(company => (
                         <button key={company.id} onClick={() => onSelect(company.id)} className="group bg-white/10 hover:bg-white/20 backdrop-blur-md p-6 rounded-2xl text-white text-left transition-all transform hover:scale-105">
                             <Building size={32} className="mb-4 text-blue-300 group-hover:text-white transition-colors" />
                             <h2 className="text-xl font-bold">{company.name}</h2>
@@ -3605,7 +3611,7 @@ const HubScreen = ({ companies, onSelect, onShowReports, onManageCompanies }) =>
                     ))}
                 </div>
 
-                {companies.length > 0 && (
+                {companies.filter(c => c.isActive !== false).length > 0 && (
                     <div className="mt-12">
                         <Button onClick={onShowReports} className="bg-purple-600 hover:bg-purple-700">
                             <BarChart2 size={20} />
