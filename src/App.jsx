@@ -3411,8 +3411,10 @@ const SettingsView = ({ onSaveEntity, onDeleteEntity, onImportTransactions, acco
 };
 
 const ConsolidatedReportsView = ({ allCompaniesData, companies, onBack }) => {
+    const activeCompanies = useMemo(() => companies.filter(c => c.isActive !== false), [companies]);
+
     const chartData = useMemo(() => {
-        return companies.map(company => {
+        return activeCompanies.map(company => {
             const data = allCompaniesData[company.id] || { revenue: 0, expense: 0, balance: 0 };
             return {
                 name: company.name,
@@ -3421,11 +3423,14 @@ const ConsolidatedReportsView = ({ allCompaniesData, companies, onBack }) => {
                 Saldo: data.balance,
             };
         });
-    }, [allCompaniesData, companies]);
+    }, [allCompaniesData, activeCompanies]);
 
     const totalConsolidatedBalance = useMemo(() => {
-        return Object.values(allCompaniesData).reduce((sum, data) => sum + data.balance, 0);
-    }, [allCompaniesData]);
+        return activeCompanies.reduce((sum, company) => {
+            const data = allCompaniesData[company.id] || { balance: 0 };
+            return sum + data.balance;
+        }, 0);
+    }, [allCompaniesData, activeCompanies]);
 
     return (
         <div className="p-8 space-y-8 bg-gray-100 dark:bg-gray-900 min-h-screen">
