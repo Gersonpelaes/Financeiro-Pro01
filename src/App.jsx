@@ -3344,7 +3344,7 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, accounts, 
 };
 
 
-const SettingsView = ({ onSaveEntity, onDeleteEntity, onImportTransactions, accounts, payees, categories, allTransactions, activeCompanyId }) => {
+const SettingsView = ({ onSaveEntity, onDeleteEntity, onBatchDelete, onImportTransactions, accounts, payees, categories, allTransactions, activeCompanyId }) => {
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [accountToImport, setAccountToImport] = useState(null);
     const [activeTab, setActiveTab] = useState('accounts');
@@ -3356,6 +3356,43 @@ const SettingsView = ({ onSaveEntity, onDeleteEntity, onImportTransactions, acco
 
     const handleImportConfirm = (transactions) => {
         onImportTransactions(transactions, accountToImport.id);
+    };
+
+    const handleRemoveDuplicates = async () => {
+        if (!window.confirm('Tem a certeza que deseja procurar e remover transações duplicadas? (Mesma descrição, valor, data e conta). Esta ação não pode ser desfeita.')) return;
+
+        const grouped = {};
+        allTransactions.forEach(t => {
+            const dateStr = typeof t.date === 'string' ? t.date : (t.date?.toDate ? t.date.toDate().toISOString().split('T')[0] : String(t.date));
+            const key = `${t.accountId}_${t.description}_${t.amount}_${dateStr}`;
+            if (!grouped[key]) grouped[key] = [];
+            grouped[key].push(t);
+        });
+
+        const duplicatesToDelete = [];
+        Object.values(grouped).forEach(group => {
+            if (group.length > 1) {
+                // Keep the first one, mark others for deletion
+                for (let i = 1; i < group.length; i++) {
+                    duplicatesToDelete.push(group[i]);
+                }
+            }
+        });
+
+        if (duplicatesToDelete.length === 0) {
+            alert('Não foram encontradas transações duplicadas.');
+            return;
+        }
+
+        if (!window.confirm(`Foram encontradas ${duplicatesToDelete.length} transações duplicadas. Deseja excluí-las permanentemente?`)) return;
+
+        try {
+            await onBatchDelete(duplicatesToDelete);
+            alert('Transações duplicadas removidas com sucesso!');
+        } catch (error) {
+            console.error("Erro ao remover duplicados:", error);
+            alert('Erro ao remover transações duplicadas.');
+        }
     };
 
     const handleApplyTemplate = async (templateData) => {
@@ -3399,7 +3436,12 @@ const SettingsView = ({ onSaveEntity, onDeleteEntity, onImportTransactions, acco
 
     return (
         <div className="space-y-8">
-            <h2 className="text-4xl font-bold text-gray-800 dark:text-gray-200">Configurações da Empresa</h2>
+            <div className="flex justify-between items-center">
+                <h2 className="text-4xl font-bold text-gray-800 dark:text-gray-200">Configurações da Empresa</h2>
+                <Button onClick={handleRemoveDuplicates} className="bg-red-600 hover:bg-red-700 flex items-center gap-2">
+                    <Trash2 size={18} /> Limpar Lançamentos Duplicados
+                </Button>
+            </div>
 
             <div className="border-b dark:border-gray-700">
                 <TabButton tab="accounts" label="Contas" />
@@ -4378,6 +4420,7 @@ export default function App() {
             case 'settings': return <SettingsView
                 onSaveEntity={settingsSaveHandler}
                 onDeleteEntity={settingsDeleteHandler}
+                onBatchDelete={handleBatchDeleteTransactions}
                 onImportTransactions={handleImportWithCompanyId}
                 {...{ accounts, payees, categories, allTransactions: transactions, activeCompanyId }}
             />;
