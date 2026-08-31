@@ -1442,6 +1442,19 @@ const ReconciliationView = ({ transactions, accounts, categories, payees, onSave
         setStatementData(prev => prev.filter(t => t.id !== statementItem.id));
     };
 
+    const handleCreateAllTransactions = () => {
+        reconciliationResult.onlyInStatement.forEach(item => {
+            const newTransaction = {
+                ...item,
+                accountId: selectedAccountId,
+                reconciled: true,
+            };
+            onSaveTransaction('transactions', newTransaction);
+        });
+        const idsToRemove = reconciliationResult.onlyInStatement.map(i => i.id);
+        setStatementData(prev => prev.filter(t => !idsToRemove.includes(t.id)));
+    };
+
     // Novas funções para gerir a criação de transferências
     const handleOpenTransferModal = (statementItem) => {
         setTransferData(statementItem);
@@ -1486,7 +1499,12 @@ const ReconciliationView = ({ transactions, accounts, categories, payees, onSave
                     </div>
                     {/* Only in Statement */}
                     <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg">
-                        <h3 className="text-xl font-bold text-blue-600 mb-4">Apenas no Extrato ({reconciliationResult.onlyInStatement.length})</h3>
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-xl font-bold text-blue-600">Apenas no Extrato ({reconciliationResult.onlyInStatement.length})</h3>
+                            {reconciliationResult.onlyInStatement.length > 0 && (
+                                <Button onClick={handleCreateAllTransactions} className="bg-green-600 hover:bg-green-700 !py-1 !px-3 text-sm">Criar Todas</Button>
+                            )}
+                        </div>
                         {reconciliationResult.onlyInStatement.map(item => (
                             <div key={item.id} className="flex flex-wrap justify-between items-center border-b dark:border-gray-700 p-2 gap-2">
                                 <p className="flex-grow">{item.description} - {formatCurrency(item.amount)} em {formatDate(item.date)}</p>
