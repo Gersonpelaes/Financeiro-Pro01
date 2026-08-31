@@ -3348,6 +3348,11 @@ const SettingsView = ({ onSaveEntity, onDeleteEntity, onBatchDelete, onImportTra
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [accountToImport, setAccountToImport] = useState(null);
     const [activeTab, setActiveTab] = useState('accounts');
+    
+    // Duplicate Review State
+    const [isDuplicateModalOpen, setIsDuplicateModalOpen] = useState(false);
+    const [duplicatesFound, setDuplicatesFound] = useState([]);
+    const [selectedForDeletion, setSelectedForDeletion] = useState(new Set());
 
     const handleOpenImportModal = (account) => {
         setAccountToImport(account);
@@ -3358,9 +3363,7 @@ const SettingsView = ({ onSaveEntity, onDeleteEntity, onBatchDelete, onImportTra
         onImportTransactions(transactions, accountToImport.id);
     };
 
-    const handleRemoveDuplicates = async () => {
-        if (!window.confirm('Tem a certeza que deseja procurar e remover transações duplicadas? (Mesma descrição, valor, data e conta). Esta ação não pode ser desfeita.')) return;
-
+    const handleFindDuplicates = () => {
         const grouped = {};
         allTransactions.forEach(t => {
             const dateStr = typeof t.date === 'string' ? t.date : (t.date?.toDate ? t.date.toDate().toISOString().split('T')[0] : String(t.date));
@@ -3369,30 +3372,51 @@ const SettingsView = ({ onSaveEntity, onDeleteEntity, onBatchDelete, onImportTra
             grouped[key].push(t);
         });
 
-        const duplicatesToDelete = [];
+        const duplicates = [];
         Object.values(grouped).forEach(group => {
             if (group.length > 1) {
                 // Keep the first one, mark others for deletion
                 for (let i = 1; i < group.length; i++) {
-                    duplicatesToDelete.push(group[i]);
+                    duplicates.push(group[i]);
                 }
             }
         });
 
-        if (duplicatesToDelete.length === 0) {
+        if (duplicates.length === 0) {
             alert('Não foram encontradas transações duplicadas.');
             return;
         }
 
-        if (!window.confirm(`Foram encontradas ${duplicatesToDelete.length} transações duplicadas. Deseja excluí-las permanentemente?`)) return;
+        setDuplicatesFound(duplicates);
+        setSelectedForDeletion(new Set(duplicates.map(d => d.id)));
+        setIsDuplicateModalOpen(true);
+    };
+
+    const handleConfirmDuplicateDeletion = async () => {
+        const duplicatesToDelete = duplicatesFound.filter(d => selectedForDeletion.has(d.id));
+        
+        if (duplicatesToDelete.length === 0) {
+            alert('Nenhuma transação selecionada para exclusão.');
+            return;
+        }
+
+        if (!window.confirm(`Tem a certeza que deseja excluir as ${duplicatesToDelete.length} transações selecionadas permanentemente?`)) return;
 
         try {
             await onBatchDelete(duplicatesToDelete);
             alert('Transações duplicadas removidas com sucesso!');
+            setIsDuplicateModalOpen(false);
         } catch (error) {
             console.error("Erro ao remover duplicados:", error);
             alert('Erro ao remover transações duplicadas.');
         }
+    };
+
+    const toggleDuplicateSelection = (id) => {
+        const newSet = new Set(selectedForDeletion);
+        if (newSet.has(id)) newSet.delete(id);
+        else newSet.add(id);
+        setSelectedForDeletion(newSet);
     };
 
     const handleApplyTemplate = async (templateData) => {
@@ -3438,7 +3462,7 @@ const SettingsView = ({ onSaveEntity, onDeleteEntity, onBatchDelete, onImportTra
         <div className="space-y-8">
             <div className="flex justify-between items-center">
                 <h2 className="text-4xl font-bold text-gray-800 dark:text-gray-200">Configurações da Empresa</h2>
-                <Button onClick={handleRemoveDuplicates} className="bg-red-600 hover:bg-red-700 flex items-center gap-2">
+                <Button onClick={handleFindDuplicates} className="bg-red-600 hover:bg-red-700 flex items-center gap-2">
                     <Trash2 size={18} /> Limpar Lançamentos Duplicados
                 </Button>
             </div>
@@ -3466,6 +3490,32 @@ const SettingsView = ({ onSaveEntity, onDeleteEntity, onBatchDelete, onImportTra
                 allTransactions={allTransactions}
                 onSave={onSaveEntity}
             />
+
+            {/* Duplicate Review Modal */}
+            <Modal isOpen={isDuplicateModalOpen} onClose={() => setIsDuplicateModalOpen(false)} title="Revisão de Lançamentos Duplicados">
+                <div className="space-y-4 max-h-96 overflow-y-auto">
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Foram encontradas {duplicatesFound.length} transações duplicadas. Selecione as que deseja excluir permanentemente:</p>
+                    
+                    {duplicatesFound.map(item => (
+                        <div key={item.id} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg border dark:border-gray-700">
+                            <input
+                                type="checkbox"
+                                checked={selectedForDeletion.has(item.id)}
+                                onChange={() => toggleDuplicateSelection(item.id)}
+                                className="w-5 h-5 text-red-600 rounded focus:ring-red-500"
+                            />
+                            <div className="flex-1">
+                                <p className="font-semibold text-gray-800 dark:text-gray-200">{item.description}</p>
+                                <p className="text-xs text-gray-500">{formatCurrency(item.amount)} em {formatDate(item.date)}</p>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+                <div className="mt-6 flex justify-end gap-2">
+                    <Button onClick={() => setIsDuplicateModalOpen(false)} className="bg-gray-500 hover:bg-gray-600">Cancelar</Button>
+                    <Button onClick={handleConfirmDuplicateDeletion} className="bg-red-600 hover:bg-red-700">Excluir Selecionados ({selectedForDeletion.size})</Button>
+                </div>
+            </Modal>
         </div>
     );
 };
