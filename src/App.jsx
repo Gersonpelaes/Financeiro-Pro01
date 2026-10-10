@@ -3813,7 +3813,7 @@ export default function App() {
 
     const [allCompaniesData, setAllCompaniesData] = useState({});
     const [subscription, setSubscription] = useState(null);
-    const isSubscribed = subscription?.status === 'active' || subscription?.status === 'trialing';
+    const isSubscribed = true; // subscription?.status === 'active' || subscription?.status === 'trialing';
 
     // --- LÓGICA DE MIGRAÇÃO ---
     const [migrationStatus, setMigrationStatus] = useState('checking'); // checking, needed, not_needed
