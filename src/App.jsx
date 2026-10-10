@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { getFirestore, collection, doc, addDoc, getDocs, writeBatch, query, onSnapshot, deleteDoc, setDoc, where, getDoc, limit } from 'firebase/firestore';
+import { getFirestore, collection, doc, addDoc, getDocs, writeBatch, query, onSnapshot, deleteDoc, setDoc, where, getDoc, limit, getAggregateFromServer, sum } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
@@ -3945,21 +3945,28 @@ export default function App() {
             for (const company of companies) {
                 const basePath = `users/${userId}/companies/${company.id}`;
                 const accountsQuery = query(collection(db, `${basePath}/accounts`));
-                const transactionsQuery = query(collection(db, `${basePath}/transactions`));
+                const transactionsRef = collection(db, `${basePath}/transactions`);
 
-                const [accountsSnap, transactionsSnap] = await Promise.all([
-                    getDocs(accountsQuery),
-                    getDocs(transactionsQuery)
-                ]);
+                const revQuery = query(transactionsRef, where('type', '==', 'revenue'));
+                const expQuery = query(transactionsRef, where('type', '==', 'expense'));
 
-                const companyAccounts = accountsSnap.docs.map(d => d.data());
-                const companyTransactions = transactionsSnap.docs.map(d => d.data());
+                try {
+                    const [accountsSnap, revSnap, expSnap] = await Promise.all([
+                        getDocs(accountsQuery),
+                        getAggregateFromServer(revQuery, { total: sum('amount') }),
+                        getAggregateFromServer(expQuery, { total: sum('amount') })
+                    ]);
 
-                const revenue = companyTransactions.filter(t => t.type === 'revenue').reduce((s, t) => s + t.amount, 0);
-                const expense = companyTransactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
-                const balance = companyAccounts.reduce((s, a) => s + (a.initialBalance || 0), 0) + revenue - expense;
+                    const companyAccounts = accountsSnap.docs.map(d => d.data());
+                    const revenue = revSnap.data().total || 0;
+                    const expense = expSnap.data().total || 0;
+                    const balance = companyAccounts.reduce((s, a) => s + (a.initialBalance || 0), 0) + revenue - expense;
 
-                data[company.id] = { revenue, expense, balance };
+                    data[company.id] = { revenue, expense, balance };
+                } catch (error) {
+                    console.error("Erro ao agregar transações da empresa", company.id, error);
+                    data[company.id] = { revenue: 0, expense: 0, balance: 0 };
+                }
             }
             setAllCompaniesData(data);
         };
