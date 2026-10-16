@@ -2290,7 +2290,7 @@ const DREView = ({ transactions, categories, accounts, payees, onSave, onDelete,
 
     const TableRow = ({ item, isSub = false }) => (
         <tr className={`border-b dark:border-gray-700 ${isSub ? 'bg-gray-50 dark:bg-gray-700/50' : 'bg-white dark:bg-gray-800'}`}>
-            <td className={`p-3 whitespace-nowrap ${isSub ? 'pl-8' : 'font-semibold'}`}>
+            <td className={`sticky left-0 z-10 p-3 whitespace-nowrap border-r dark:border-gray-700 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.08)] ${isSub ? 'pl-8 bg-gray-50 dark:bg-gray-800' : 'font-semibold bg-white dark:bg-gray-800'}`}>
                 <button onClick={() => handleCategoryClick(item)} className="text-left w-full hover:text-blue-600 dark:hover:text-blue-400">
                     {item.name}
                 </button>
@@ -2311,7 +2311,7 @@ const DREView = ({ transactions, categories, accounts, payees, onSave, onDelete,
         </tr>
     );
 
-    const totalColSpan = isMultiMonth ? monthsList.length + 3 : 3;
+    const extraColsCount = isMultiMonth ? monthsList.length + 2 : 2;
 
     return (
         <>
@@ -2364,23 +2364,26 @@ const DREView = ({ transactions, categories, accounts, payees, onSave, onDelete,
                         <Button onClick={handleExportPDF} className="bg-green-600 hover:bg-green-700"><FileOutput size={18} /> Exportar PDF</Button>
                     </div>
                 </div>
-                <div className="overflow-x-auto">
-                    <table className="w-full">
+                <div className="overflow-auto max-h-[72vh] border dark:border-gray-700 rounded-lg relative">
+                    <table className="w-full border-collapse">
                         <thead>
                             <tr className="border-b-2 dark:border-gray-700 text-left">
-                                <th className="p-3 min-w-[220px]">Descrição</th>
+                                <th className="sticky top-0 left-0 z-30 bg-gray-100 dark:bg-gray-900 p-3 min-w-[220px] border-r dark:border-gray-700 shadow-[2px_2px_5px_-2px_rgba(0,0,0,0.12)]">Descrição</th>
                                 {isMultiMonth && monthsList.map(m => (
-                                    <th key={m} className="p-3 text-right whitespace-nowrap">{formatMonthLabel(m)}</th>
+                                    <th key={m} className="sticky top-0 z-20 bg-gray-100 dark:bg-gray-900 p-3 text-right whitespace-nowrap shadow-[0_2px_5px_-2px_rgba(0,0,0,0.08)]">{formatMonthLabel(m)}</th>
                                 ))}
-                                <th className={`p-3 text-right whitespace-nowrap ${isMultiMonth ? 'bg-gray-50 dark:bg-gray-700/40 font-bold' : ''}`}>
+                                <th className={`sticky top-0 z-20 bg-gray-100 dark:bg-gray-900 p-3 text-right whitespace-nowrap shadow-[0_2px_5px_-2px_rgba(0,0,0,0.08)] ${isMultiMonth ? 'font-bold' : ''}`}>
                                     {isMultiMonth ? 'Total' : 'Valor'}
                                 </th>
-                                <th className="p-3 text-right whitespace-nowrap">% Faturamento</th>
+                                <th className="sticky top-0 z-20 bg-gray-100 dark:bg-gray-900 p-3 text-right whitespace-nowrap shadow-[0_2px_5px_-2px_rgba(0,0,0,0.08)]">% Faturamento</th>
                             </tr>
                         </thead>
                         <tbody>
                             {/* Receitas */}
-                            <tr className="bg-green-50 dark:bg-green-900/20"><td colSpan={totalColSpan} className="p-2 font-bold text-green-800 dark:text-green-300">Receita Operacional Bruta</td></tr>
+                            <tr className="bg-green-50 dark:bg-green-950">
+                                <td className="sticky left-0 z-10 bg-green-50 dark:bg-green-950 p-2 font-bold text-green-800 dark:text-green-300 whitespace-nowrap border-r dark:border-gray-700">Receita Operacional Bruta</td>
+                                <td colSpan={extraColsCount}></td>
+                            </tr>
                             {dreData.revenueData.map(parent => (
                                 <React.Fragment key={parent.id}>
                                     <TableRow item={parent} />
@@ -2388,7 +2391,7 @@ const DREView = ({ transactions, categories, accounts, payees, onSave, onDelete,
                                 </React.Fragment>
                             ))}
                             <tr className="bg-gray-100 dark:bg-gray-700 font-bold border-y-2 dark:border-gray-600">
-                                <td className="p-3 whitespace-nowrap">(=) Total de Receitas</td>
+                                <td className="sticky left-0 z-10 bg-gray-100 dark:bg-gray-700 p-3 whitespace-nowrap border-r dark:border-gray-600 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.08)]">(=) Total de Receitas</td>
                                 {isMultiMonth && monthsList.map(m => (
                                     <td key={m} className="p-3 text-right whitespace-nowrap">{formatCurrency(dreData.totalRevenueByMonth[m] || 0)}</td>
                                 ))}
@@ -2397,7 +2400,10 @@ const DREView = ({ transactions, categories, accounts, payees, onSave, onDelete,
                             </tr>
 
                             {/* Despesas */}
-                            <tr className="bg-red-50 dark:bg-red-900/20"><td colSpan={totalColSpan} className="p-2 font-bold text-red-800 dark:text-red-300 mt-4">Custos e Despesas Operacionais</td></tr>
+                            <tr className="bg-red-50 dark:bg-red-950">
+                                <td className="sticky left-0 z-10 bg-red-50 dark:bg-red-950 p-2 font-bold text-red-800 dark:text-red-300 whitespace-nowrap border-r dark:border-gray-700">Custos e Despesas Operacionais</td>
+                                <td colSpan={extraColsCount}></td>
+                            </tr>
                             {dreData.expenseData.map(parent => (
                                 <React.Fragment key={parent.id}>
                                     <TableRow item={parent} />
@@ -2405,7 +2411,7 @@ const DREView = ({ transactions, categories, accounts, payees, onSave, onDelete,
                                 </React.Fragment>
                             ))}
                             <tr className="bg-gray-100 dark:bg-gray-700 font-bold border-y-2 dark:border-gray-600">
-                                <td className="p-3 whitespace-nowrap">(-) Total de Despesas</td>
+                                <td className="sticky left-0 z-10 bg-gray-100 dark:bg-gray-700 p-3 whitespace-nowrap border-r dark:border-gray-600 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.08)]">(-) Total de Despesas</td>
                                 {isMultiMonth && monthsList.map(m => (
                                     <td key={m} className="p-3 text-right whitespace-nowrap">{formatCurrency(dreData.totalExpenseByMonth[m] || 0)}</td>
                                 ))}
@@ -2414,8 +2420,8 @@ const DREView = ({ transactions, categories, accounts, payees, onSave, onDelete,
                             </tr>
 
                             {/* Resultado */}
-                            <tr className={`font-extrabold text-lg border-t-4 dark:border-gray-600 ${dreData.netResult >= 0 ? 'bg-green-100 dark:bg-green-900/30 text-green-900 dark:text-green-200' : 'bg-red-100 dark:bg-red-900/30 text-red-900 dark:text-red-200'}`}>
-                                <td className="p-4 whitespace-nowrap">(=) Resultado Líquido do Período</td>
+                            <tr className={`font-extrabold text-lg border-t-4 dark:border-gray-600 ${dreData.netResult >= 0 ? 'bg-green-100 dark:bg-green-950 text-green-900 dark:text-green-200' : 'bg-red-100 dark:bg-red-950 text-red-900 dark:text-red-200'}`}>
+                                <td className={`sticky left-0 z-10 p-4 whitespace-nowrap border-r dark:border-gray-600 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.08)] ${dreData.netResult >= 0 ? 'bg-green-100 dark:bg-green-950' : 'bg-red-100 dark:bg-red-950'}`}>(=) Resultado Líquido do Período</td>
                                 {isMultiMonth && monthsList.map(m => {
                                     const mRes = dreData.netResultByMonth[m] || 0;
                                     return (
