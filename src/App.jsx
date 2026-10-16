@@ -2001,84 +2001,184 @@ const FutureEntriesView = ({ futureEntries, accounts, categories, payees, onSave
 
 // --- NOVA VIEW: DRE ---
 const DREView = ({ transactions, categories, accounts, payees, onSave, onDelete, futureEntries }) => {
-    const [period, setPeriod] = useState(getYearMonth(new Date().toISOString()));
+    const currentYM = getYearMonth(new Date().toISOString());
+    const [startPeriod, setStartPeriod] = useState(currentYM);
+    const [endPeriod, setEndPeriod] = useState(currentYM);
     const [includeFuture, setIncludeFuture] = useState(false);
+    const [includeOverdue, setIncludeOverdue] = useState(false);
     const [detailModalOpen, setDetailModalOpen] = useState(false);
     const [modalTitle, setModalTitle] = useState('');
     const [modalTransactions, setModalTransactions] = useState([]);
 
-    const dreData = useMemo(() => {
-        let relevantTransactions = transactions.filter(t => getYearMonth(t.date) === period && !t.isTransfer);
+    const monthsList = useMemo(() => {
+        if (!startPeriod || !endPeriod) return [currentYM];
+        let start = startPeriod <= endPeriod ? startPeriod : endPeriod;
+        let end = startPeriod <= endPeriod ? endPeriod : startPeriod;
+        const list = [];
+        let [y, m] = start.split('-').map(Number);
+        const [endY, endM] = end.split('-').map(Number);
+        while (y < endY || (y === endY && m <= endM)) {
+            list.push(`${y}-${String(m).padStart(2, '0')}`);
+            m++;
+            if (m > 12) {
+                m = 1;
+                y++;
+            }
+            if (list.length >= 36) break;
+        }
+        return list;
+    }, [startPeriod, endPeriod, currentYM]);
 
-        if (includeFuture && futureEntries) {
-            const futureInPeriod = futureEntries.filter(e => {
-                // Inclui se estiver no período e não estiver reconciliado (para não duplicar com transactions)
-                return getYearMonth(e.dueDate) === period && e.status !== 'reconciled';
+    const isMultiMonth = monthsList.length > 1;
+
+    const formatMonthLabel = (ym) => {
+        const [y, m] = ym.split('-');
+        const date = new Date(Number(y), Number(m) - 1, 1);
+        const monthName = date.toLocaleString('pt-BR', { month: 'short' }).replace('.', '');
+        return `${monthName.charAt(0).toUpperCase() + monthName.slice(1)}/${y.slice(2)}`;
+    };
+
+    const getRelevantTransactionsForRange = (targetMonths) => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        let relevant = transactions.filter(t => targetMonths.includes(getYearMonth(t.date)) && !t.isTransfer);
+
+        if ((includeFuture || includeOverdue) && futureEntries) {
+            const extraEntries = futureEntries.filter(e => {
+                if (e.status === 'reconciled') return false;
+                const ym = getYearMonth(e.dueDate);
+                if (!targetMonths.includes(ym)) return false;
+
+                const [y, m, d] = e.dueDate.split('-').map(Number);
+                const dueDate = new Date(y, m - 1, d);
+                const isOverdue = dueDate < today;
+
+                if (isOverdue && includeOverdue) return true;
+                if (!isOverdue && includeFuture) return true;
+                return false;
             }).map(e => ({
                 ...e,
                 date: e.dueDate,
-                isFuture: true // Flag para identificar
+                isFuture: true
             }));
-            relevantTransactions = [...relevantTransactions, ...futureInPeriod];
+            relevant = [...relevant, ...extraEntries];
         }
+        return relevant;
+    };
 
-        const revenues = relevantTransactions.filter(t => t.type === 'revenue');
-        const expenses = relevantTransactions.filter(t => t.type === 'expense');
+    const dreData = useMemo(() => {
+        const relevantTransactions = getRelevantTransactionsForRange(monthsList);
 
-        const totalRevenue = revenues.reduce((sum, t) => sum + t.amount, 0);
+        const totalRevenueByMonth = {};
+        const totalExpenseByMonth = {};
+        const netResultByMonth = {};
 
-        const groupByCategory = (trans, type) => {
+        monthsList.forEach(m => {
+            totalRevenueByMonth[m] = 0;
+            totalExpenseByMonth[m] = 0;
+            netResultByMonth[m] = 0;
+        });
+
+        let totalRevenue = 0;
+        let totalExpense = 0;
+
+        relevantTransactions.forEach(t => {
+            const m = getYearMonth(t.date);
+            if (t.type === 'revenue') {
+                totalRevenueByMonth[m] = (totalRevenueByMonth[m] || 0) + t.amount;
+                totalRevenue += t.amount;
+            } else if (t.type === 'expense') {
+                totalExpenseByMonth[m] = (totalExpenseByMonth[m] || 0) + t.amount;
+                totalExpense += t.amount;
+            }
+        });
+
+        monthsList.forEach(m => {
+            netResultByMonth[m] = totalRevenueByMonth[m] - totalExpenseByMonth[m];
+        });
+
+        const netResult = totalRevenue - totalExpense;
+
+        const groupByCategory = (type) => {
+            const typeTrans = relevantTransactions.filter(t => t.type === type);
             const parentCategories = categories.filter(c => !c.parentId && c.type === type);
-            const data = parentCategories.map(parent => {
+
+            return parentCategories.map(parent => {
                 const subcategories = categories.filter(sub => sub.parentId === parent.id);
                 const childIds = [parent.id, ...subcategories.map(s => s.id)];
 
-                const total = trans.filter(t => childIds.includes(t.categoryId)).reduce((sum, t) => sum + t.amount, 0);
+                const monthlyValues = {};
+                monthsList.forEach(m => { monthlyValues[m] = 0; });
+                let total = 0;
+
+                typeTrans.filter(t => childIds.includes(t.categoryId)).forEach(t => {
+                    const m = getYearMonth(t.date);
+                    monthlyValues[m] = (monthlyValues[m] || 0) + t.amount;
+                    total += t.amount;
+                });
+
+                const subItems = subcategories.map(sub => {
+                    const subMonthlyValues = {};
+                    monthsList.forEach(m => { subMonthlyValues[m] = 0; });
+                    let subTotal = 0;
+
+                    typeTrans.filter(t => t.categoryId === sub.id).forEach(t => {
+                        const m = getYearMonth(t.date);
+                        subMonthlyValues[m] = (subMonthlyValues[m] || 0) + t.amount;
+                        subTotal += t.amount;
+                    });
+
+                    return {
+                        id: sub.id,
+                        name: sub.name,
+                        value: subTotal,
+                        monthlyValues: subMonthlyValues,
+                        percentage: totalRevenue > 0 ? (subTotal / totalRevenue) * 100 : 0,
+                    };
+                }).filter(s => s.value > 0);
 
                 return {
                     id: parent.id,
                     name: parent.name,
                     value: total,
+                    monthlyValues,
                     percentage: totalRevenue > 0 ? (total / totalRevenue) * 100 : 0,
-                    subItems: subcategories.map(sub => {
-                        const subTotal = trans.filter(t => t.categoryId === sub.id).reduce((sum, t) => sum + t.amount, 0);
-                        return {
-                            id: sub.id,
-                            name: sub.name,
-                            value: subTotal,
-                            percentage: totalRevenue > 0 ? (subTotal / totalRevenue) * 100 : 0,
-                        }
-                    }).filter(s => s.value > 0)
-                }
+                    subItems
+                };
             }).filter(p => p.value > 0);
-            return data;
         };
 
-        const revenueData = groupByCategory(revenues, 'revenue');
-        const expenseData = groupByCategory(expenses, 'expense');
-        const totalExpense = expenses.reduce((sum, t) => sum + t.amount, 0);
-        const netResult = totalRevenue - totalExpense;
+        const revenueData = groupByCategory('revenue');
+        const expenseData = groupByCategory('expense');
 
-        return { revenueData, expenseData, totalRevenue, totalExpense, netResult };
+        return {
+            revenueData,
+            expenseData,
+            totalRevenue,
+            totalExpense,
+            netResult,
+            totalRevenueByMonth,
+            totalExpenseByMonth,
+            netResultByMonth
+        };
+    }, [monthsList, transactions, categories, futureEntries, includeFuture, includeOverdue]);
 
-    }, [period, transactions, categories, futureEntries, includeFuture]);
+    const handleCategoryClick = (item, targetMonth = null) => {
+        const targetMonths = targetMonth ? [targetMonth] : monthsList;
+        const relevantTransactions = getRelevantTransactionsForRange(targetMonths);
 
-    const handleCategoryClick = (item) => {
-        let relevantTransactions = transactions.filter(t => getYearMonth(t.date) === period && !t.isTransfer);
-        if (includeFuture && futureEntries) {
-            const futureInPeriod = futureEntries.filter(e => getYearMonth(e.dueDate) === period && e.status !== 'reconciled').map(e => ({ ...e, date: e.dueDate, isFuture: true }));
-            relevantTransactions = [...relevantTransactions, ...futureInPeriod];
-        }
-
+        const subIds = categories.filter(c => c.parentId === item.id).map(c => c.id);
         const filtered = relevantTransactions.filter(t => {
-            const isSamePeriod = getYearMonth(t.date) === period;
-            // If it's a parent category, include all subcategories
-            const subIds = categories.filter(c => c.parentId === item.id).map(c => c.id);
-            const isInCategory = t.categoryId === item.id || subIds.includes(t.categoryId);
-            return isSamePeriod && isInCategory;
+            return t.categoryId === item.id || subIds.includes(t.categoryId);
         });
+
+        const periodLabel = targetMonth
+            ? formatMonthLabel(targetMonth)
+            : (isMultiMonth ? `${formatMonthLabel(monthsList[0])} a ${formatMonthLabel(monthsList[monthsList.length - 1])}` : formatMonthLabel(monthsList[0]));
+
         setModalTransactions(filtered);
-        setModalTitle(`Detalhes de: ${item.name}`);
+        setModalTitle(`Detalhes de: ${item.name} (${periodLabel})`);
         setDetailModalOpen(true);
     };
 
@@ -2088,59 +2188,146 @@ const DREView = ({ transactions, categories, accounts, payees, onSave, onDelete,
             return;
         }
         const { jsPDF } = window.jspdf;
-        const doc = new jsPDF();
-        doc.text(`DRE - ${period} ${includeFuture ? '(Previsão)' : ''}`, 14, 16);
+        const doc = new jsPDF({ orientation: isMultiMonth ? 'landscape' : 'portrait' });
+        const periodLabel = isMultiMonth ? `${startPeriod} a ${endPeriod}` : startPeriod;
+        const flags = [
+            includeOverdue ? 'Vencidos' : '',
+            includeFuture ? 'Previsão' : ''
+        ].filter(Boolean).join(', ');
 
-        const head = [['Descrição', 'Valor', '% Faturamento']];
-        const body = [];
+        doc.text(`DRE - ${periodLabel} ${flags ? `(${flags})` : ''}`, 14, 16);
 
-        // Receitas
-        body.push([{ content: 'Receita Operacional Bruta', colSpan: 3, styles: { fontStyle: 'bold', fillColor: [230, 255, 230] } }]);
-        dreData.revenueData.forEach(item => {
-            body.push([item.name, formatCurrency(item.value), `${item.percentage.toFixed(2)}%`]);
-        });
-        body.push([{ content: '(=) Total de Receitas', styles: { fontStyle: 'bold' } }, { content: formatCurrency(dreData.totalRevenue), styles: { halign: 'right', fontStyle: 'bold' } }, { content: '100.00%', styles: { halign: 'right', fontStyle: 'bold' } }]);
+        if (!isMultiMonth) {
+            const head = [['Descrição', 'Valor', '% Faturamento']];
+            const body = [];
 
-        // Despesas
-        body.push([{ content: 'Custos e Despesas Operacionais', colSpan: 3, styles: { fontStyle: 'bold', fillColor: [255, 230, 230] } }]);
-        dreData.expenseData.forEach(parent => {
-            body.push([{ content: parent.name, styles: { fontStyle: 'bold' } }, { content: formatCurrency(parent.value), styles: { halign: 'right' } }, { content: `${parent.percentage.toFixed(2)}%`, styles: { halign: 'right' } }]);
-            parent.subItems.forEach(sub => {
-                body.push([`  ${sub.name}`, { content: formatCurrency(sub.value), styles: { halign: 'right' } }, { content: `${sub.percentage.toFixed(2)}%`, styles: { halign: 'right' } }]);
+            body.push([{ content: 'Receita Operacional Bruta', colSpan: 3, styles: { fontStyle: 'bold', fillColor: [230, 255, 230] } }]);
+            dreData.revenueData.forEach(item => {
+                body.push([{ content: item.name, styles: { fontStyle: 'bold' } }, { content: formatCurrency(item.value), styles: { halign: 'right' } }, { content: `${item.percentage.toFixed(2)}%`, styles: { halign: 'right' } }]);
+                item.subItems.forEach(sub => {
+                    body.push([`  ${sub.name}`, { content: formatCurrency(sub.value), styles: { halign: 'right' } }, { content: `${sub.percentage.toFixed(2)}%`, styles: { halign: 'right' } }]);
+                });
             });
-        });
-        body.push([{ content: '(-) Total de Despesas', styles: { fontStyle: 'bold' } }, { content: formatCurrency(dreData.totalExpense), styles: { halign: 'right', fontStyle: 'bold' } }, { content: `${(dreData.totalRevenue > 0 ? (dreData.totalExpense / dreData.totalRevenue) * 100 : 0).toFixed(2)}%`, styles: { halign: 'right', fontStyle: 'bold' } }]);
+            body.push([{ content: '(=) Total de Receitas', styles: { fontStyle: 'bold' } }, { content: formatCurrency(dreData.totalRevenue), styles: { halign: 'right', fontStyle: 'bold' } }, { content: '100.00%', styles: { halign: 'right', fontStyle: 'bold' } }]);
 
-        // Resultado
-        body.push([{ content: '(=) Resultado Líquido do Período', styles: { fontStyle: 'bold', fontSize: 12 } }, { content: formatCurrency(dreData.netResult), styles: { halign: 'right', fontStyle: 'bold', fontSize: 12 } }, { content: `${(dreData.totalRevenue > 0 ? (dreData.netResult / dreData.totalRevenue) * 100 : 0).toFixed(2)}%`, styles: { halign: 'right', fontStyle: 'bold', fontSize: 12 } }]);
+            body.push([{ content: 'Custos e Despesas Operacionais', colSpan: 3, styles: { fontStyle: 'bold', fillColor: [255, 230, 230] } }]);
+            dreData.expenseData.forEach(parent => {
+                body.push([{ content: parent.name, styles: { fontStyle: 'bold' } }, { content: formatCurrency(parent.value), styles: { halign: 'right' } }, { content: `${parent.percentage.toFixed(2)}%`, styles: { halign: 'right' } }]);
+                parent.subItems.forEach(sub => {
+                    body.push([`  ${sub.name}`, { content: formatCurrency(sub.value), styles: { halign: 'right' } }, { content: `${sub.percentage.toFixed(2)}%`, styles: { halign: 'right' } }]);
+                });
+            });
+            body.push([{ content: '(-) Total de Despesas', styles: { fontStyle: 'bold' } }, { content: formatCurrency(dreData.totalExpense), styles: { halign: 'right', fontStyle: 'bold' } }, { content: `${(dreData.totalRevenue > 0 ? (dreData.totalExpense / dreData.totalRevenue) * 100 : 0).toFixed(2)}%`, styles: { halign: 'right', fontStyle: 'bold' } }]);
 
-        doc.autoTable({
-            head: head,
-            body: body,
-            startY: 22,
-        });
+            body.push([{ content: '(=) Resultado Líquido do Período', styles: { fontStyle: 'bold', fontSize: 12 } }, { content: formatCurrency(dreData.netResult), styles: { halign: 'right', fontStyle: 'bold', fontSize: 12 } }, { content: `${(dreData.totalRevenue > 0 ? (dreData.netResult / dreData.totalRevenue) * 100 : 0).toFixed(2)}%`, styles: { halign: 'right', fontStyle: 'bold', fontSize: 12 } }]);
 
-        doc.save(`DRE_${period}.pdf`);
+            doc.autoTable({ head, body, startY: 22 });
+        } else {
+            const colSpanTotal = monthsList.length + 3;
+            const head = [['Descrição', ...monthsList.map(formatMonthLabel), 'Total', '% Fat.']];
+            const body = [];
+
+            body.push([{ content: 'Receita Operacional Bruta', colSpan: colSpanTotal, styles: { fontStyle: 'bold', fillColor: [230, 255, 230] } }]);
+            dreData.revenueData.forEach(item => {
+                body.push([
+                    { content: item.name, styles: { fontStyle: 'bold' } },
+                    ...monthsList.map(m => ({ content: formatCurrency(item.monthlyValues[m] || 0), styles: { halign: 'right' } })),
+                    { content: formatCurrency(item.value), styles: { halign: 'right', fontStyle: 'bold' } },
+                    { content: `${item.percentage.toFixed(2)}%`, styles: { halign: 'right' } }
+                ]);
+                item.subItems.forEach(sub => {
+                    body.push([
+                        `  ${sub.name}`,
+                        ...monthsList.map(m => ({ content: formatCurrency(sub.monthlyValues[m] || 0), styles: { halign: 'right' } })),
+                        { content: formatCurrency(sub.value), styles: { halign: 'right', fontStyle: 'bold' } },
+                        { content: `${sub.percentage.toFixed(2)}%`, styles: { halign: 'right' } }
+                    ]);
+                });
+            });
+            body.push([
+                { content: '(=) Total de Receitas', styles: { fontStyle: 'bold' } },
+                ...monthsList.map(m => ({ content: formatCurrency(dreData.totalRevenueByMonth[m] || 0), styles: { halign: 'right', fontStyle: 'bold' } })),
+                { content: formatCurrency(dreData.totalRevenue), styles: { halign: 'right', fontStyle: 'bold' } },
+                { content: '100.00%', styles: { halign: 'right', fontStyle: 'bold' } }
+            ]);
+
+            body.push([{ content: 'Custos e Despesas Operacionais', colSpan: colSpanTotal, styles: { fontStyle: 'bold', fillColor: [255, 230, 230] } }]);
+            dreData.expenseData.forEach(parent => {
+                body.push([
+                    { content: parent.name, styles: { fontStyle: 'bold' } },
+                    ...monthsList.map(m => ({ content: formatCurrency(parent.monthlyValues[m] || 0), styles: { halign: 'right' } })),
+                    { content: formatCurrency(parent.value), styles: { halign: 'right', fontStyle: 'bold' } },
+                    { content: `${parent.percentage.toFixed(2)}%`, styles: { halign: 'right' } }
+                ]);
+                parent.subItems.forEach(sub => {
+                    body.push([
+                        `  ${sub.name}`,
+                        ...monthsList.map(m => ({ content: formatCurrency(sub.monthlyValues[m] || 0), styles: { halign: 'right' } })),
+                        { content: formatCurrency(sub.value), styles: { halign: 'right', fontStyle: 'bold' } },
+                        { content: `${sub.percentage.toFixed(2)}%`, styles: { halign: 'right' } }
+                    ]);
+                });
+            });
+            body.push([
+                { content: '(-) Total de Despesas', styles: { fontStyle: 'bold' } },
+                ...monthsList.map(m => ({ content: formatCurrency(dreData.totalExpenseByMonth[m] || 0), styles: { halign: 'right', fontStyle: 'bold' } })),
+                { content: formatCurrency(dreData.totalExpense), styles: { halign: 'right', fontStyle: 'bold' } },
+                { content: `${(dreData.totalRevenue > 0 ? (dreData.totalExpense / dreData.totalRevenue) * 100 : 0).toFixed(2)}%`, styles: { halign: 'right', fontStyle: 'bold' } }
+            ]);
+
+            body.push([
+                { content: '(=) Resultado Líquido do Período', styles: { fontStyle: 'bold' } },
+                ...monthsList.map(m => ({ content: formatCurrency(dreData.netResultByMonth[m] || 0), styles: { halign: 'right', fontStyle: 'bold' } })),
+                { content: formatCurrency(dreData.netResult), styles: { halign: 'right', fontStyle: 'bold' } },
+                { content: `${(dreData.totalRevenue > 0 ? (dreData.netResult / dreData.totalRevenue) * 100 : 0).toFixed(2)}%`, styles: { halign: 'right', fontStyle: 'bold' } }
+            ]);
+
+            doc.autoTable({ head, body, startY: 22, styles: { fontSize: monthsList.length > 6 ? 7 : 9 } });
+        }
+
+        doc.save(`DRE_${periodLabel}.pdf`);
     };
 
     const TableRow = ({ item, isSub = false }) => (
         <tr className={`border-b dark:border-gray-700 ${isSub ? 'bg-gray-50 dark:bg-gray-700/50' : 'bg-white dark:bg-gray-800'}`}>
-            <td className={`p-3 ${isSub ? 'pl-8' : 'font-semibold'}`}>
+            <td className={`p-3 whitespace-nowrap ${isSub ? 'pl-8' : 'font-semibold'}`}>
                 <button onClick={() => handleCategoryClick(item)} className="text-left w-full hover:text-blue-600 dark:hover:text-blue-400">
                     {item.name}
                 </button>
             </td>
-            <td className="p-3 text-right">{formatCurrency(item.value)}</td>
-            <td className="p-3 text-right font-mono">{item.percentage.toFixed(2)}%</td>
+            {isMultiMonth && monthsList.map(m => (
+                <td key={m} className="p-3 text-right whitespace-nowrap">
+                    <button onClick={() => handleCategoryClick(item, m)} className="hover:underline">
+                        {formatCurrency(item.monthlyValues[m] || 0)}
+                    </button>
+                </td>
+            ))}
+            <td className={`p-3 text-right whitespace-nowrap ${isMultiMonth ? 'font-bold bg-gray-50/80 dark:bg-gray-700/40' : ''}`}>
+                <button onClick={() => handleCategoryClick(item)} className="hover:underline">
+                    {formatCurrency(item.value)}
+                </button>
+            </td>
+            <td className="p-3 text-right font-mono whitespace-nowrap">{item.percentage.toFixed(2)}%</td>
         </tr>
     );
+
+    const totalColSpan = isMultiMonth ? monthsList.length + 3 : 3;
 
     return (
         <>
             <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg">
-                <div className="flex justify-between items-center mb-6">
+                <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center mb-6 gap-4">
                     <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-200">DRE - Demonstrativo de Resultados</h2>
-                    <div className="flex items-center gap-4">
+                    <div className="flex flex-wrap items-center gap-4">
+                        <label className="flex items-center gap-2 cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-300">
+                            <input
+                                type="checkbox"
+                                checked={includeOverdue}
+                                onChange={(e) => setIncludeOverdue(e.target.checked)}
+                                className="rounded border-gray-300 text-red-600 focus:ring-red-500"
+                            />
+                            Incluir Vencidos (Não Pagos)
+                        </label>
                         <label className="flex items-center gap-2 cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-300">
                             <input
                                 type="checkbox"
@@ -2150,12 +2337,30 @@ const DREView = ({ transactions, categories, accounts, payees, onSave, onDelete,
                             />
                             Incluir Futuros (Previsão)
                         </label>
-                        <input
-                            type="month"
-                            value={period}
-                            onChange={(e) => setPeriod(e.target.value)}
-                            className="p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300"
-                        />
+                        <div className="flex items-center gap-2">
+                            <span className="text-sm text-gray-600 dark:text-gray-400">De:</span>
+                            <input
+                                type="month"
+                                value={startPeriod}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    setStartPeriod(val);
+                                    if (val > endPeriod) setEndPeriod(val);
+                                }}
+                                className="p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300"
+                            />
+                            <span className="text-sm text-gray-600 dark:text-gray-400">Até:</span>
+                            <input
+                                type="month"
+                                value={endPeriod}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    setEndPeriod(val);
+                                    if (val < startPeriod) setStartPeriod(val);
+                                }}
+                                className="p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300"
+                            />
+                        </div>
                         <Button onClick={handleExportPDF} className="bg-green-600 hover:bg-green-700"><FileOutput size={18} /> Exportar PDF</Button>
                     </div>
                 </div>
@@ -2163,23 +2368,36 @@ const DREView = ({ transactions, categories, accounts, payees, onSave, onDelete,
                     <table className="w-full">
                         <thead>
                             <tr className="border-b-2 dark:border-gray-700 text-left">
-                                <th className="p-3 w-2/3">Descrição</th>
-                                <th className="p-3 text-right">Valor</th>
-                                <th className="p-3 text-right">% Faturamento</th>
+                                <th className="p-3 min-w-[220px]">Descrição</th>
+                                {isMultiMonth && monthsList.map(m => (
+                                    <th key={m} className="p-3 text-right whitespace-nowrap">{formatMonthLabel(m)}</th>
+                                ))}
+                                <th className={`p-3 text-right whitespace-nowrap ${isMultiMonth ? 'bg-gray-50 dark:bg-gray-700/40 font-bold' : ''}`}>
+                                    {isMultiMonth ? 'Total' : 'Valor'}
+                                </th>
+                                <th className="p-3 text-right whitespace-nowrap">% Faturamento</th>
                             </tr>
                         </thead>
                         <tbody>
                             {/* Receitas */}
-                            <tr className="bg-green-50 dark:bg-green-900/20"><td colSpan="3" className="p-2 font-bold text-green-800 dark:text-green-300">Receita Operacional Bruta</td></tr>
-                            {dreData.revenueData.map(item => <TableRow key={item.id} item={item} />)}
+                            <tr className="bg-green-50 dark:bg-green-900/20"><td colSpan={totalColSpan} className="p-2 font-bold text-green-800 dark:text-green-300">Receita Operacional Bruta</td></tr>
+                            {dreData.revenueData.map(parent => (
+                                <React.Fragment key={parent.id}>
+                                    <TableRow item={parent} />
+                                    {parent.subItems.map(sub => <TableRow key={sub.id} item={sub} isSub />)}
+                                </React.Fragment>
+                            ))}
                             <tr className="bg-gray-100 dark:bg-gray-700 font-bold border-y-2 dark:border-gray-600">
-                                <td className="p-3">(=) Total de Receitas</td>
-                                <td className="p-3 text-right">{formatCurrency(dreData.totalRevenue)}</td>
-                                <td className="p-3 text-right font-mono">100.00%</td>
+                                <td className="p-3 whitespace-nowrap">(=) Total de Receitas</td>
+                                {isMultiMonth && monthsList.map(m => (
+                                    <td key={m} className="p-3 text-right whitespace-nowrap">{formatCurrency(dreData.totalRevenueByMonth[m] || 0)}</td>
+                                ))}
+                                <td className="p-3 text-right whitespace-nowrap">{formatCurrency(dreData.totalRevenue)}</td>
+                                <td className="p-3 text-right font-mono whitespace-nowrap">100.00%</td>
                             </tr>
 
                             {/* Despesas */}
-                            <tr className="bg-red-50 dark:bg-red-900/20"><td colSpan="3" className="p-2 font-bold text-red-800 dark:text-red-300 mt-4">Custos e Despesas Operacionais</td></tr>
+                            <tr className="bg-red-50 dark:bg-red-900/20"><td colSpan={totalColSpan} className="p-2 font-bold text-red-800 dark:text-red-300 mt-4">Custos e Despesas Operacionais</td></tr>
                             {dreData.expenseData.map(parent => (
                                 <React.Fragment key={parent.id}>
                                     <TableRow item={parent} />
@@ -2187,16 +2405,27 @@ const DREView = ({ transactions, categories, accounts, payees, onSave, onDelete,
                                 </React.Fragment>
                             ))}
                             <tr className="bg-gray-100 dark:bg-gray-700 font-bold border-y-2 dark:border-gray-600">
-                                <td className="p-3">(-) Total de Despesas</td>
-                                <td className="p-3 text-right">{formatCurrency(dreData.totalExpense)}</td>
-                                <td className="p-3 text-right font-mono">{(dreData.totalRevenue > 0 ? (dreData.totalExpense / dreData.totalRevenue) * 100 : 0).toFixed(2)}%</td>
+                                <td className="p-3 whitespace-nowrap">(-) Total de Despesas</td>
+                                {isMultiMonth && monthsList.map(m => (
+                                    <td key={m} className="p-3 text-right whitespace-nowrap">{formatCurrency(dreData.totalExpenseByMonth[m] || 0)}</td>
+                                ))}
+                                <td className="p-3 text-right whitespace-nowrap">{formatCurrency(dreData.totalExpense)}</td>
+                                <td className="p-3 text-right font-mono whitespace-nowrap">{(dreData.totalRevenue > 0 ? (dreData.totalExpense / dreData.totalRevenue) * 100 : 0).toFixed(2)}%</td>
                             </tr>
 
                             {/* Resultado */}
                             <tr className={`font-extrabold text-lg border-t-4 dark:border-gray-600 ${dreData.netResult >= 0 ? 'bg-green-100 dark:bg-green-900/30 text-green-900 dark:text-green-200' : 'bg-red-100 dark:bg-red-900/30 text-red-900 dark:text-red-200'}`}>
-                                <td className="p-4">(=) Resultado Líquido do Período</td>
-                                <td className="p-4 text-right">{formatCurrency(dreData.netResult)}</td>
-                                <td className="p-4 text-right font-mono">{(dreData.totalRevenue > 0 ? (dreData.netResult / dreData.totalRevenue) * 100 : 0).toFixed(2)}%</td>
+                                <td className="p-4 whitespace-nowrap">(=) Resultado Líquido do Período</td>
+                                {isMultiMonth && monthsList.map(m => {
+                                    const mRes = dreData.netResultByMonth[m] || 0;
+                                    return (
+                                        <td key={m} className={`p-4 text-right whitespace-nowrap ${mRes >= 0 ? 'text-green-900 dark:text-green-200' : 'text-red-900 dark:text-red-200'}`}>
+                                            {formatCurrency(mRes)}
+                                        </td>
+                                    );
+                                })}
+                                <td className="p-4 text-right whitespace-nowrap">{formatCurrency(dreData.netResult)}</td>
+                                <td className="p-4 text-right font-mono whitespace-nowrap">{(dreData.totalRevenue > 0 ? (dreData.netResult / dreData.totalRevenue) * 100 : 0).toFixed(2)}%</td>
                             </tr>
                         </tbody>
                     </table>
