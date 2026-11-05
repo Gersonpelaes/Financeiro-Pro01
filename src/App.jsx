@@ -6,7 +6,7 @@ import { getFunctions, httpsCallable } from 'firebase/functions';
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import PosOriginalApp, { fetchPosClosings, initialCompanies } from './PosOriginalApp';
-import { PlusCircle, Upload, Trash2, Edit, TrendingUp, TrendingDown, DollarSign, Settings, LayoutDashboard, List, BarChart2, Target, ArrowLeft, ArrowRightLeft, Repeat, CheckCircle, AlertTriangle, Clock, CalendarCheck2, Building, GitCompareArrows, ArrowUp, ArrowDown, Paperclip, FileText, LogOut, Download, UploadCloud, Sun, Moon, FileOutput, CalendarClock, Menu, X, ShieldCheck, CreditCard, RefreshCw, BookCopy, FileJson, Wallet, Percent, Archive, Receipt, Landmark, AreaChart, Eye, EyeOff } from 'lucide-react';
+import { PlusCircle, Upload, Trash2, Edit, TrendingUp, TrendingDown, DollarSign, Settings, LayoutDashboard, List, BarChart2, Target, ArrowLeft, ArrowRightLeft, Repeat, CheckCircle, AlertTriangle, Clock, CalendarCheck2, Building, GitCompareArrows, ArrowUp, ArrowDown, Paperclip, FileText, LogOut, Download, UploadCloud, Sun, Moon, FileOutput, CalendarClock, Menu, X, ShieldCheck, CreditCard, RefreshCw, BookCopy, FileJson, Wallet, Percent, Archive, Receipt, Landmark, AreaChart, Eye, EyeOff, Users, Link2, Copy, UserCheck, UserX, Lock } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 
@@ -405,7 +405,7 @@ const DashboardView = ({ transactions, accounts, categories, futureEntries, budg
     );
 };
 
-const TransactionsView = ({ transactions, accounts, categories, payees, onSave, onDelete, onBatchDelete, futureEntries, onImportTransactions, activeCompanyId, db , selectedAccountId, setSelectedAccountId, onOpenReconciliation}) => {
+const TransactionsView = ({ transactions, accounts, categories, payees, onSave, onDelete, onBatchDelete, futureEntries, onImportTransactions, activeCompanyId, db, selectedAccountId, setSelectedAccountId, onOpenReconciliation, canCreate = true, canEdit = true, canDelete = true }) => {
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingTransaction, setEditingTransaction] = useState(null);
@@ -809,14 +809,18 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
                         <div className="flex items-center gap-4">
                             {selectedTransactions.size > 0 && (
                                 <>
-                                    <Button onClick={handleMoveToFuture} className="bg-purple-600 hover:bg-purple-700">
-                                        <CalendarClock size={20} />
-                                        <span>Mover para Futuro</span>
-                                    </Button>
-                                    <Button onClick={handleDeleteSelected} className="bg-red-600 hover:bg-red-700">
-                                        <Trash2 size={20} />
-                                        <span>Apagar ({selectedTransactions.size})</span>
-                                    </Button>
+                                    {canEdit && canDelete && (
+                                        <Button onClick={handleMoveToFuture} className="bg-purple-600 hover:bg-purple-700">
+                                            <CalendarClock size={20} />
+                                            <span>Mover para Futuro</span>
+                                        </Button>
+                                    )}
+                                    {canDelete && (
+                                        <Button onClick={handleDeleteSelected} className="bg-red-600 hover:bg-red-700">
+                                            <Trash2 size={20} />
+                                            <span>Apagar ({selectedTransactions.size})</span>
+                                        </Button>
+                                    )}
                                 </>
                             )}
                             {isSimulating ? (
@@ -828,10 +832,14 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
                                     <Clock size={20} /><span>Simular Futuro</span>
                                 </Button>
                             )}
-                            <Button onClick={onOpenReconciliation} disabled={!selectedAccountId || selectedAccountId === 'all'} className="bg-blue-600 hover:bg-blue-700">
-                                <GitCompareArrows size={20} /><span>Conciliar Extrato</span>
-                            </Button>
-                            <Button onClick={() => handleOpenModal()}><PlusCircle size={20} /><span>Adicionar Transação</span></Button>
+                            {canCreate && (
+                                <Button onClick={onOpenReconciliation} disabled={!selectedAccountId || selectedAccountId === 'all'} className="bg-blue-600 hover:bg-blue-700">
+                                    <GitCompareArrows size={20} /><span>Conciliar Extrato</span>
+                                </Button>
+                            )}
+                            {canCreate && (
+                                <Button onClick={() => handleOpenModal()}><PlusCircle size={20} /><span>Adicionar Transação</span></Button>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -888,8 +896,8 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
                                 <td className="p-4">
                                     {!t.isSimulated && (
                                         <div className="flex space-x-2">
-                                            <button onClick={() => handleOpenModal(t)} className="text-blue-500 hover:text-blue-700"><Edit size={18} /></button>
-                                            <button onClick={() => onDelete('transactions', t)} className="text-red-500 hover:text-red-700"><Trash2 size={18} /></button>
+                                            {canEdit && <button onClick={() => handleOpenModal(t)} className="text-blue-500 hover:text-blue-700" title="Editar"><Edit size={18} /></button>}
+                                            {canDelete && <button onClick={() => onDelete('transactions', t)} className="text-red-500 hover:text-red-700" title="Excluir"><Trash2 size={18} /></button>}
                                         </div>
                                     )}
                                 </td>
@@ -4835,7 +4843,367 @@ const ConsolidatedReportsView = ({ allCompaniesData, companies, onBack }) => {
 };
 
 // --- NOVA VIEW: CONFIGURAÇÕES GLOBAIS ---
-const GlobalSettingsView = ({ companies, onSave, onDelete, onBack, onBackup, onRestore, subscription, onSubscribe, backupConfig, onSaveBackupConfig }) => {
+const COLLABORATOR_MODULES = [
+    { key: 'transactions', label: 'Transações, Extrato e Conciliação' },
+    { key: 'futureEntries', label: 'Lançamentos Futuros (Contas a Pagar/Receber)' },
+    { key: 'pos', label: 'Controle de Vendas / Fechamento de Caixa' },
+    { key: 'budgets', label: 'Orçamentos e Metas Mensais' },
+    { key: 'settings', label: 'Cadastros (Contas, Categorias e Favorecidos)' },
+];
+
+const DEFAULT_COLLAB_PERMISSIONS = {
+    transactions: { create: true, edit: true, delete: false },
+    futureEntries: { create: true, edit: true, delete: false },
+    pos: { create: true, edit: true, delete: false },
+    budgets: { create: false, edit: false, delete: false },
+    settings: { create: false, edit: false, delete: false },
+};
+
+const CollaboratorsManager = ({ collaborators = [], companies = [], onCreateInvite, onUpdateCollaborator, onRevokeCollaborator }) => {
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [editingCollab, setEditingCollab] = useState(null);
+    const [name, setName] = useState('');
+    const [email, setEmail] = useState('');
+    const [allowedCompanies, setAllowedCompanies] = useState('all'); // 'all' or array of company IDs
+    const [selectedCompanyIds, setSelectedCompanyIds] = useState([]);
+    const [permissions, setPermissions] = useState(DEFAULT_COLLAB_PERMISSIONS);
+    const [copiedId, setCopiedId] = useState(null);
+
+    const handleOpenNew = () => {
+        setEditingCollab(null);
+        setName('');
+        setEmail('');
+        setAllowedCompanies('all');
+        setSelectedCompanyIds(companies.map(c => c.id));
+        setPermissions(JSON.parse(JSON.stringify(DEFAULT_COLLAB_PERMISSIONS)));
+        setIsModalOpen(true);
+    };
+
+    const handleOpenEdit = (collab) => {
+        setEditingCollab(collab);
+        setName(collab.name || '');
+        setEmail(collab.email || '');
+        if (Array.isArray(collab.allowedCompanies)) {
+            setAllowedCompanies('custom');
+            setSelectedCompanyIds(collab.allowedCompanies);
+        } else {
+            setAllowedCompanies('all');
+            setSelectedCompanyIds(companies.map(c => c.id));
+        }
+        setPermissions({
+            ...JSON.parse(JSON.stringify(DEFAULT_COLLAB_PERMISSIONS)),
+            ...(collab.permissions || {})
+        });
+        setIsModalOpen(true);
+    };
+
+    const togglePerm = (modKey, action) => {
+        setPermissions(prev => ({
+            ...prev,
+            [modKey]: {
+                ...(prev[modKey] || { create: false, edit: false, delete: false }),
+                [action]: !prev[modKey]?.[action]
+            }
+        }));
+    };
+
+    const toggleCompanySelection = (compId) => {
+        setSelectedCompanyIds(prev =>
+            prev.includes(compId) ? prev.filter(id => id !== compId) : [...prev, compId]
+        );
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        if (!name.trim()) {
+            alert('Informe o nome do colaborador.');
+            return;
+        }
+        const payload = {
+            name: name.trim(),
+            email: email.trim().toLowerCase(),
+            allowedCompanies: allowedCompanies === 'all' ? 'all' : selectedCompanyIds,
+            permissions,
+        };
+
+        if (editingCollab) {
+            await onUpdateCollaborator(editingCollab.id, payload);
+        } else {
+            await onCreateInvite(payload);
+        }
+        setIsModalOpen(false);
+    };
+
+    const getInviteUrl = (collab) => {
+        const baseUrl = window.location.origin + window.location.pathname;
+        return `${baseUrl}?invite=${collab.id}&owner=${collab.ownerUid}`;
+    };
+
+    const handleCopyLink = (collab) => {
+        const url = getInviteUrl(collab);
+        navigator.clipboard.writeText(url);
+        setCopiedId(collab.id);
+        setTimeout(() => setCopiedId(null), 2500);
+    };
+
+    return (
+        <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                    <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-200">Colaboradores e Permissões de Acesso</h2>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                        Crie links exclusivos para convidados acessarem seu sistema. Você controla exatamente onde cada um pode criar, editar ou excluir e pode cancelar o acesso quando quiser. Colaboradores nunca podem convidar outras pessoas.
+                    </p>
+                </div>
+                <Button onClick={handleOpenNew} className="bg-blue-600 hover:bg-blue-700 whitespace-nowrap">
+                    <PlusCircle size={18} />
+                    <span>Gerar Novo Link de Convite</span>
+                </Button>
+            </div>
+
+            {collaborators.length === 0 ? (
+                <div className="text-center py-12 bg-gray-50 dark:bg-gray-700/30 rounded-xl border border-dashed dark:border-gray-700">
+                    <Users size={48} className="mx-auto text-gray-400 mb-3" />
+                    <p className="text-lg font-semibold text-gray-700 dark:text-gray-300">Nenhum colaborador convidado ainda</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 mb-4">Clique em "Gerar Novo Link de Convite" para definir as permissões e compartilhar o link.</p>
+                </div>
+            ) : (
+                <div className="space-y-4">
+                    {collaborators.map(collab => {
+                        const isRevoked = collab.status === 'revoked';
+                        const inviteUrl = getInviteUrl(collab);
+                        return (
+                            <div key={collab.id} className={`p-5 rounded-xl border transition-all ${isRevoked ? 'bg-red-50/40 dark:bg-red-900/10 border-red-200 dark:border-red-800 opacity-75' : 'bg-gray-50 dark:bg-gray-700/40 border-gray-200 dark:border-gray-700'}`}>
+                                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+                                    <div className="space-y-1">
+                                        <div className="flex items-center gap-3 flex-wrap">
+                                            <span className="font-bold text-xl text-gray-800 dark:text-gray-100">{collab.name}</span>
+                                            {isRevoked ? (
+                                                <span className="px-2.5 py-0.5 text-xs font-bold rounded-full bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300 flex items-center gap-1">
+                                                    <UserX size={12} /> Acesso Cancelado
+                                                </span>
+                                            ) : collab.acceptedByUid ? (
+                                                <span className="px-2.5 py-0.5 text-xs font-bold rounded-full bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300 flex items-center gap-1">
+                                                    <UserCheck size={12} /> Ativo ({collab.acceptedByEmail || 'Conectado'})
+                                                </span>
+                                            ) : (
+                                                <span className="px-2.5 py-0.5 text-xs font-bold rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300 flex items-center gap-1">
+                                                    <Clock size={12} /> Aguardando uso do link
+                                                </span>
+                                            )}
+                                        </div>
+                                        {collab.email && <p className="text-xs text-gray-500 dark:text-gray-400">E-mail esperado: {collab.email}</p>}
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                                            Empresas liberadas: <strong>{collab.allowedCompanies === 'all' ? 'Todas as Empresas' : `${(collab.allowedCompanies || []).length} empresa(s) selecionada(s)`}</strong>
+                                        </p>
+                                    </div>
+
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        {!isRevoked && (
+                                            <Button
+                                                onClick={() => handleCopyLink(collab)}
+                                                className={`${copiedId === collab.id ? 'bg-green-600' : 'bg-indigo-600 hover:bg-indigo-700'} !py-1.5 !px-3 text-sm`}
+                                            >
+                                                <Copy size={15} />
+                                                <span>{copiedId === collab.id ? 'Link Copiado!' : 'Copiar Link de Convite'}</span>
+                                            </Button>
+                                        )}
+                                        <Button
+                                            onClick={() => handleOpenEdit(collab)}
+                                            className="bg-gray-600 hover:bg-gray-700 !py-1.5 !px-3 text-sm"
+                                        >
+                                            <Edit size={15} />
+                                            <span>Permissões</span>
+                                        </Button>
+                                        {!isRevoked ? (
+                                            <Button
+                                                onClick={() => {
+                                                    if (window.confirm(`Deseja realmente cancelar o acesso de "${collab.name}" imediatamente?`)) {
+                                                        onUpdateCollaborator(collab.id, { status: 'revoked' });
+                                                    }
+                                                }}
+                                                className="bg-orange-600 hover:bg-orange-700 !py-1.5 !px-3 text-sm"
+                                            >
+                                                <UserX size={15} />
+                                                <span>Cancelar Permissão</span>
+                                            </Button>
+                                        ) : (
+                                            <Button
+                                                onClick={() => onUpdateCollaborator(collab.id, { status: 'active' })}
+                                                className="bg-green-600 hover:bg-green-700 !py-1.5 !px-3 text-sm"
+                                            >
+                                                <UserCheck size={15} />
+                                                <span>Reativar Acesso</span>
+                                            </Button>
+                                        )}
+                                        <button
+                                            onClick={() => {
+                                                if (window.confirm(`Excluir permanentemente o convite de "${collab.name}"?`)) {
+                                                    onRevokeCollaborator(collab.id);
+                                                }
+                                            }}
+                                            className="p-2 text-red-500 hover:text-red-700"
+                                            title="Excluir registro de convite"
+                                        >
+                                            <Trash2 size={18} />
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {!isRevoked && (
+                                    <div className="mt-3 p-2.5 bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-600 flex items-center justify-between gap-2 text-xs">
+                                        <div className="flex items-center gap-2 truncate text-gray-600 dark:text-gray-300">
+                                            <Link2 size={14} className="text-blue-500 flex-shrink-0" />
+                                            <span className="truncate font-mono">{inviteUrl}</span>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Resumo visual das permissões */}
+                                <div className="mt-4 pt-3 border-t dark:border-gray-600 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 text-xs">
+                                    {COLLABORATOR_MODULES.map(mod => {
+                                        const p = collab.permissions?.[mod.key] || {};
+                                        return (
+                                            <div key={mod.key} className="p-2 rounded bg-white/70 dark:bg-gray-800/60 border dark:border-gray-700">
+                                                <p className="font-semibold text-gray-700 dark:text-gray-300 truncate" title={mod.label}>{mod.label}</p>
+                                                <div className="flex flex-wrap gap-1 mt-1">
+                                                    <span className={`px-1.5 py-0.5 rounded ${p.create ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300' : 'bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-500 line-through'}`}>Criar</span>
+                                                    <span className={`px-1.5 py-0.5 rounded ${p.edit ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300' : 'bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-500 line-through'}`}>Editar</span>
+                                                    <span className={`px-1.5 py-0.5 rounded ${p.delete ? 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300' : 'bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-500 line-through'}`}>Excluir</span>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+
+            <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingCollab ? `Permissões de: ${editingCollab.name}` : 'Convidar Colaborador e Definir Permissões'} size="lg">
+                <form onSubmit={handleSubmit} className="space-y-5">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <label className="block">
+                            <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Nome / Identificação do Colaborador *</span>
+                            <input
+                                type="text"
+                                value={name}
+                                onChange={e => setName(e.target.value)}
+                                placeholder="Ex: João (Financeiro), Escritório Contábil..."
+                                className="mt-1 block w-full p-2.5 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
+                                required
+                            />
+                        </label>
+                        <label className="block">
+                            <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">E-mail Google do Colaborador (Opcional)</span>
+                            <input
+                                type="email"
+                                value={email}
+                                onChange={e => setEmail(e.target.value)}
+                                placeholder="Se preenchido, só este e-mail poderá usar o link"
+                                className="mt-1 block w-full p-2.5 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
+                            />
+                        </label>
+                    </div>
+
+                    {/* Seleção de Empresas */}
+                    <div className="p-4 bg-gray-50 dark:bg-gray-700/40 rounded-xl border dark:border-gray-600">
+                        <span className="text-sm font-bold text-gray-800 dark:text-gray-200 block mb-2">Quais empresas este colaborador pode acessar?</span>
+                        <div className="flex gap-4 mb-3">
+                            <label className="flex items-center gap-2 text-sm cursor-pointer">
+                                <input type="radio" checked={allowedCompanies === 'all'} onChange={() => setAllowedCompanies('all')} />
+                                <span>Todas as Empresas Ativas</span>
+                            </label>
+                            <label className="flex items-center gap-2 text-sm cursor-pointer">
+                                <input type="radio" checked={allowedCompanies === 'custom'} onChange={() => setAllowedCompanies('custom')} />
+                                <span>Escolher Empresas Específicas</span>
+                            </label>
+                        </div>
+                        {allowedCompanies === 'custom' && (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t dark:border-gray-600">
+                                {companies.map(c => (
+                                    <label key={c.id} className="flex items-center gap-2 text-sm p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedCompanyIds.includes(c.id)}
+                                            onChange={() => toggleCompanySelection(c.id)}
+                                            className="rounded text-blue-600"
+                                        />
+                                        <span>{c.name}</span>
+                                    </label>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Matriz de Permissões por Área */}
+                    <div>
+                        <h4 className="text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">Controle de Permissões por Módulo (Onde pode Criar, Editar ou Excluir)</h4>
+                        <div className="overflow-x-auto border dark:border-gray-600 rounded-xl">
+                            <table className="w-full text-left text-sm">
+                                <thead>
+                                    <tr className="bg-gray-100 dark:bg-gray-900 border-b dark:border-gray-600">
+                                        <th className="p-3">Área do Sistema</th>
+                                        <th className="p-3 text-center">Criar / Lançar</th>
+                                        <th className="p-3 text-center">Editar / Alterar</th>
+                                        <th className="p-3 text-center">Excluir / Apagar</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {COLLABORATOR_MODULES.map(mod => {
+                                        const p = permissions[mod.key] || { create: false, edit: false, delete: false };
+                                        return (
+                                            <tr key={mod.key} className="border-b dark:border-gray-700">
+                                                <td className="p-3 font-medium">{mod.label}</td>
+                                                <td className="p-3 text-center">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={!!p.create}
+                                                        onChange={() => togglePerm(mod.key, 'create')}
+                                                        className="w-4 h-4 rounded text-green-600 cursor-pointer"
+                                                    />
+                                                </td>
+                                                <td className="p-3 text-center">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={!!p.edit}
+                                                        onChange={() => togglePerm(mod.key, 'edit')}
+                                                        className="w-4 h-4 rounded text-blue-600 cursor-pointer"
+                                                    />
+                                                </td>
+                                                <td className="p-3 text-center">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={!!p.delete}
+                                                        onChange={() => togglePerm(mod.key, 'delete')}
+                                                        className="w-4 h-4 rounded text-red-600 cursor-pointer"
+                                                    />
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
+                            <Lock size={13} /> Nota: Colaboradores nunca podem convidar outros usuários, gerenciar empresas globais ou fazer/restaurar backups.
+                        </p>
+                    </div>
+
+                    <div className="flex justify-end gap-2 pt-3">
+                        <Button type="button" onClick={() => setIsModalOpen(false)} className="bg-gray-500 hover:bg-gray-600">Cancelar</Button>
+                        <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
+                            {editingCollab ? 'Salvar Alterações' : 'Criar Convite e Gerar Link'}
+                        </Button>
+                    </div>
+                </form>
+            </Modal>
+        </div>
+    );
+};
+
+const GlobalSettingsView = ({ companies, onSave, onDelete, onBack, onBackup, onRestore, subscription, onSubscribe, backupConfig, onSaveBackupConfig, collaborators, onCreateInvite, onUpdateCollaborator, onRevokeCollaborator }) => {
     const [activeTab, setActiveTab] = useState('empresas');
 
     const TabButton = ({ tabName, label, active }) => (
@@ -4858,8 +5226,9 @@ const GlobalSettingsView = ({ companies, onSave, onDelete, onBack, onBackup, onR
             </div>
 
             <div>
-                <div className="border-b border-gray-300 dark:border-gray-700">
+                <div className="border-b border-gray-300 dark:border-gray-700 flex flex-wrap gap-1">
                     <TabButton tabName="empresas" label="Empresas" active={activeTab === 'empresas'} />
+                    <TabButton tabName="colaboradores" label="Colaboradores e Links de Acesso" active={activeTab === 'colaboradores'} />
                     <TabButton tabName="assinatura" label="Assinatura" active={activeTab === 'assinatura'} />
                     <TabButton tabName="backup" label="Backup / Restauração" active={activeTab === 'backup'} />
                 </div>
@@ -4867,6 +5236,15 @@ const GlobalSettingsView = ({ companies, onSave, onDelete, onBack, onBackup, onR
                 <div className="bg-white dark:bg-gray-800 p-8 rounded-b-2xl rounded-r-2xl shadow-lg">
                     {activeTab === 'empresas' && (
                         <CompaniesManager companies={companies} onSave={onSave} onDelete={onDelete} />
+                    )}
+                    {activeTab === 'colaboradores' && (
+                        <CollaboratorsManager
+                            collaborators={collaborators}
+                            companies={companies}
+                            onCreateInvite={onCreateInvite}
+                            onUpdateCollaborator={onUpdateCollaborator}
+                            onRevokeCollaborator={onRevokeCollaborator}
+                        />
                     )}
                     {activeTab === 'assinatura' && (
                         <SubscriptionView subscription={subscription} onSubscribe={onSubscribe} />
@@ -4956,19 +5334,36 @@ const BackupManager = ({ onBackup, onRestore, backupConfig, onSaveBackupConfig }
 };
 
 
-const HubScreen = ({ companies, onSelect, onShowReports, onManageCompanies }) => {
+const HubScreen = ({ companies, onSelect, onShowReports, onManageCompanies, isCollaborator, collaboratorSession, onExitCollaboration }) => {
+    const visibleCompanies = useMemo(() => {
+        const active = companies.filter(c => c.isActive !== false);
+        if (isCollaborator && Array.isArray(collaboratorSession?.allowedCompanies)) {
+            return active.filter(c => collaboratorSession.allowedCompanies.includes(c.id));
+        }
+        return active;
+    }, [companies, isCollaborator, collaboratorSession]);
+
     return (
         <div className="w-full h-screen flex flex-col justify-center items-center bg-gray-800 bg-cover bg-center" style={{ backgroundImage: "url(https://images.unsplash.com/photo-1555396273-367ea4eb4db5?q=80&w=2574&auto=format&fit=crop)" }}>
             <div className="absolute inset-0 bg-black/60"></div>
             <div className="relative z-10 w-full max-w-4xl text-center p-8">
-                <button onClick={onManageCompanies} className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors" title="Gerir Empresas e Categorias">
-                    <Settings size={24} />
-                </button>
+                {!isCollaborator ? (
+                    <button onClick={onManageCompanies} className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors flex items-center gap-2 bg-white/10 hover:bg-white/20 px-4 py-2 rounded-xl" title="Gerir Empresas e Colaboradores">
+                        <Settings size={20} />
+                        <span className="text-sm font-semibold">Configurações & Colaboradores</span>
+                    </button>
+                ) : (
+                    <div className="mb-6 inline-flex items-center gap-3 bg-indigo-600/90 text-white px-4 py-2 rounded-full text-sm shadow-lg">
+                        <Users size={16} />
+                        <span>Acesso de Colaborador: <strong>{collaboratorSession?.name}</strong></span>
+                        <button onClick={onExitCollaboration} className="ml-2 underline text-xs hover:text-red-200">Sair do modo colaborador</button>
+                    </div>
+                )}
                 <h1 className="text-5xl font-extrabold text-white mb-4">Bem-vindo ao Financeiro PRO</h1>
                 <p className="text-xl text-white/80 mb-12">Selecione uma empresa para começar ou veja os seus relatórios consolidados.</p>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {companies.filter(c => c.isActive !== false).map(company => (
+                    {visibleCompanies.map(company => (
                         <button key={company.id} onClick={() => onSelect(company.id)} className="group bg-white/10 hover:bg-white/20 backdrop-blur-md p-6 rounded-2xl text-white text-left transition-all transform hover:scale-105">
                             <Building size={32} className="mb-4 text-blue-300 group-hover:text-white transition-colors" />
                             <h2 className="text-xl font-bold">{company.name}</h2>
@@ -4977,7 +5372,7 @@ const HubScreen = ({ companies, onSelect, onShowReports, onManageCompanies }) =>
                     ))}
                 </div>
 
-                {companies.filter(c => c.isActive !== false).length > 0 && (
+                {visibleCompanies.length > 0 && (
                     <div className="mt-12">
                         <Button onClick={onShowReports} className="bg-purple-600 hover:bg-purple-700">
                             <BarChart2 size={20} />
@@ -5072,6 +5467,22 @@ export default function App() {
     const [backupConfig, setBackupConfig] = useState({ frequency: 'disabled', lastBackup: null });
     const [dashboardConfig, setDashboardConfig] = useState(null);
 
+    // --- SISTEMA DE COLABORADORES E LINKS DE CONVITE ---
+    const [collaborators, setCollaborators] = useState([]);
+    const [collaboratorSession, setCollaboratorSession] = useState(null); // Dados do convite quando logado como colaborador
+
+    // Captura parâmetros de convite (?invite=ID&owner=UID) da URL imediatamente ao abrir
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const inviteId = params.get('invite');
+        const ownerUid = params.get('owner');
+        if (inviteId && ownerUid) {
+            localStorage.setItem('finpro_collab_invite', JSON.stringify({ inviteId, ownerUid }));
+            const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+            window.history.replaceState({ path: cleanUrl }, '', cleanUrl);
+        }
+    }, []);
+
     useEffect(() => {
         if (theme === 'dark') {
             document.documentElement.classList.add('dark');
@@ -5090,13 +5501,63 @@ export default function App() {
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
             if (currentUser) {
                 setUser(currentUser);
-                const userId = currentUser.uid;
+                const loggedUid = currentUser.uid;
 
-                // --- CHECK MIGRATION AND SUBSCRIPTION ---
-                const profileRef = doc(db, `users/${userId}/profile`, 'userProfile');
-                const subRef = doc(db, `users/${userId}/subscription`, 'current');
-
+                // Verificar se há um convite pendente no navegador ou salvo no perfil do colaborador
+                const profileRef = doc(db, `users/${loggedUid}/profile`, 'userProfile');
+                const subRef = doc(db, `users/${loggedUid}/subscription`, 'current');
                 const [profileSnap, subSnap] = await Promise.all([getDoc(profileRef), getDoc(subRef)]);
+
+                let savedInvite = null;
+                try {
+                    const localRaw = localStorage.getItem('finpro_collab_invite');
+                    if (localRaw) savedInvite = JSON.parse(localRaw);
+                } catch (e) { /* ignore */ }
+
+                if (!savedInvite && profileSnap.exists() && profileSnap.data().activeCollaboration) {
+                    savedInvite = profileSnap.data().activeCollaboration;
+                }
+
+                // Se o usuário estiver acessando o próprio link que ele mesmo criou, ignora modo colaborador
+                if (savedInvite && savedInvite.ownerUid && savedInvite.ownerUid !== loggedUid) {
+                    try {
+                        const inviteRef = doc(db, `users/${savedInvite.ownerUid}/collaborators`, savedInvite.inviteId);
+                        const inviteSnap = await getDoc(inviteRef);
+                        if (inviteSnap.exists()) {
+                            const inviteData = inviteSnap.data();
+                            const userEmail = (currentUser.email || '').toLowerCase();
+                            if (inviteData.status === 'revoked') {
+                                alert('Este link de acesso foi cancelado pelo administrador.');
+                                localStorage.removeItem('finpro_collab_invite');
+                                await setDoc(profileRef, { activeCollaboration: null }, { merge: true });
+                            } else if (inviteData.email && inviteData.email !== '' && inviteData.email.toLowerCase() !== userEmail) {
+                                alert(`Este convite é restrito ao e-mail ${inviteData.email}. Você entrou com ${currentUser.email}.`);
+                                localStorage.removeItem('finpro_collab_invite');
+                            } else {
+                                // Vincula colaborador e ativa sessão
+                                await setDoc(inviteRef, {
+                                    acceptedByUid: loggedUid,
+                                    acceptedByEmail: currentUser.email || '',
+                                    acceptedAt: new Date().toISOString()
+                                }, { merge: true });
+                                await setDoc(profileRef, {
+                                    migrationCompleted: true,
+                                    activeCollaboration: savedInvite
+                                }, { merge: true });
+                                setCollaboratorSession({ id: inviteSnap.id, ...inviteData });
+                                setMigrationStatus('not_needed');
+                                setIsAuthReady(true);
+                                return;
+                            }
+                        } else {
+                            alert('Convite não encontrado ou excluído pelo administrador.');
+                            localStorage.removeItem('finpro_collab_invite');
+                            await setDoc(profileRef, { activeCollaboration: null }, { merge: true });
+                        }
+                    } catch (err) {
+                        console.error('Erro ao validar convite de colaborador:', err);
+                    }
+                }
 
                 // Setup subscription if it doesn't exist
                 if (!subSnap.exists()) {
@@ -5113,7 +5574,7 @@ export default function App() {
                 if (profileSnap.exists() && profileSnap.data().migrationCompleted) {
                     setMigrationStatus('not_needed');
                 } else {
-                    const oldTransactionsQuery = query(collection(db, `users/${userId}/transactions`), limit(1));
+                    const oldTransactionsQuery = query(collection(db, `users/${loggedUid}/transactions`), limit(1));
                     const oldTransactionsSnap = await getDocs(oldTransactionsQuery);
                     if (!oldTransactionsSnap.empty) {
                         setMigrationStatus('needed');
@@ -5126,6 +5587,7 @@ export default function App() {
 
             } else {
                 setUser(null);
+                setCollaboratorSession(null);
                 setMigrationStatus('checking');
             }
             setIsAuthReady(true);
@@ -5135,7 +5597,89 @@ export default function App() {
 
     // eslint-disable-next-line no-undef
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-    const userId = user?.uid;
+    const isCollaborator = !!collaboratorSession;
+    const userId = isCollaborator ? collaboratorSession.ownerUid : user?.uid;
+
+    // Listener em tempo real para o colaborador (se o admin alterar permissão ou cancelar acesso, reflete na hora!)
+    useEffect(() => {
+        if (!isCollaborator || !collaboratorSession?.ownerUid || !collaboratorSession?.id) return;
+        const inviteRef = doc(db, `users/${collaboratorSession.ownerUid}/collaborators`, collaboratorSession.id);
+        const unsub = onSnapshot(inviteRef, async (snap) => {
+            if (!snap.exists() || snap.data().status === 'revoked') {
+                alert('A sua permissão de acesso como colaborador foi revogada pelo administrador.');
+                localStorage.removeItem('finpro_collab_invite');
+                if (user?.uid) {
+                    await setDoc(doc(db, `users/${user.uid}/profile`, 'userProfile'), { activeCollaboration: null }, { merge: true });
+                }
+                setCollaboratorSession(null);
+                setActiveCompanyId(null);
+            } else {
+                setCollaboratorSession({ id: snap.id, ...snap.data() });
+            }
+        });
+        return () => unsub();
+    }, [isCollaborator, collaboratorSession?.ownerUid, collaboratorSession?.id, user?.uid]);
+
+    // Listener da lista de colaboradores (apenas para o administrador/dono)
+    useEffect(() => {
+        if (!user?.uid || isCollaborator) {
+            setCollaborators([]);
+            return;
+        }
+        const qCollab = query(collection(db, `users/${user.uid}/collaborators`));
+        const unsub = onSnapshot(qCollab, (snap) => {
+            setCollaborators(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        });
+        return () => unsub();
+    }, [user?.uid, isCollaborator]);
+
+    const checkPermission = (collectionOrModule, action) => {
+        if (!isCollaborator) return true; // Administrador tem acesso total
+        let modKey = collectionOrModule;
+        if (collectionOrModule === 'accounts' || collectionOrModule === 'categories' || collectionOrModule === 'payees') {
+            modKey = 'settings';
+        }
+        const modPerms = collaboratorSession?.permissions?.[modKey];
+        const allowed = !!modPerms?.[action];
+        if (!allowed) {
+            const actionLabel = action === 'create' ? 'criar/lançar' : action === 'edit' ? 'editar/alterar' : 'excluir/apagar';
+            alert(`Acesso restrito: O administrador não habilitou permissão para você ${actionLabel} nesta área.`);
+        }
+        return allowed;
+    };
+
+    const handleCreateInvite = async (payload) => {
+        if (!user?.uid || isCollaborator) return;
+        const refCol = collection(db, `users/${user.uid}/collaborators`);
+        await addDoc(refCol, {
+            ...payload,
+            ownerUid: user.uid,
+            ownerEmail: user.email || '',
+            status: 'active',
+            createdAt: new Date().toISOString(),
+        });
+    };
+
+    const handleUpdateCollaborator = async (collabId, updates) => {
+        if (!user?.uid || isCollaborator) return;
+        const docRef = doc(db, `users/${user.uid}/collaborators`, collabId);
+        await setDoc(docRef, updates, { merge: true });
+    };
+
+    const handleRevokeCollaborator = async (collabId) => {
+        if (!user?.uid || isCollaborator) return;
+        await deleteDoc(doc(db, `users/${user.uid}/collaborators`, collabId));
+    };
+
+    const handleExitCollaboration = async () => {
+        if (!window.confirm('Deseja sair do modo colaborador e voltar para a sua conta pessoal?')) return;
+        localStorage.removeItem('finpro_collab_invite');
+        if (user?.uid) {
+            await setDoc(doc(db, `users/${user.uid}/profile`, 'userProfile'), { activeCollaboration: null }, { merge: true });
+        }
+        setCollaboratorSession(null);
+        setActiveCompanyId(null);
+    };
 
     // Listener da configuração de backup
     useEffect(() => {
@@ -5269,6 +5813,13 @@ export default function App() {
     const handleSave = async (collectionName, data, id, file = null) => {
         if (!userId) return;
         const isGlobal = ['companies'].includes(collectionName);
+        if (isGlobal && isCollaborator) {
+            alert('Acesso restrito: Colaboradores não podem criar ou alterar empresas.');
+            return;
+        }
+        if (!isGlobal && !checkPermission(collectionName, id ? 'edit' : 'create')) {
+            return;
+        }
         const basePath = `users/${userId}`;
         let path = isGlobal ? `${basePath}/${collectionName}` : `${basePath}/companies/${activeCompanyId}/${collectionName}`;
 
@@ -5330,9 +5881,17 @@ export default function App() {
     };
 
     const handleDelete = async (collectionName, item) => {
-        if (!userId || !window.confirm('Tem a certeza que deseja apagar este item? Esta ação não pode ser desfeita.')) return;
-
+        if (!userId) return;
         const isGlobal = ['companies'].includes(collectionName);
+        if (isGlobal && isCollaborator) {
+            alert('Acesso restrito: Colaboradores não podem excluir empresas.');
+            return;
+        }
+        if (!isGlobal && !checkPermission(collectionName, 'delete')) {
+            return;
+        }
+        if (!window.confirm('Tem a certeza que deseja apagar este item? Esta ação não pode ser desfeita.')) return;
+
         const basePath = `users/${userId}`;
         const path = isGlobal ? `${basePath}/${collectionName}` : `${basePath}/companies/${activeCompanyId}/${collectionName}`;
         const itemId = typeof item === 'string' ? item : item.id;
@@ -5374,6 +5933,7 @@ export default function App() {
 
     const handleBatchDeleteTransactions = async (transactionsToDelete) => {
         if (!userId || transactionsToDelete.length === 0) return;
+        if (!checkPermission('transactions', 'delete')) return;
         if (!window.confirm(`Tem a certeza que deseja apagar ${transactionsToDelete.length} transações? Esta ação não pode ser desfeita.`)) return;
 
         const path = `users/${userId}/companies/${activeCompanyId}/transactions`;
@@ -5419,6 +5979,7 @@ export default function App() {
 
     const handleImportTransactions = async (transactionsToImport, accountId) => {
         if (!userId) return;
+        if (!checkPermission('transactions', 'create')) return;
         const path = `users/${userId}/companies/${activeCompanyId}/transactions`;
         const batch = writeBatch(db);
         const accountImportName = accounts.find(a => a.id === accountId)?.name || 'conta';
@@ -5462,6 +6023,7 @@ export default function App() {
 
     const handleReconcile = async (reconciliationData) => {
         if (!userId) return;
+        if (!checkPermission('futureEntries', 'edit')) return;
         const { id, finalAmount, paymentDate, accountId, notes, originalEntry } = reconciliationData;
 
         const batch = writeBatch(db);
@@ -5695,10 +6257,41 @@ export default function App() {
             case 'reports':
                 return <ConsolidatedReportsView allCompaniesData={allCompaniesData} companies={companies} onBack={() => setHubView('selector')} />;
             case 'global_settings':
-                return <GlobalSettingsView companies={companies} onSave={handleSave} onDelete={(coll, id) => handleDelete(coll, { id })} onBack={() => setHubView('selector')} onBackup={handleBackup} onRestore={handleRestore} subscription={subscription} onSubscribe={handleSubscribeClick} backupConfig={backupConfig} onSaveBackupConfig={handleSaveBackupConfig} />;
+                if (isCollaborator) {
+                    setHubView('selector');
+                    return null;
+                }
+                return (
+                    <GlobalSettingsView
+                        companies={companies}
+                        onSave={handleSave}
+                        onDelete={(coll, id) => handleDelete(coll, { id })}
+                        onBack={() => setHubView('selector')}
+                        onBackup={handleBackup}
+                        onRestore={handleRestore}
+                        subscription={subscription}
+                        onSubscribe={handleSubscribeClick}
+                        backupConfig={backupConfig}
+                        onSaveBackupConfig={handleSaveBackupConfig}
+                        collaborators={collaborators}
+                        onCreateInvite={handleCreateInvite}
+                        onUpdateCollaborator={handleUpdateCollaborator}
+                        onRevokeCollaborator={handleRevokeCollaborator}
+                    />
+                );
             case 'selector':
             default:
-                return <HubScreen companies={companies} onSelect={setActiveCompanyId} onShowReports={() => setHubView('reports')} onManageCompanies={() => setHubView('global_settings')} />;
+                return (
+                    <HubScreen
+                        companies={companies}
+                        onSelect={setActiveCompanyId}
+                        onShowReports={() => setHubView('reports')}
+                        onManageCompanies={() => setHubView('global_settings')}
+                        isCollaborator={isCollaborator}
+                        collaboratorSession={collaboratorSession}
+                        onExitCollaboration={handleExitCollaboration}
+                    />
+                );
         }
     }
 
@@ -5716,9 +6309,11 @@ export default function App() {
             handleDelete(collection, { id });
         };
 
+        const txPerms = isCollaborator ? (collaboratorSession?.permissions?.transactions || {}) : { create: true, edit: true, delete: true };
+
         switch (view) {
             case 'dashboard': return <DashboardView {...{ transactions, accounts, categories, futureEntries, budgets, dashboardConfig }} onSaveConfig={handleSaveDashboardConfig} />;
-            case 'transactions': return <TransactionsView transactions={transactions} accounts={accounts} categories={categories} payees={payees} futureEntries={futureEntries} onSave={handleSaveWithCompanyId} onDelete={handleDeleteWithCompanyId} onBatchDelete={handleBatchDeleteTransactions} onImportTransactions={handleImportWithCompanyId} activeCompanyId={activeCompanyId} db={db} selectedAccountId={globalAccountId} setSelectedAccountId={setGlobalAccountId} onOpenReconciliation={() => setView('reconciliation')} />;
+            case 'transactions': return <TransactionsView transactions={transactions} accounts={accounts} categories={categories} payees={payees} futureEntries={futureEntries} onSave={handleSaveWithCompanyId} onDelete={handleDeleteWithCompanyId} onBatchDelete={handleBatchDeleteTransactions} onImportTransactions={handleImportWithCompanyId} activeCompanyId={activeCompanyId} db={db} selectedAccountId={globalAccountId} setSelectedAccountId={setGlobalAccountId} onOpenReconciliation={() => setView('reconciliation')} canCreate={!!txPerms.create} canEdit={!!txPerms.edit} canDelete={!!txPerms.delete} />;
             case 'reconciliation': return <ReconciliationView transactions={transactions} accounts={accounts} categories={categories} payees={payees} onSaveTransaction={handleSaveWithCompanyId} allTransactions={transactions} selectedAccountId={globalAccountId} setSelectedAccountId={setGlobalAccountId} />;
             case 'futureEntries': return <FutureEntriesView futureEntries={futureEntries} accounts={accounts} categories={categories} payees={payees} onSave={handleSaveWithCompanyId} onDelete={handleDeleteWithCompanyId} onReconcile={handleReconcileWithCompanyId} />;
             case 'budgets': return <BudgetsView budgets={budgets} categories={categories} transactions={transactions} onSave={handleSaveWithCompanyId} onDelete={handleDeleteWithCompanyId} />;
@@ -5748,6 +6343,7 @@ export default function App() {
 
 
     const handleSaveClosing = (closingData, accountId) => {
+        if (!checkPermission('pos', 'create')) return;
         if (!accountId || accountId === 'all') {
             alert('Selecione a Conta Caixa para gerar as transações.');
             return;
@@ -5875,12 +6471,23 @@ export default function App() {
                         <p className="text-sm text-gray-500 dark:text-gray-400">Empresa Ativa</p>
                         <p className="font-bold text-lg text-gray-800 dark:text-gray-200">{activeCompany?.name}</p>
                         <button onClick={() => setActiveCompanyId(null)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline mt-1">Trocar de empresa</button>
+                        {isCollaborator && (
+                            <div className="mt-2 pt-2 border-t dark:border-gray-600">
+                                <span className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 dark:text-indigo-400">
+                                    <Users size={13} /> Colaborador: {collaboratorSession?.name}
+                                </span>
+                            </div>
+                        )}
                     </div>
                     <nav className="space-y-2">
                         <NavItem icon={<LayoutDashboard />} label="Dashboard" active={view === 'dashboard'} onClick={() => setView('dashboard')} />
                         <NavItem icon={<List />} label="Transações" active={view === 'transactions'} onClick={() => setView('transactions')} />
                         <NavItem icon={<CalendarClock />} label="Fluxo de Caixa Semanal" active={view === 'weeklyCashFlow'} onClick={() => setView('weeklyCashFlow')} />
                         <NavItem icon={<Landmark />} label="Controle de Vendas/Caixa" active={isPosModalOpen} onClick={() => {
+                            if (isCollaborator && !collaboratorSession?.permissions?.pos?.create && !collaboratorSession?.permissions?.pos?.edit) {
+                                alert('Acesso restrito: O administrador não liberou acesso ao Controle de Vendas/Caixa.');
+                                return;
+                            }
                             if (!globalAccountId || globalAccountId === 'all') {
                                 alert('Por favor, selecione a Conta Caixa na aba de Transações primeiro, para que o fechamento seja lançado na conta correta.');
                                 setView('transactions');
