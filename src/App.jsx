@@ -405,7 +405,7 @@ const DashboardView = ({ transactions, accounts, categories, futureEntries, budg
     );
 };
 
-const TransactionsView = ({ transactions, accounts, categories, payees, onSave, onDelete, onBatchDelete, futureEntries, onImportTransactions, activeCompanyId, db, selectedAccountId, setSelectedAccountId, onOpenReconciliation, canCreate = true, canEdit = true, canDelete = true }) => {
+const TransactionsView = ({ transactions, accounts, categories, payees, classificationMemory = [], onSave, onDelete, onBatchDelete, futureEntries, onImportTransactions, activeCompanyId, db, selectedAccountId, setSelectedAccountId, onOpenReconciliation, canCreate = true, canEdit = true, canDelete = true }) => {
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingTransaction, setEditingTransaction] = useState(null);
@@ -993,6 +993,7 @@ const TransactionsView = ({ transactions, accounts, categories, payees, onSave, 
                 categories={categories}
                 payees={payees}
                 allTransactions={transactions}
+                classificationMemory={classificationMemory}
             />
         </div>
     );
@@ -2401,7 +2402,7 @@ const PosImportModal = ({ isOpen, onClose, onImport }) => {
 };
 
 // --- VIEW DE CONCILIAÇÃO BANCÁRIA ---
-const ReconciliationView = ({ transactions, accounts, categories, payees, onSaveTransaction, allTransactions , selectedAccountId, setSelectedAccountId}) => {
+const ReconciliationView = ({ transactions, accounts, categories, payees, classificationMemory = [], onSaveTransaction, allTransactions , selectedAccountId, setSelectedAccountId}) => {
     const [statementData, setStatementData] = useState([]);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [isPosImportModalOpen, setIsPosImportModalOpen] = useState(false);
@@ -2573,6 +2574,7 @@ const ReconciliationView = ({ transactions, accounts, categories, payees, onSave
                 categories={categories}
                 payees={payees}
                 allTransactions={allTransactions}
+                classificationMemory={classificationMemory}
                 onSave={onSaveTransaction}
                 externalTransactions={posTransactions}
             />
@@ -3531,12 +3533,13 @@ const CompaniesManager = ({ companies, onSave, onDelete }) => {
     );
 };
 
-const CategoryManager = ({ categories, onSave, onDelete, onApplyTemplate }) => {
+const CategoryManager = ({ categories, onSave, onDelete, onApplyTemplate, onOpenCopyCompanyModal }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
     const [editingCategory, setEditingCategory] = useState(null);
     const [preselectedParent, setPreselectedParent] = useState(null);
     const [formData, setFormData] = useState({});
+    const importFileInputRef = useRef(null);
 
     const { revenueCategories, expenseCategories } = useMemo(() => {
         const revenue = categories.filter(c => c.type === 'revenue');
@@ -3612,6 +3615,29 @@ const CategoryManager = ({ categories, onSave, onDelete, onApplyTemplate }) => {
         link.click();
     };
 
+    const handleDirectImportCategoriesFile = (event) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            try {
+                const importedData = JSON.parse(e.target.result);
+                if (!Array.isArray(importedData) || !importedData.every(cat => cat.name && cat.type)) {
+                    throw new Error("Formato de arquivo inválido. Selecione um JSON de Plano de Contas válido.");
+                }
+                if (window.confirm(`Deseja importar ${importedData.length} categorias para esta empresa? (Categorias já existentes com o mesmo nome não serão duplicadas)`)) {
+                    await onApplyTemplate(importedData);
+                    alert("Plano de contas importado com sucesso!");
+                }
+            } catch (err) {
+                alert(`Erro ao importar Plano de Contas: ${err.message}`);
+            } finally {
+                if (importFileInputRef.current) importFileInputRef.current.value = '';
+            }
+        };
+        reader.readAsText(file);
+    };
+
     const handleDelete = (id) => {
         if (window.confirm('Tem a certeza? Se for uma categoria principal, as suas subcategorias tornar-se-ão categorias principais.')) {
             onDelete('categories', id);
@@ -3654,34 +3680,43 @@ const CategoryManager = ({ categories, onSave, onDelete, onApplyTemplate }) => {
 
     return (
         <>
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex flex-wrap justify-between items-center mb-6 gap-3">
                 <h2 className="text-3xl font-extrabold text-gray-800 dark:text-gray-200">Gerenciador de Categorias</h2>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
+                    <input type="file" ref={importFileInputRef} onChange={handleDirectImportCategoriesFile} accept=".json" className="hidden" />
+                    {onOpenCopyCompanyModal && (
+                        <Button onClick={onOpenCopyCompanyModal} className="bg-indigo-600 hover:bg-indigo-700">
+                            <BookCopy size={18} />
+                            <span>Copiar de Outra Empresa</span>
+                        </Button>
+                    )}
+                    <Button onClick={() => importFileInputRef.current?.click()} className="bg-emerald-600 hover:bg-emerald-700">
+                        <Upload size={18} />
+                        <span>Importar JSON</span>
+                    </Button>
                     {categories.length > 0 && (
                         <Button onClick={handleExportCategories} className="bg-teal-600 hover:bg-teal-700">
                             <Download size={18} />
-                            <span>Exportar</span>
+                            <span>Exportar JSON</span>
                         </Button>
                     )}
                     <Button onClick={() => handleOpenModal({})}><PlusCircle size={18} /><span>Nova Categoria</span></Button>
                 </div>
             </div>
 
-            <div className="p-6 bg-blue-50 dark:bg-gray-700/50 rounded-xl border-2 border-blue-200 dark:border-blue-800 mb-8">
-                <h3 className="text-xl font-bold text-blue-800 dark:text-blue-300">Plano de Contas</h3>
-                {categories.length > 0 ? (
-                    <p className="mt-2 text-sm text-blue-700 dark:text-blue-400">O seu plano de contas personalizado está ativo. Para usar um modelo ou importar um novo, primeiro precisa de apagar todas as categorias existentes.</p>
-                ) : (
-                    <>
-                        <p className="mt-2 text-sm text-blue-700 dark:text-blue-400">Comece rapidamente usando um modelo pronto ou importe o seu próprio plano de contas.</p>
-                        <div className="mt-4 flex gap-4">
-                            <Button onClick={() => setIsTemplateModalOpen(true)} className="bg-blue-600 hover:bg-blue-700">
-                                <BookCopy size={16} />
-                                <span>Escolher Modelo</span>
-                            </Button>
-                        </div>
-                    </>
-                )}
+            <div className="p-6 bg-blue-50 dark:bg-gray-700/50 rounded-xl border-2 border-blue-200 dark:border-blue-800 mb-8 flex flex-wrap justify-between items-center gap-4">
+                <div>
+                    <h3 className="text-xl font-bold text-blue-800 dark:text-blue-300">Plano de Contas</h3>
+                    <p className="mt-1 text-sm text-blue-700 dark:text-blue-400">
+                        {categories.length > 0
+                            ? `Você possui ${categories.length} categorias ativas. Você pode exportar seu plano, importar categorias adicionais de um arquivo JSON ou copiar de outra empresa.`
+                            : 'Comece rapidamente usando um modelo pronto com IA, importe um arquivo JSON ou copie de outra empresa.'}
+                    </p>
+                </div>
+                <Button onClick={() => setIsTemplateModalOpen(true)} className="bg-blue-600 hover:bg-blue-700">
+                    <BookCopy size={16} />
+                    <span>Modelos / Importar</span>
+                </Button>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
@@ -3774,7 +3809,7 @@ const AccountsManager = ({ accounts, onSave, onDelete, onImport }) => {
     return (
         <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg h-full">
             <div className="flex justify-between items-center mb-4">
-                <h3 className="text-2xl font-bold text-gray-700 dark:text-gray-200">Contas</h3>
+                <h3 className="text-2xl font-bold text-gray-800 dark:text-gray-200">Contas</h3>
                 <Button onClick={() => handleOpenModal()}><PlusCircle size={18} /><span>Nova Conta</span></Button>
             </div>
             <ul className="space-y-4">
@@ -3835,10 +3870,106 @@ const AccountsManager = ({ accounts, onSave, onDelete, onImport }) => {
     );
 };
 
-const PayeesManager = ({ payees, categories, onSave, onDelete }) => {
+// --- UTILITÁRIOS DE INTELIGÊNCIA DE CLASSIFICAÇÃO E EXPORTAÇÃO DE FAVORECIDOS ---
+const normalizeTextForMatch = (str) => str ? str.normalize('NFD').replace(/[\u0300-\u036f]/g, "").toLowerCase().trim() : '';
+const cleanDescExact = (str) => str ? str.normalize('NFD').replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z]/g, '') : '';
+const cleanDescIncludes = (str) => str ? str.normalize('NFD').replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim() : '';
+
+const BANK_STOPWORDS = new Set([
+    'pix', 'enviado', 'recebido', 'ted', 'doc', 'pagto', 'pagamento', 'boleto', 'compra',
+    'debito', 'credito', 'cartao', 'elo', 'master', 'mastercard', 'visa', 'transf',
+    'transferencia', 'automatico', 'deb', 'aut', 'sispag', 'cobranca', 'tarifa', 'ltda',
+    'eireli', 'me', 'epp', 'sa', 'remessa', 'qr', 'code', 'estabelecimento', 'elo',
+    'parcela', 'titulo', 'liquidacao', 'int', 'internet', 'banking', 'agencia', 'conta'
+]);
+
+const extractMeaningfulTokens = (str) => {
+    const cleaned = cleanDescIncludes(str);
+    if (!cleaned) return [];
+    return cleaned
+        .split(' ')
+        .filter(tok => tok.length >= 3 && !/^\d+$/.test(tok) && !BANK_STOPWORDS.has(tok));
+};
+
+const extractLearnedRulesFromData = (transactionsList = [], categoriesList = [], payeesList = [], existingMemory = []) => {
+    const rulesMap = new Map();
+
+    // Primeiro carrega regras já existentes na memória
+    (existingMemory || []).forEach(rule => {
+        if (rule && rule.exactPattern) {
+            rulesMap.set(rule.exactPattern, rule);
+        }
+    });
+
+    // Depois extrai do histórico de transações categorizadas (do mais antigo para o mais recente para manter a decisão mais recente)
+    const sortedTx = [...(transactionsList || [])].sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0));
+    sortedTx.forEach(tx => {
+        if (tx.isTransfer || (!tx.categoryId && !tx.payeeId)) return;
+        const exactPattern = cleanDescExact(tx.description);
+        const cleanPattern = cleanDescIncludes(tx.description);
+        if (!exactPattern || exactPattern.length < 3) return;
+
+        const cat = categoriesList.find(c => c.id === tx.categoryId);
+        const parentCat = cat?.parentId ? categoriesList.find(p => p.id === cat.parentId) : null;
+        const payee = payeesList.find(p => p.id === tx.payeeId);
+
+        rulesMap.set(exactPattern, {
+            exactPattern,
+            cleanPattern,
+            tokens: extractMeaningfulTokens(tx.description),
+            sampleDescription: tx.description,
+            type: tx.type || cat?.type || 'expense',
+            categoryId: tx.categoryId || '',
+            categoryName: cat?.name || '',
+            parentCategoryName: parentCat?.name || '',
+            categoryType: cat?.type || tx.type || 'expense',
+            payeeId: tx.payeeId || '',
+            payeeName: payee?.name || '',
+        });
+    });
+
+    return Array.from(rulesMap.values());
+};
+
+const resolveCategoryInTargetCompany = (item, targetCategories = []) => {
+    if (!item || !targetCategories || targetCategories.length === 0) return '';
+    // 1. Se o ID já existe diretamente na empresa destino
+    if (item.categoryId && targetCategories.some(c => c.id === item.categoryId)) {
+        return item.categoryId;
+    }
+    // 2. Busca por Nome da Categoria + Nome da Categoria Pai + Tipo
+    const targetName = normalizeTextForMatch(item.categoryName);
+    if (!targetName) return '';
+    const targetParentName = normalizeTextForMatch(item.parentCategoryName);
+    const targetType = item.categoryType || item.type || '';
+
+    if (targetParentName) {
+        const matchWithParent = targetCategories.find(c => {
+            if (normalizeTextForMatch(c.name) !== targetName) return false;
+            if (targetType && c.type !== targetType) return false;
+            const parent = targetCategories.find(p => p.id === c.parentId);
+            return parent && normalizeTextForMatch(parent.name) === targetParentName;
+        });
+        if (matchWithParent) return matchWithParent.id;
+    }
+
+    // 3. Busca por Nome da Categoria + Tipo
+    const matchByType = targetCategories.find(c =>
+        normalizeTextForMatch(c.name) === targetName && (!targetType || c.type === targetType)
+    );
+    if (matchByType) return matchByType.id;
+
+    // 4. Busca apenas pelo Nome da Categoria
+    const matchByNameOnly = targetCategories.find(c => normalizeTextForMatch(c.name) === targetName);
+    return matchByNameOnly ? matchByNameOnly.id : '';
+};
+
+const PayeesManager = ({ payees, categories, allTransactions, classificationMemory, onSave, onDelete, onImportPayeesAndIntelligence, onOpenCopyCompanyModal }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingPayee, setEditingPayee] = useState(null);
     const [formData, setFormData] = useState({});
+    const [searchQuery, setSearchQuery] = useState('');
+    const fileInputRef = useRef(null);
 
     const groupedCategories = useMemo(() => {
         if (!categories) return [];
@@ -3849,13 +3980,27 @@ const PayeesManager = ({ payees, categories, onSave, onDelete }) => {
         })).sort((a, b) => a.name.localeCompare(b.name));
     }, [categories]);
 
+    const learnedRulesCount = useMemo(() => {
+        return extractLearnedRulesFromData(allTransactions, categories, payees, classificationMemory).length;
+    }, [allTransactions, categories, payees, classificationMemory]);
+
+    const filteredPayees = useMemo(() => {
+        if (!searchQuery.trim()) return payees;
+        const q = normalizeTextForMatch(searchQuery);
+        return payees.filter(p =>
+            normalizeTextForMatch(p.name).includes(q) ||
+            normalizeTextForMatch(p.keywords || '').includes(q) ||
+            normalizeTextForMatch(getCategoryFullName(p.categoryId, categories)).includes(q)
+        );
+    }, [payees, categories, searchQuery]);
+
     const handleOpenModal = (payee = null) => {
         if (payee) {
             setEditingPayee(payee);
             setFormData(payee);
         } else {
             setEditingPayee(null);
-            setFormData({ name: '', categoryId: '' });
+            setFormData({ name: '', categoryId: '', keywords: '' });
         }
         setIsModalOpen(true);
     };
@@ -3869,18 +4014,154 @@ const PayeesManager = ({ payees, categories, onSave, onDelete }) => {
         handleCloseModal();
     };
 
+    const handleExportPayeesAndIntelligence = () => {
+        const learnedRules = extractLearnedRulesFromData(allTransactions, categories, payees, classificationMemory);
+        if (payees.length === 0 && learnedRules.length === 0) {
+            alert("Não há favorecidos nem inteligência de classificação para exportar nesta empresa.");
+            return;
+        }
+
+        const exportedPayees = payees.map(p => {
+            const cat = categories.find(c => c.id === p.categoryId);
+            const parentCat = cat?.parentId ? categories.find(parent => parent.id === cat.parentId) : null;
+            return {
+                id: p.id,
+                name: p.name,
+                keywords: p.keywords || '',
+                categoryId: p.categoryId || null,
+                categoryName: cat?.name || '',
+                parentCategoryName: parentCat?.name || '',
+                categoryType: cat?.type || '',
+            };
+        });
+
+        const exportPayload = {
+            version: 2,
+            exportedAt: new Date().toISOString(),
+            payees: exportedPayees,
+            learnedRules,
+        };
+
+        const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(
+            JSON.stringify(exportPayload, null, 2)
+        )}`;
+        const link = document.createElement("a");
+        link.href = jsonString;
+        link.download = "favorecidos_e_inteligencia.json";
+        link.click();
+    };
+
+    const handleImportFileChange = (event) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            try {
+                const parsed = JSON.parse(e.target.result);
+                let payeesToImport = [];
+                let rulesToImport = [];
+
+                if (Array.isArray(parsed)) {
+                    payeesToImport = parsed;
+                } else if (parsed && typeof parsed === 'object') {
+                    payeesToImport = Array.isArray(parsed.payees) ? parsed.payees : [];
+                    rulesToImport = Array.isArray(parsed.learnedRules) ? parsed.learnedRules : [];
+                } else {
+                    throw new Error("Formato de arquivo JSON não reconhecido.");
+                }
+
+                if (payeesToImport.length === 0 && rulesToImport.length === 0) {
+                    throw new Error("O arquivo não contém favorecidos nem regras de classificação.");
+                }
+
+                if (window.confirm(`Deseja importar ${payeesToImport.length} favorecido(s) e ${rulesToImport.length} padrão(ões) de inteligência bancária para esta empresa?`)) {
+                    await onImportPayeesAndIntelligence({ payeesToImport, rulesToImport });
+                }
+            } catch (err) {
+                alert(`Erro ao ler arquivo JSON: ${err.message}`);
+            } finally {
+                if (fileInputRef.current) fileInputRef.current.value = '';
+            }
+        };
+        reader.readAsText(file);
+    };
+
     return (
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg h-full">
-            <div className="flex justify-between items-center mb-4">
-                <h3 className="text-2xl font-bold text-gray-700 dark:text-gray-200">Favorecidos</h3>
-                <Button onClick={() => handleOpenModal()}><PlusCircle size={18} /><span>Novo Favorecido</span></Button>
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg h-full space-y-6">
+            <div className="flex flex-wrap justify-between items-center gap-3">
+                <div>
+                    <h3 className="text-2xl font-bold text-gray-700 dark:text-gray-200">Favorecidos e Inteligência Bancária</h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Cadastre fornecedores/clientes e exporte ou copie a inteligência de classificação automática entre empresas.
+                    </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                    <input type="file" ref={fileInputRef} onChange={handleImportFileChange} accept=".json" className="hidden" />
+                    {onOpenCopyCompanyModal && (
+                        <Button onClick={onOpenCopyCompanyModal} className="bg-indigo-600 hover:bg-indigo-700">
+                            <BookCopy size={18} />
+                            <span>Copiar de Outra Empresa</span>
+                        </Button>
+                    )}
+                    <Button onClick={() => fileInputRef.current?.click()} className="bg-emerald-600 hover:bg-emerald-700">
+                        <Upload size={18} />
+                        <span>Importar JSON</span>
+                    </Button>
+                    {(payees.length > 0 || learnedRulesCount > 0) && (
+                        <Button onClick={handleExportPayeesAndIntelligence} className="bg-teal-600 hover:bg-teal-700">
+                            <Download size={18} />
+                            <span>Exportar Favorecidos + IA</span>
+                        </Button>
+                    )}
+                    <Button onClick={() => handleOpenModal()}><PlusCircle size={18} /><span>Novo Favorecido</span></Button>
+                </div>
             </div>
+
+            {/* Painel informativo da Inteligência do Banco */}
+            <div className="p-4 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded-xl flex flex-wrap justify-between items-center gap-4">
+                <div className="space-y-1">
+                    <div className="flex items-center gap-2 text-indigo-800 dark:text-indigo-300 font-bold">
+                        <ShieldCheck size={20} />
+                        <span>Memória de Classificação Automática Ativa</span>
+                    </div>
+                    <p className="text-xs sm:text-sm text-indigo-700 dark:text-indigo-400">
+                        Esta empresa possui <strong>{payees.length} favorecidos</strong> cadastrados e <strong>{learnedRulesCount} padrões de extrato aprendidos</strong> (histórico + memória importada) para classificar automaticamente transações iguais ou similares ao importar extratos (.ofx, .csv, .xlsx).
+                    </p>
+                </div>
+            </div>
+
+            {payees.length > 5 && (
+                <div>
+                    <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Pesquisar favorecido por nome, palavra-chave ou categoria..."
+                        className="w-full p-2.5 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-200 text-sm"
+                    />
+                </div>
+            )}
+
             <ul className="space-y-3">
-                {payees.map(p => (
-                    <li key={p.id} className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                {filteredPayees.length === 0 && (
+                    <p className="text-gray-500 dark:text-gray-400 text-center py-6">Nenhum favorecido encontrado.</p>
+                )}
+                {filteredPayees.map(p => (
+                    <li key={p.id} className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-transparent hover:border-gray-200 dark:hover:border-gray-600">
                         <div>
-                            <p className="font-semibold">{p.name}</p>
-                            {p.categoryId && <p className="text-xs text-gray-500 dark:text-gray-400">{getCategoryFullName(p.categoryId, categories)}</p>}
+                            <p className="font-semibold text-gray-800 dark:text-gray-200">{p.name}</p>
+                            <div className="flex flex-wrap gap-3 mt-0.5">
+                                {p.categoryId && (
+                                    <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">
+                                        Categoria: {getCategoryFullName(p.categoryId, categories)}
+                                    </span>
+                                )}
+                                {p.keywords && (
+                                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                                        Palavras-chave no extrato: {p.keywords}
+                                    </span>
+                                )}
+                            </div>
                         </div>
                         <div className="flex items-center space-x-2">
                             <button onClick={() => handleOpenModal(p)} className="text-blue-500 hover:text-blue-700 p-1" title="Editar Favorecido"><Edit size={16} /></button>
@@ -3891,7 +4172,10 @@ const PayeesManager = ({ payees, categories, onSave, onDelete }) => {
             </ul>
             <Modal isOpen={isModalOpen} onClose={handleCloseModal} title={editingPayee ? 'Editar Favorecido' : 'Novo Favorecido'}>
                 <form onSubmit={handleSubmit} className="space-y-4">
-                    <label className="block dark:text-gray-300"><span className="text-gray-700 dark:text-gray-300">Nome do Favorecido</span><input type="text" name="name" value={formData.name || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required /></label>
+                    <label className="block dark:text-gray-300">
+                        <span className="text-gray-700 dark:text-gray-300">Nome do Favorecido</span>
+                        <input type="text" name="name" value={formData.name || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required />
+                    </label>
                     <label className="block dark:text-gray-300">
                         <span className="text-gray-700 dark:text-gray-300">Categoria Padrão (Opcional)</span>
                         <select name="categoryId" value={formData.categoryId || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300">
@@ -3904,6 +4188,18 @@ const PayeesManager = ({ payees, categories, onSave, onDelete }) => {
                             ))}
                         </select>
                     </label>
+                    <label className="block dark:text-gray-300">
+                        <span className="text-gray-700 dark:text-gray-300">Palavras-chave no Extrato Bancário (Opcional, separadas por vírgula)</span>
+                        <input
+                            type="text"
+                            name="keywords"
+                            value={formData.keywords || ''}
+                            onChange={handleChange}
+                            placeholder="Ex: CNPJ, Razão Social no banco, Sigla no PIX"
+                            className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300"
+                        />
+                        <span className="text-xs text-gray-500">Ajuda a identificar automaticamente este favorecido mesmo quando o banco abrevia o nome no extrato.</span>
+                    </label>
                     <div className="flex justify-end pt-4"><Button type="submit"><span>Guardar</span></Button></div>
                 </form>
             </Modal>
@@ -3912,7 +4208,7 @@ const PayeesManager = ({ payees, categories, onSave, onDelete }) => {
 };
 
 // --- MODAL DE IMPORTAÇÃO DE TRANSAÇÕES (ATUALIZADO) ---
-const TransactionImportModal = ({ isOpen, onClose, onImport, account, accounts, categories, payees, allTransactions, onSave, externalTransactions }) => {
+const TransactionImportModal = ({ isOpen, onClose, onImport, account, accounts, categories, payees, allTransactions, classificationMemory = [], onSave, externalTransactions }) => {
     const [step, setStep] = useState(1);
     const [csvData, setCsvData] = useState('');
     const [transactions, setTransactions] = useState([]);
@@ -3966,7 +4262,7 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, accounts, 
 
         if (!exactDesc) return { guessedCategoryId, guessedPayeeId, guessedTransferAccountId: '' };
 
-        // 1. Memória Histórica (Aprende com o que o usuário já categorizou)
+        // 1. Memória Histórica da Empresa Atual (Correspondência Exata de Letras)
         let foundOrphanTransfer = false;
         if (allTransactions) {
             let bestTransferAccountId = '';
@@ -3985,9 +4281,13 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, accounts, 
                             }
                         }
                         foundOrphanTransfer = true; // Achou uma transferência, mas sem destino conhecido ainda
-                    } else if (pastTx.categoryId) {
-                        bestCategoryId = pastTx.categoryId;
+                    } else if (pastTx.categoryId || pastTx.payeeId) {
+                        bestCategoryId = pastTx.categoryId || '';
                         bestPayeeId = pastTx.payeeId || '';
+                        if (bestPayeeId && !bestCategoryId) {
+                            const py = payees.find(p => p.id === bestPayeeId);
+                            if (py?.categoryId) bestCategoryId = py.categoryId;
+                        }
                     }
                 } else if (pastTx.isTransfer && includesDesc.length >= 5 && cleanForIncludes(pastTx.description).includes(includesDesc)) {
                     if (account && pastTx.accountId !== account.id) {
@@ -3999,22 +4299,124 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, accounts, 
 
             if (bestTransferAccountId) {
                 return { guessedCategoryId: '', guessedPayeeId: '', guessedTransferAccountId: bestTransferAccountId };
-            } else if (bestCategoryId) {
-                // PRIORIDADE CORRIGIDA: Categoria válida SEMPRE ganha de transferência órfã
+            } else if (bestCategoryId || bestPayeeId) {
                 return { guessedCategoryId: bestCategoryId, guessedPayeeId: bestPayeeId, guessedTransferAccountId: '' };
             }
-            // Se encontrou apenas orphan transfer, não retorna agora para dar chance às Rules 2, 3 e 4
         }
 
-        // 2. Motor de Regras Locais (Verifica se contém nomes de favorecidos)
+        // 1.5. Memória de Classificação Importada de Outra Empresa (Correspondência Exata)
+        if (classificationMemory && classificationMemory.length > 0) {
+            for (const rule of classificationMemory) {
+                if (rule.exactPattern === exactDesc) {
+                    let resolvedCatId = resolveCategoryInTargetCompany(rule, categories);
+                    let resolvedPayeeId = '';
+                    if (rule.payeeId && payees.some(p => p.id === rule.payeeId)) {
+                        resolvedPayeeId = rule.payeeId;
+                    } else if (rule.payeeName) {
+                        const matchedPayee = payees.find(p => normalizeTextForMatch(p.name) === normalizeTextForMatch(rule.payeeName));
+                        if (matchedPayee) {
+                            resolvedPayeeId = matchedPayee.id;
+                            if (!resolvedCatId && matchedPayee.categoryId) resolvedCatId = matchedPayee.categoryId;
+                        }
+                    }
+                    if (resolvedCatId || resolvedPayeeId) {
+                        return { guessedCategoryId: resolvedCatId, guessedPayeeId: resolvedPayeeId, guessedTransferAccountId: '' };
+                    }
+                }
+            }
+        }
+
+        // 2. Motor de Favorecidos Cadastrados (Nome + Palavras-chave + Tokens Relevantes)
+        const descTokens = extractMeaningfulTokens(description);
         for (const payee of payees) {
             const cleanPayee = cleanForIncludes(payee.name);
+            let matched = false;
             if (cleanPayee.length >= 3 && includesDesc.includes(cleanPayee)) {
+                matched = true;
+            }
+            if (!matched && payee.keywords) {
+                const kwList = payee.keywords.split(',').map(k => cleanForIncludes(k)).filter(k => k.length >= 3);
+                if (kwList.some(kw => includesDesc.includes(kw) || keywordDesc.includes(cleanForKeywords(kw)))) {
+                    matched = true;
+                }
+            }
+            if (!matched && descTokens.length > 0) {
+                const payeeTokens = extractMeaningfulTokens(payee.name);
+                if (payeeTokens.length >= 2 && payeeTokens.every(pt => descTokens.includes(pt))) {
+                    matched = true;
+                } else if (payeeTokens.length === 1 && payeeTokens[0].length >= 5 && descTokens.includes(payeeTokens[0])) {
+                    matched = true;
+                }
+            }
+            if (matched) {
                 guessedPayeeId = payee.id;
                 if (payee.categoryId) {
                     guessedCategoryId = payee.categoryId;
                 }
                 break;
+            }
+        }
+
+        // 2.5. Inteligência de Transações Similares (Histórico Local + Memória Importada)
+        if ((!guessedCategoryId || !guessedPayeeId) && descTokens.length > 0) {
+            let bestSimScore = 0;
+            let bestSimCatId = '';
+            let bestSimPayeeId = '';
+
+            const evaluateSimilarity = (candidateTokens, catId, payeeId) => {
+                if (!candidateTokens || candidateTokens.length === 0) return;
+                const common = descTokens.filter(t => candidateTokens.includes(t) || candidateTokens.some(ct => ct.length >= 5 && t.length >= 5 && (ct.includes(t) || t.includes(ct))));
+                if (common.length === 0) return;
+                const hasStrongToken = common.some(t => t.length >= 4);
+                if (!hasStrongToken && common.length < 2) return;
+
+                const minLen = Math.min(descTokens.length, candidateTokens.length);
+                const maxLen = Math.max(descTokens.length, candidateTokens.length);
+                const containment = common.length / minLen;
+                const jaccard = common.length / maxLen;
+                const score = (containment * 0.7) + (jaccard * 0.3);
+
+                if ((common.length >= 2 && score >= 0.55) || (common.length === 1 && common[0].length >= 5 && score >= 0.7)) {
+                    if (score > bestSimScore) {
+                        bestSimScore = score;
+                        bestSimCatId = catId;
+                        bestSimPayeeId = payeeId;
+                    }
+                }
+            };
+
+            if (allTransactions) {
+                for (const pastTx of allTransactions) {
+                    if (pastTx.isTransfer || (!pastTx.categoryId && !pastTx.payeeId)) continue;
+                    const pastTokens = extractMeaningfulTokens(pastTx.description);
+                    evaluateSimilarity(pastTokens, pastTx.categoryId || '', pastTx.payeeId || '');
+                }
+            }
+
+            if (classificationMemory && classificationMemory.length > 0) {
+                for (const rule of classificationMemory) {
+                    const ruleTokens = rule.tokens || extractMeaningfulTokens(rule.sampleDescription || rule.cleanPattern || '');
+                    const resolvedCatId = resolveCategoryInTargetCompany(rule, categories);
+                    let resolvedPayeeId = '';
+                    if (rule.payeeId && payees.some(p => p.id === rule.payeeId)) {
+                        resolvedPayeeId = rule.payeeId;
+                    } else if (rule.payeeName) {
+                        const mp = payees.find(p => normalizeTextForMatch(p.name) === normalizeTextForMatch(rule.payeeName));
+                        if (mp) resolvedPayeeId = mp.id;
+                    }
+                    if (resolvedCatId || resolvedPayeeId) {
+                        evaluateSimilarity(ruleTokens, resolvedCatId, resolvedPayeeId);
+                    }
+                }
+            }
+
+            if (!guessedCategoryId && bestSimCatId) guessedCategoryId = bestSimCatId;
+            if (!guessedPayeeId && bestSimPayeeId) {
+                guessedPayeeId = bestSimPayeeId;
+                if (!guessedCategoryId) {
+                    const py = payees.find(p => p.id === guessedPayeeId);
+                    if (py?.categoryId) guessedCategoryId = py.categoryId;
+                }
             }
         }
 
@@ -4394,7 +4796,35 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, accounts, 
 
 
     const handleRowChange = (id, field, value) => {
-        setTransactions(prev => prev.map(t => (t.id === id ? { ...t, [field]: value } : t)));
+        setTransactions(prev => {
+            const targetTx = prev.find(t => t.id === id);
+            const targetExact = targetTx ? cleanDescExact(targetTx.description) : '';
+            const selectedPayee = field === 'payeeId' ? payees.find(p => p.id === value) : null;
+
+            return prev.map(t => {
+                if (t.id === id) {
+                    const updated = { ...t, [field]: value };
+                    if (field === 'payeeId' && selectedPayee?.categoryId && !updated.categoryId) {
+                        updated.categoryId = selectedPayee.categoryId;
+                    }
+                    return updated;
+                }
+                // Propagação inteligente no mesmo extrato: se outras linhas têm a mesma descrição exata e ainda estão sem categoria/favorecido, preenche automaticamente!
+                if (targetExact && targetExact.length >= 4 && cleanDescExact(t.description) === targetExact && !t.isTransfer) {
+                    if (field === 'categoryId' && value && !t.categoryId) {
+                        return { ...t, categoryId: value };
+                    }
+                    if (field === 'payeeId' && value && !t.payeeId) {
+                        return {
+                            ...t,
+                            payeeId: value,
+                            categoryId: t.categoryId || selectedPayee?.categoryId || ''
+                        };
+                    }
+                }
+                return t;
+            });
+        });
     };
 
     const handleConfirmImport = () => {
@@ -4603,7 +5033,7 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, accounts, 
 };
 
 
-const SettingsView = ({ onSaveEntity, onDeleteEntity, onBatchDelete, onImportTransactions, accounts, payees, categories, allTransactions, activeCompanyId }) => {
+const SettingsView = ({ onSaveEntity, onDeleteEntity, onBatchDelete, onImportTransactions, accounts, payees, categories, allTransactions, classificationMemory = [], companies = [], userId, activeCompanyId }) => {
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [accountToImport, setAccountToImport] = useState(null);
     const [activeTab, setActiveTab] = useState('accounts');
@@ -4612,6 +5042,22 @@ const SettingsView = ({ onSaveEntity, onDeleteEntity, onBatchDelete, onImportTra
     const [isDuplicateModalOpen, setIsDuplicateModalOpen] = useState(false);
     const [duplicatesFound, setDuplicatesFound] = useState([]);
     const [selectedForDeletion, setSelectedForDeletion] = useState(new Set());
+
+    // Copy from another company state
+    const [isCopyModalOpen, setIsCopyModalOpen] = useState(false);
+    const [sourceCompanyId, setSourceCompanyId] = useState('');
+    const [copyOptions, setCopyOptions] = useState({
+        copyCategories: true,
+        copyPayees: true,
+        copyIntelligence: true,
+    });
+    const [isCopyingCompanyData, setIsCopyingCompanyData] = useState(false);
+
+    const otherCompanies = useMemo(() => {
+        return (companies || []).filter(c => c.id !== activeCompanyId && c.isActive !== false);
+    }, [companies, activeCompanyId]);
+
+    const effectiveUid = userId || auth.currentUser?.uid;
 
     const handleOpenImportModal = (account) => {
         setAccountToImport(account);
@@ -4679,34 +5125,242 @@ const SettingsView = ({ onSaveEntity, onDeleteEntity, onBatchDelete, onImportTra
     };
 
     const handleApplyTemplate = async (templateData) => {
+        if (!effectiveUid || !activeCompanyId) return categories;
         const batch = writeBatch(db);
         const idMap = new Map();
+        const combinedCategories = [...categories];
+        const catCollectionPath = `users/${effectiveUid}/companies/${activeCompanyId}/categories`;
 
-        // Salvar primeiro as categorias pai para obter os seus IDs
+        // 1. Processar categorias principais (pais) evitando duplicatas
         const parents = templateData.filter(cat => !cat.parentId);
         for (const cat of parents) {
             const { id: oldId, ...data } = cat;
-            const docRef = doc(collection(db, `users/${auth.currentUser.uid}/companies/${activeCompanyId}/categories`));
-            idMap.set(oldId, docRef.id); // Mapeia o ID antigo para o novo
-            batch.set(docRef, data);
+            const existingParent = combinedCategories.find(
+                c => !c.parentId && c.type === data.type && normalizeTextForMatch(c.name) === normalizeTextForMatch(data.name)
+            );
+            if (existingParent) {
+                idMap.set(oldId, existingParent.id);
+            } else {
+                const docRef = doc(collection(db, catCollectionPath));
+                const cleanParent = { name: data.name, type: data.type, parentId: null };
+                idMap.set(oldId, docRef.id);
+                batch.set(docRef, cleanParent);
+                combinedCategories.push({ id: docRef.id, ...cleanParent });
+            }
         }
 
-        // Agora, salvar as categorias filhas, usando os novos IDs dos pais
+        // 2. Processar subcategorias (filhas) usando os IDs mapeados dos pais e evitando duplicatas
         const children = templateData.filter(cat => cat.parentId);
         for (const child of children) {
             const { id: oldId, parentId: oldParentId, ...data } = child;
-            const newParentId = idMap.get(oldParentId);
-            if (newParentId) {
-                data.parentId = newParentId;
-                const docRef = doc(collection(db, `users/${auth.currentUser.uid}/companies/${activeCompanyId}/categories`));
-                batch.set(docRef, data);
+            const newParentId = idMap.get(oldParentId) || (combinedCategories.some(c => c.id === oldParentId) ? oldParentId : null);
+
+            const existingChild = combinedCategories.find(
+                c => (c.parentId || null) === newParentId && c.type === data.type && normalizeTextForMatch(c.name) === normalizeTextForMatch(data.name)
+            );
+            if (existingChild) {
+                idMap.set(oldId, existingChild.id);
             } else {
-                console.warn(`Categoria filha "${child.name}" não encontrou o ID do pai "${oldParentId}". Será salva como categoria principal.`);
-                const docRef = doc(collection(db, `users/${auth.currentUser.uid}/companies/${activeCompanyId}/categories`));
-                batch.set(docRef, data);
+                const docRef = doc(collection(db, catCollectionPath));
+                const cleanChild = {
+                    name: data.name,
+                    type: data.type,
+                    parentId: newParentId || null,
+                };
+                idMap.set(oldId, docRef.id);
+                batch.set(docRef, cleanChild);
+                combinedCategories.push({ id: docRef.id, ...cleanChild });
             }
         }
+
         await batch.commit();
+        return combinedCategories;
+    };
+
+    const handleImportPayeesAndIntelligence = async ({ payeesToImport = [], rulesToImport = [] }, customCategoriesList = null, silent = false) => {
+        if (!effectiveUid || !activeCompanyId) return { createdPayees: 0, updatedPayees: 0, savedRules: 0 };
+        const targetCategories = customCategoriesList || categories;
+        const payeesPath = `users/${effectiveUid}/companies/${activeCompanyId}/payees`;
+        const batch = writeBatch(db);
+
+        const updatedPayeesList = [...payees];
+        let createdPayees = 0;
+        let updatedPayees = 0;
+
+        for (const item of payeesToImport) {
+            if (!item || !item.name || !item.name.trim()) continue;
+            const cleanName = item.name.trim();
+            const resolvedCategoryId = resolveCategoryInTargetCompany(item, targetCategories);
+
+            const existingPayee = updatedPayeesList.find(
+                p => normalizeTextForMatch(p.name) === normalizeTextForMatch(cleanName)
+            );
+
+            if (existingPayee) {
+                const needsUpdate = (!existingPayee.categoryId && resolvedCategoryId) || (!existingPayee.keywords && item.keywords);
+                if (needsUpdate) {
+                    const docRef = doc(db, payeesPath, existingPayee.id);
+                    const updates = {};
+                    if (!existingPayee.categoryId && resolvedCategoryId) {
+                        updates.categoryId = resolvedCategoryId;
+                        existingPayee.categoryId = resolvedCategoryId;
+                    }
+                    if (!existingPayee.keywords && item.keywords) {
+                        updates.keywords = item.keywords;
+                        existingPayee.keywords = item.keywords;
+                    }
+                    batch.set(docRef, updates, { merge: true });
+                    updatedPayees++;
+                }
+            } else {
+                const docRef = doc(collection(db, payeesPath));
+                const newPayeeData = {
+                    name: cleanName,
+                    ...(resolvedCategoryId ? { categoryId: resolvedCategoryId } : {}),
+                    ...(item.keywords ? { keywords: item.keywords } : {}),
+                };
+                batch.set(docRef, newPayeeData);
+                updatedPayeesList.push({ id: docRef.id, ...newPayeeData });
+                createdPayees++;
+            }
+        }
+
+        await batch.commit();
+
+        // Salvar / mesclar inteligência de classificação bancária (learnedRules)
+        let savedRules = 0;
+        if (rulesToImport && rulesToImport.length > 0) {
+            const rulesMap = new Map();
+            (classificationMemory || []).forEach(r => {
+                if (r && r.exactPattern) rulesMap.set(r.exactPattern, r);
+            });
+
+            rulesToImport.forEach(r => {
+                if (!r || !r.exactPattern) return;
+                const resolvedCatId = resolveCategoryInTargetCompany(r, targetCategories);
+                let resolvedPayeeId = '';
+                if (r.payeeId && updatedPayeesList.some(p => p.id === r.payeeId)) {
+                    resolvedPayeeId = r.payeeId;
+                } else if (r.payeeName) {
+                    const matchedPayee = updatedPayeesList.find(
+                        p => normalizeTextForMatch(p.name) === normalizeTextForMatch(r.payeeName)
+                    );
+                    if (matchedPayee) resolvedPayeeId = matchedPayee.id;
+                }
+
+                rulesMap.set(r.exactPattern, {
+                    ...r,
+                    tokens: r.tokens || extractMeaningfulTokens(r.sampleDescription || r.cleanPattern || ''),
+                    categoryId: resolvedCatId || r.categoryId || '',
+                    payeeId: resolvedPayeeId || r.payeeId || '',
+                });
+            });
+
+            // Mantém até 1200 padrões mais relevantes para caber com folga em 1 documento Firestore
+            const mergedRules = Array.from(rulesMap.values()).slice(-1200);
+            savedRules = mergedRules.length;
+            const memoryRef = doc(db, `users/${effectiveUid}/companies/${activeCompanyId}/profile`, 'classificationMemory');
+            await setDoc(memoryRef, {
+                rules: mergedRules,
+                updatedAt: new Date().toISOString(),
+            }, { merge: true });
+        }
+
+        if (!silent) {
+            alert(
+                `Importação concluída com sucesso!\n\n` +
+                `• Favorecidos novos criados: ${createdPayees}\n` +
+                `• Favorecidos existentes atualizados: ${updatedPayees}\n` +
+                `• Padrões de inteligência bancária ativos na memória: ${savedRules || classificationMemory.length}`
+            );
+        }
+
+        return { createdPayees, updatedPayees, savedRules };
+    };
+
+    const handleOpenCopyCompanyModal = () => {
+        if (otherCompanies.length === 0) {
+            alert('Você não possui outra empresa cadastrada na sua conta para copiar diretamente. Use os botões "Exportar JSON" e "Importar JSON" para transferir via arquivo.');
+            return;
+        }
+        if (!sourceCompanyId) {
+            setSourceCompanyId(otherCompanies[0].id);
+        }
+        setIsCopyModalOpen(true);
+    };
+
+    const handleExecuteCopyFromCompany = async (e) => {
+        e.preventDefault();
+        if (!sourceCompanyId) {
+            alert('Selecione a empresa de origem.');
+            return;
+        }
+        if (!copyOptions.copyCategories && !copyOptions.copyPayees && !copyOptions.copyIntelligence) {
+            alert('Selecione pelo menos um item para copiar.');
+            return;
+        }
+
+        setIsCopyingCompanyData(true);
+        try {
+            const sourceBasePath = `users/${effectiveUid}/companies/${sourceCompanyId}`;
+            const [srcCatsSnap, srcPayeesSnap, srcTxSnap, srcMemSnap] = await Promise.all([
+                getDocs(query(collection(db, `${sourceBasePath}/categories`))),
+                getDocs(query(collection(db, `${sourceBasePath}/payees`))),
+                copyOptions.copyIntelligence ? getDocs(query(collection(db, `${sourceBasePath}/transactions`))) : Promise.resolve({ docs: [] }),
+                copyOptions.copyIntelligence ? getDoc(doc(db, `${sourceBasePath}/profile`, 'classificationMemory')) : Promise.resolve({ exists: () => false }),
+            ]);
+
+            const srcCategories = srcCatsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+            const srcPayees = srcPayeesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+            const srcTransactions = srcTxSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+            const srcMemory = srcMemSnap.exists() && Array.isArray(srcMemSnap.data().rules) ? srcMemSnap.data().rules : [];
+
+            let latestTargetCategories = categories;
+
+            // 1. Se marcou copiar Plano de Contas, aplica as categorias primeiro para que os favorecidos e regras já encontrem todas as categorias correspondentes!
+            if (copyOptions.copyCategories && srcCategories.length > 0) {
+                latestTargetCategories = await handleApplyTemplate(srcCategories);
+            }
+
+            // 2. Prepara favorecidos com metadados das categorias de origem
+            const payeesToImport = copyOptions.copyPayees
+                ? srcPayees.map(p => {
+                    const cat = srcCategories.find(c => c.id === p.categoryId);
+                    const parentCat = cat?.parentId ? srcCategories.find(parent => parent.id === cat.parentId) : null;
+                    return {
+                        ...p,
+                        categoryName: cat?.name || '',
+                        parentCategoryName: parentCat?.name || '',
+                        categoryType: cat?.type || '',
+                    };
+                })
+                : [];
+
+            // 3. Prepara a inteligência de classificação bancária (histórico + memória da empresa de origem)
+            const rulesToImport = copyOptions.copyIntelligence
+                ? extractLearnedRulesFromData(srcTransactions, srcCategories, srcPayees, srcMemory)
+                : [];
+
+            const result = await handleImportPayeesAndIntelligence(
+                { payeesToImport, rulesToImport },
+                latestTargetCategories,
+                true
+            );
+
+            const sourceName = otherCompanies.find(c => c.id === sourceCompanyId)?.name || 'outra empresa';
+            alert(
+                `Dados copiados de "${sourceName}" com sucesso!\n\n` +
+                (copyOptions.copyCategories ? `• Plano de Contas sincronizado (${srcCategories.length} categorias verificadas)\n` : '') +
+                (copyOptions.copyPayees ? `• Favorecidos importados: ${result.createdPayees} novos, ${result.updatedPayees} atualizados\n` : '') +
+                (copyOptions.copyIntelligence ? `• Inteligência de Classificação Bancária: ${rulesToImport.length} padrões aprendidos importados!` : '')
+            );
+            setIsCopyModalOpen(false);
+        } catch (err) {
+            console.error('Erro ao copiar dados de outra empresa:', err);
+            alert(`Erro ao copiar dados: ${err.message}`);
+        } finally {
+            setIsCopyingCompanyData(false);
+        }
     };
 
 
@@ -4719,23 +5373,49 @@ const SettingsView = ({ onSaveEntity, onDeleteEntity, onBatchDelete, onImportTra
 
     return (
         <div className="space-y-8">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-wrap justify-between items-center gap-4">
                 <h2 className="text-4xl font-bold text-gray-800 dark:text-gray-200">Configurações da Empresa</h2>
-                <Button onClick={handleFindDuplicates} className="bg-red-600 hover:bg-red-700 flex items-center gap-2">
-                    <Trash2 size={18} /> Limpar Lançamentos Duplicados
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                    {otherCompanies.length > 0 && (
+                        <Button onClick={handleOpenCopyCompanyModal} className="bg-indigo-600 hover:bg-indigo-700 flex items-center gap-2">
+                            <BookCopy size={18} /> Copiar Cadastros / IA de Outra Empresa
+                        </Button>
+                    )}
+                    <Button onClick={handleFindDuplicates} className="bg-red-600 hover:bg-red-700 flex items-center gap-2">
+                        <Trash2 size={18} /> Limpar Lançamentos Duplicados
+                    </Button>
+                </div>
             </div>
 
             <div className="border-b dark:border-gray-700">
                 <TabButton tab="accounts" label="Contas" />
-                <TabButton tab="payees" label="Favorecidos" />
-                <TabButton tab="categories" label="Categorias" />
+                <TabButton tab="payees" label="Favorecidos e Inteligência" />
+                <TabButton tab="categories" label="Categorias (Plano de Contas)" />
             </div>
 
             <div className="mt-4">
                 {activeTab === 'accounts' && <AccountsManager accounts={accounts} onSave={onSaveEntity} onDelete={onDeleteEntity} onImport={handleOpenImportModal} />}
-                {activeTab === 'payees' && <PayeesManager payees={payees} categories={categories} onSave={onSaveEntity} onDelete={onDeleteEntity} />}
-                {activeTab === 'categories' && <CategoryManager categories={categories} onSave={onSaveEntity} onDelete={onDeleteEntity} onApplyTemplate={handleApplyTemplate} />}
+                {activeTab === 'payees' && (
+                    <PayeesManager
+                        payees={payees}
+                        categories={categories}
+                        allTransactions={allTransactions}
+                        classificationMemory={classificationMemory}
+                        onSave={onSaveEntity}
+                        onDelete={onDeleteEntity}
+                        onImportPayeesAndIntelligence={handleImportPayeesAndIntelligence}
+                        onOpenCopyCompanyModal={otherCompanies.length > 0 ? handleOpenCopyCompanyModal : null}
+                    />
+                )}
+                {activeTab === 'categories' && (
+                    <CategoryManager
+                        categories={categories}
+                        onSave={onSaveEntity}
+                        onDelete={onDeleteEntity}
+                        onApplyTemplate={handleApplyTemplate}
+                        onOpenCopyCompanyModal={otherCompanies.length > 0 ? handleOpenCopyCompanyModal : null}
+                    />
+                )}
             </div>
 
             <TransactionImportModal
@@ -4747,8 +5427,84 @@ const SettingsView = ({ onSaveEntity, onDeleteEntity, onBatchDelete, onImportTra
                 categories={categories}
                 payees={payees}
                 allTransactions={allTransactions}
+                classificationMemory={classificationMemory}
                 onSave={onSaveEntity}
             />
+
+            {/* Modal para Copiar Direto de Outra Empresa */}
+            <Modal isOpen={isCopyModalOpen} onClose={() => setIsCopyModalOpen(false)} title="Copiar Cadastros e Inteligência de Outra Empresa">
+                <form onSubmit={handleExecuteCopyFromCompany} className="space-y-5">
+                    <p className="text-sm text-gray-600 dark:text-gray-300">
+                        Economize tempo trazendo os seus favorecidos, plano de contas e a memória inteligente de classificação de extratos bancários de outra empresa da sua conta.
+                    </p>
+
+                    <label className="block dark:text-gray-200">
+                        <span className="font-semibold text-sm">Selecione a Empresa de Origem:</span>
+                        <select
+                            value={sourceCompanyId}
+                            onChange={(e) => setSourceCompanyId(e.target.value)}
+                            className="mt-1 block w-full p-2.5 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-200"
+                            required
+                        >
+                            <option value="">Selecione...</option>
+                            {otherCompanies.map(c => (
+                                <option key={c.id} value={c.id}>{c.name}</option>
+                            ))}
+                        </select>
+                    </label>
+
+                    <div className="space-y-3 bg-gray-50 dark:bg-gray-700/50 p-4 rounded-xl border dark:border-gray-600">
+                        <p className="font-semibold text-sm text-gray-800 dark:text-gray-200">O que você deseja copiar?</p>
+
+                        <label className="flex items-start gap-3 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={copyOptions.copyCategories}
+                                onChange={(e) => setCopyOptions(p => ({ ...p, copyCategories: e.target.checked }))}
+                                className="mt-1 h-4 w-4 rounded text-indigo-600"
+                            />
+                            <div>
+                                <span className="font-medium text-sm text-gray-800 dark:text-gray-200 block">Plano de Contas (Categorias e Subcategorias)</span>
+                                <span className="text-xs text-gray-500 dark:text-gray-400">Adiciona as categorias que ainda não existem nesta empresa para vincular corretamente os favorecidos.</span>
+                            </div>
+                        </label>
+
+                        <label className="flex items-start gap-3 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={copyOptions.copyPayees}
+                                onChange={(e) => setCopyOptions(p => ({ ...p, copyPayees: e.target.checked }))}
+                                className="mt-1 h-4 w-4 rounded text-indigo-600"
+                            />
+                            <div>
+                                <span className="font-medium text-sm text-gray-800 dark:text-gray-200 block">Favorecidos Cadastrados</span>
+                                <span className="text-xs text-gray-500 dark:text-gray-400">Copia todos os fornecedores e clientes com suas categorias padrão e palavras-chave.</span>
+                            </div>
+                        </label>
+
+                        <label className="flex items-start gap-3 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={copyOptions.copyIntelligence}
+                                onChange={(e) => setCopyOptions(p => ({ ...p, copyIntelligence: e.target.checked }))}
+                                className="mt-1 h-4 w-4 rounded text-indigo-600"
+                            />
+                            <div>
+                                <span className="font-medium text-sm text-gray-800 dark:text-gray-200 block">Inteligência do Banco (Classificação Automática)</span>
+                                <span className="text-xs text-gray-500 dark:text-gray-400">Copia o aprendizado de transações anteriores para classificar automaticamente favorecidos e lançamentos similares nos próximos extratos.</span>
+                            </div>
+                        </label>
+                    </div>
+
+                    <div className="flex justify-end gap-2 pt-2">
+                        <Button type="button" onClick={() => setIsCopyModalOpen(false)} className="bg-gray-500 hover:bg-gray-600">Cancelar</Button>
+                        <Button type="submit" disabled={isCopyingCompanyData} className="bg-indigo-600 hover:bg-indigo-700">
+                            {isCopyingCompanyData ? <RefreshCw className="animate-spin" size={18} /> : <BookCopy size={18} />}
+                            <span>{isCopyingCompanyData ? 'Copiando...' : 'Copiar Agora'}</span>
+                        </Button>
+                    </div>
+                </form>
+            </Modal>
 
             {/* Duplicate Review Modal */}
             <Modal isOpen={isDuplicateModalOpen} onClose={() => setIsDuplicateModalOpen(false)} title="Revisão de Lançamentos Duplicados">
@@ -5466,6 +6222,7 @@ export default function App() {
     const [isMigrating, setIsMigrating] = useState(false);
     const [backupConfig, setBackupConfig] = useState({ frequency: 'disabled', lastBackup: null });
     const [dashboardConfig, setDashboardConfig] = useState(null);
+    const [classificationMemory, setClassificationMemory] = useState([]);
 
     // --- SISTEMA DE COLABORADORES E LINKS DE CONVITE ---
     const [collaborators, setCollaborators] = useState([]);
@@ -5770,10 +6527,10 @@ export default function App() {
     }, [companies, userId, appId, isAuthReady]);
 
 
-    // Carregar dados da empresa ativa
+        // Carregar dados da empresa ativa
     useEffect(() => {
         if (!activeCompanyId || !userId) {
-            setAccounts([]); setPayees([]); setTransactions([]); setBudgets([]); setFutureEntries([]); setCategories([]);
+            setAccounts([]); setPayees([]); setTransactions([]); setBudgets([]); setFutureEntries([]); setCategories([]); setClassificationMemory([]);
             return;
         };
         const companyDataPath = `users/${userId}/companies/${activeCompanyId}`;
@@ -5806,6 +6563,17 @@ export default function App() {
             }
         });
         unsubscribes.push(unsubConfig);
+
+        // Listener para Memória de Classificação Bancária (Inteligência Importada / Aprendida)
+        const memoryRef = doc(db, companyDataPath, 'profile/classificationMemory');
+        const unsubMemory = onSnapshot(memoryRef, (snap) => {
+            if (snap.exists() && Array.isArray(snap.data().rules)) {
+                setClassificationMemory(snap.data().rules);
+            } else {
+                setClassificationMemory([]);
+            }
+        });
+        unsubscribes.push(unsubMemory);
 
         return () => unsubscribes.forEach(unsub => unsub());
     }, [activeCompanyId, userId, appId]);
@@ -6313,8 +7081,8 @@ export default function App() {
 
         switch (view) {
             case 'dashboard': return <DashboardView {...{ transactions, accounts, categories, futureEntries, budgets, dashboardConfig }} onSaveConfig={handleSaveDashboardConfig} />;
-            case 'transactions': return <TransactionsView transactions={transactions} accounts={accounts} categories={categories} payees={payees} futureEntries={futureEntries} onSave={handleSaveWithCompanyId} onDelete={handleDeleteWithCompanyId} onBatchDelete={handleBatchDeleteTransactions} onImportTransactions={handleImportWithCompanyId} activeCompanyId={activeCompanyId} db={db} selectedAccountId={globalAccountId} setSelectedAccountId={setGlobalAccountId} onOpenReconciliation={() => setView('reconciliation')} canCreate={!!txPerms.create} canEdit={!!txPerms.edit} canDelete={!!txPerms.delete} />;
-            case 'reconciliation': return <ReconciliationView transactions={transactions} accounts={accounts} categories={categories} payees={payees} onSaveTransaction={handleSaveWithCompanyId} allTransactions={transactions} selectedAccountId={globalAccountId} setSelectedAccountId={setGlobalAccountId} />;
+            case 'transactions': return <TransactionsView transactions={transactions} accounts={accounts} categories={categories} payees={payees} classificationMemory={classificationMemory} futureEntries={futureEntries} onSave={handleSaveWithCompanyId} onDelete={handleDeleteWithCompanyId} onBatchDelete={handleBatchDeleteTransactions} onImportTransactions={handleImportWithCompanyId} activeCompanyId={activeCompanyId} db={db} selectedAccountId={globalAccountId} setSelectedAccountId={setGlobalAccountId} onOpenReconciliation={() => setView('reconciliation')} canCreate={!!txPerms.create} canEdit={!!txPerms.edit} canDelete={!!txPerms.delete} />;
+            case 'reconciliation': return <ReconciliationView transactions={transactions} accounts={accounts} categories={categories} payees={payees} classificationMemory={classificationMemory} onSaveTransaction={handleSaveWithCompanyId} allTransactions={transactions} selectedAccountId={globalAccountId} setSelectedAccountId={setGlobalAccountId} />;
             case 'futureEntries': return <FutureEntriesView futureEntries={futureEntries} accounts={accounts} categories={categories} payees={payees} onSave={handleSaveWithCompanyId} onDelete={handleDeleteWithCompanyId} onReconcile={handleReconcileWithCompanyId} />;
             case 'budgets': return <BudgetsView budgets={budgets} categories={categories} transactions={transactions} onSave={handleSaveWithCompanyId} onDelete={handleDeleteWithCompanyId} />;
             case 'reports': return <ReportsView transactions={transactions} categories={categories} accounts={accounts} futureEntries={futureEntries} payees={payees} budgets={budgets} />;
@@ -6325,7 +7093,7 @@ export default function App() {
                 onDeleteEntity={settingsDeleteHandler}
                 onBatchDelete={handleBatchDeleteTransactions}
                 onImportTransactions={handleImportWithCompanyId}
-                {...{ accounts, payees, categories, allTransactions: transactions, activeCompanyId }}
+                {...{ accounts, payees, categories, allTransactions: transactions, classificationMemory, companies, userId, activeCompanyId }}
             />;
             default: return <DashboardView {...{ transactions, accounts, categories, futureEntries, budgets, dashboardConfig }} onSaveConfig={handleSaveDashboardConfig} />;
         }
