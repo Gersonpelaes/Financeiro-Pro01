@@ -76,6 +76,37 @@ const clearPendingCollabInvite = () => {
     try { document.cookie = 'finpro_collab_invite=; path=/; max-age=0; SameSite=Lax'; } catch (e) {}
 };
 
+// No celular, embute a chave de sessão ativa no hash da URL (#finpro_auth=...) para que ao clicar em "Adicionar à tela inicial" o atalho já leve o login salvo
+const syncMobileShortcutAuthHash = () => {
+    try {
+        const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
+        if (!isMobile) return;
+        let authKey = null;
+        let authVal = null;
+        for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && k.startsWith('firebase:authUser:')) {
+                authKey = k;
+                authVal = localStorage.getItem(k);
+                break;
+            }
+        }
+        if (!authKey || !authVal) return;
+        const parsedUser = JSON.parse(authVal);
+        const collabInvite = getPendingCollabInvite();
+        const bundle = {
+            k: authKey,
+            u: parsedUser,
+            ...(collabInvite ? { c: collabInvite } : {})
+        };
+        const encoded = encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(bundle)))));
+        const newUrl = `${window.location.pathname}${window.location.search}#finpro_auth=${encoded}`;
+        window.history.replaceState({ path: newUrl }, '', newUrl);
+    } catch (e) {
+        console.warn('Aviso ao sincronizar hash de atalho mobile:', e);
+    }
+};
+
 // --- UTILITÁRIOS ---
 const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 const formatDate = (dateStr) => new Date(dateStr).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
@@ -157,76 +188,14 @@ const AuthView = ({ onGoogleSignIn, appBranding }) => {
     const [isSigningIn, setIsSigningIn] = useState(false);
     const pendingInvite = useMemo(() => getPendingCollabInvite(), []);
 
-    const isStandaloneMode = useMemo(() => {
-        try {
-            return Boolean(
-                (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
-                window.navigator.standalone === true
-            );
-        } catch (e) {
-            return false;
-        }
-    }, []);
-
-    const isInAppWebView = useMemo(() => {
-        try {
-            const ua = navigator.userAgent || '';
-            return /Instagram|FBAN|FBAV|WhatsApp|Line|wv\)/i.test(ua);
-        } catch (e) {
-            return false;
-        }
-    }, []);
-
-    const isAndroid = useMemo(() => /Android/i.test(navigator.userAgent || ''), []);
-    const isIOS = useMemo(() => /iPhone|iPad|iPod/i.test(navigator.userAgent || ''), []);
-
-    const getFullTargetUrl = () => {
-        const url = new URL(window.location.href);
-        if (pendingInvite?.inviteId && pendingInvite?.ownerUid) {
-            url.searchParams.set('invite', pendingInvite.inviteId);
-            url.searchParams.set('owner', pendingInvite.ownerUid);
-        }
-        return url.toString();
-    };
-
-    const handleOpenInMainBrowser = () => {
-        const fullUrl = getFullTargetUrl();
-        if (isAndroid) {
-            const withoutProtocol = fullUrl.replace(/^https?:\/\//i, '');
-            const intentUrl = `intent://${withoutProtocol}#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(fullUrl)};end`;
-            window.location.href = intentUrl;
-            return;
-        }
-        window.open(fullUrl, '_blank');
-    };
-
-    // Se abriu por um atalho antigo em modo standalone no Android e não está logado, redireciona automaticamente para o Chrome onde a sessão já existe
-    useEffect(() => {
-        if ((isStandaloneMode || isInAppWebView) && isAndroid) {
-            const timer = setTimeout(() => {
-                handleOpenInMainBrowser();
-            }, 300);
-            return () => clearTimeout(timer);
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isStandaloneMode, isInAppWebView, isAndroid]);
-
     const handleSignIn = async () => {
         setError('');
-        if ((isStandaloneMode || isInAppWebView) && isAndroid) {
-            handleOpenInMainBrowser();
-            return;
-        }
         setIsSigningIn(true);
         try {
             await onGoogleSignIn();
         } catch (err) {
             console.error(err);
-            if (err?.code === 'auth/popup-closed-by-user' || err?.code === 'auth/cancelled-popup-request') {
-                setError('A janela de login foi fechada antes de concluir. Se você abriu pelo atalho antigo do celular, toque em "Abrir no Navegador do Celular" abaixo.');
-            } else {
-                setError('Ocorreu um erro ao tentar entrar com o Google. Tente novamente ou abra direto no navegador.');
-            }
+            setError('Ocorreu um erro ao tentar entrar com o Google. Tente novamente.');
         } finally {
             setIsSigningIn(false);
         }
@@ -269,31 +238,6 @@ const AuthView = ({ onGoogleSignIn, appBranding }) => {
                     <GoogleIcon />
                     <span>{isSigningIn ? 'Conectando ao Google...' : 'Entrar com o Google'}</span>
                 </button>
-
-                {(isStandaloneMode || isInAppWebView || isAndroid || isIOS) && (
-                    <div className="pt-3 border-t border-gray-200 space-y-3 text-left">
-                        {(isStandaloneMode || isInAppWebView) && (
-                            <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl text-amber-900 text-xs space-y-2">
-                                <p className="font-bold">📱 Atalho em janela isolada detectado:</p>
-                                <p>
-                                    No celular, janelas isoladas bloqueiam o retorno do login Google. Toque no botão abaixo para abrir direto no navegador (onde seu login já fica salvo):
-                                </p>
-                                {isAndroid && (
-                                    <button
-                                        type="button"
-                                        onClick={handleOpenInMainBrowser}
-                                        className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow text-center block"
-                                    >
-                                        Abrir Direto no Chrome (Sem pedir login de novo)
-                                    </button>
-                                )}
-                                <p className="text-[11px] text-amber-800">
-                                    <strong>Como corrigir o atalho de vez:</strong> Remova o atalho antigo da tela inicial do celular, abra o sistema pelo navegador {isIOS ? 'Safari' : 'Chrome'} e clique em <strong>"Adicionar à tela inicial"</strong>. O novo atalho já abrirá logado!
-                                </p>
-                            </div>
-                        )}
-                    </div>
-                )}
 
                 {error && <p className="text-red-500 text-sm text-center pt-2">{error}</p>}
             </div>
@@ -6138,13 +6082,19 @@ const applyAppBrandingToDOM = (iconUrl, appName) => {
             fav.type = 'image/png';
             fav.href = finalIcon;
         }
+        let fav512 = document.getElementById('app-favicon-512');
+        if (fav512) {
+            fav512.type = 'image/png';
+            fav512.href = finalIcon;
+        }
         let apple = document.getElementById('app-apple-icon') || document.querySelector("link[rel='apple-touch-icon']");
         if (apple) {
             apple.href = finalIcon;
         }
 
-        // Mantém display: 'browser' para que o atalho no celular abra no navegador principal (preservando o login Google)
-        if (iconUrl) {
+        // Apenas no Desktop atualiza o manifest (no celular usamos apenas <link rel="icon"> e <link rel="apple-touch-icon"> para evitar WebAPK isolado)
+        const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
+        if (iconUrl && !isMobile) {
             const dynManifest = {
                 short_name: finalName,
                 name: finalName,
@@ -6154,7 +6104,7 @@ const applyAppBrandingToDOM = (iconUrl, appName) => {
                 ],
                 start_url: window.location.origin + window.location.pathname + window.location.search,
                 scope: window.location.origin + '/',
-                display: 'browser',
+                display: 'standalone',
                 theme_color: '#1e3a8a',
                 background_color: '#111827',
             };
@@ -6974,6 +6924,7 @@ export default function App() {
                                 setCollaboratorSession({ id: inviteSnap.id, ...inviteData });
                                 setMigrationStatus('not_needed');
                                 setIsAuthReady(true);
+                                setTimeout(() => syncMobileShortcutAuthHash(), 400);
                                 return;
                             }
                         } else {
@@ -7011,6 +6962,7 @@ export default function App() {
                         setMigrationStatus('not_needed');
                     }
                 }
+                setTimeout(() => syncMobileShortcutAuthHash(), 400);
 
             } else {
                 setUser(null);
@@ -8031,7 +7983,12 @@ export default function App() {
                         {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
                         <span>Mudar para tema {theme === 'light' ? 'Escuro' : 'Claro'}</span>
                     </button>
-                    <button onClick={() => signOut(auth)} className="flex items-center space-x-3 w-full text-left px-4 py-3 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 font-medium">
+                    <button onClick={() => {
+                        if (window.location.hash && window.location.hash.includes('finpro_auth=')) {
+                            window.history.replaceState(null, '', window.location.pathname + window.location.search);
+                        }
+                        signOut(auth);
+                    }} className="flex items-center space-x-3 w-full text-left px-4 py-3 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 font-medium">
                         <LogOut size={20} />
                         <span>Terminar Sessão</span>
                     </button>

@@ -2,7 +2,8 @@
 <html lang="pt-BR">
   <head>
     <meta charset="utf-8" />
-    <link id="app-favicon" rel="icon" href="%PUBLIC_URL%/logo192.png" />
+    <link id="app-favicon" rel="icon" type="image/png" sizes="192x192" href="%PUBLIC_URL%/logo192.png" />
+    <link id="app-favicon-512" rel="icon" type="image/png" sizes="512x512" href="%PUBLIC_URL%/logo512.png" />
     <link rel="shortcut icon" href="%PUBLIC_URL%/favicon.ico" />
     <link id="app-apple-icon" rel="apple-touch-icon" sizes="180x180" href="%PUBLIC_URL%/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -13,12 +14,43 @@
       name="description"
       content="Financeiro PRO - Sistema de Gestão Financeira Empresarial"
     />
-    <link id="app-manifest" rel="manifest" href="%PUBLIC_URL%/manifest.json" />
     <title id="app-title">Financeiro PRO</title>
     <script>
       (function () {
         try {
-          // Preserva parâmetros de convite de colaborador imediatamente no carregamento
+          // 1. No computador (Desktop), carrega o manifest.json para instalar como aplicativo.
+          // No celular (Android/iOS), não carrega manifest.json para que "Adicionar à tela inicial" crie um atalho direto (com o ícone do sistema) sem abrir janela isolada.
+          var isMobileDevice = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
+          if (!isMobileDevice) {
+            var manifestLink = document.createElement('link');
+            manifestLink.id = 'app-manifest';
+            manifestLink.rel = 'manifest';
+            manifestLink.href = '%PUBLIC_URL%/manifest.json';
+            document.head.appendChild(manifestLink);
+          }
+
+          // 2. Restaura sessão de login embutida no atalho do celular (#finpro_auth=...) antes do Firebase inicializar
+          if (window.location.hash && window.location.hash.indexOf('finpro_auth=') !== -1) {
+            var hashMatch = window.location.hash.match(/finpro_auth=([^&]+)/);
+            if (hashMatch && hashMatch[1]) {
+              var decodedStr = decodeURIComponent(escape(atob(decodeURIComponent(hashMatch[1]))));
+              var authBundle = JSON.parse(decodedStr);
+              if (authBundle && authBundle.k && authBundle.u) {
+                var existingAuth = localStorage.getItem(authBundle.k);
+                if (!existingAuth) {
+                  localStorage.setItem(authBundle.k, JSON.stringify(authBundle.u));
+                }
+              }
+              if (authBundle && authBundle.c) {
+                var collabRaw = JSON.stringify(authBundle.c);
+                localStorage.setItem('finpro_collab_invite', collabRaw);
+                sessionStorage.setItem('finpro_collab_invite', collabRaw);
+                document.cookie = 'finpro_collab_invite=' + encodeURIComponent(collabRaw) + '; path=/; max-age=31536000; SameSite=Lax';
+              }
+            }
+          }
+
+          // 3. Preserva parâmetros de convite de colaborador (?invite=ID&owner=UID) imediatamente no carregamento
           var searchParams = new URLSearchParams(window.location.search);
           var invId = searchParams.get('invite');
           var ownUid = searchParams.get('owner');
@@ -29,6 +61,7 @@
             document.cookie = 'finpro_collab_invite=' + encodeURIComponent(payload) + '; path=/; max-age=31536000; SameSite=Lax';
           }
 
+          // 4. Aplica ícone e nome personalizados salvos
           var customIcon = localStorage.getItem('finpro_custom_icon_512') || localStorage.getItem('finpro_custom_icon');
           var customName = localStorage.getItem('finpro_custom_app_name') || 'Financeiro PRO';
           if (customName) {
@@ -38,8 +71,10 @@
           }
           if (customIcon) {
             var fav = document.getElementById('app-favicon');
+            var fav512 = document.getElementById('app-favicon-512');
             var apple = document.getElementById('app-apple-icon');
             if (fav) { fav.type = 'image/png'; fav.href = customIcon; }
+            if (fav512) { fav512.type = 'image/png'; fav512.href = customIcon; }
             if (apple) { apple.href = customIcon; }
           }
         } catch (e) {}
