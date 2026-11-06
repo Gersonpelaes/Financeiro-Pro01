@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
+import { initializeAuth, getAuth, browserLocalPersistence, indexedDBLocalPersistence, browserSessionPersistence, browserPopupRedirectResolver, setPersistence, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut } from 'firebase/auth';
 import { getFirestore, collection, doc, addDoc, getDocs, writeBatch, query, onSnapshot, deleteDoc, setDoc, where, getDoc, limit, getAggregateFromServer, sum } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
@@ -26,10 +26,55 @@ try {
 } catch (e) {
     app = initializeApp(firebaseConfig);
 }
-const auth = getAuth(app);
+let auth;
+try {
+    auth = initializeAuth(app, {
+        persistence: [browserLocalPersistence, indexedDBLocalPersistence, browserSessionPersistence],
+        popupRedirectResolver: browserPopupRedirectResolver
+    });
+} catch (e) {
+    auth = getAuth(app);
+}
 const db = getFirestore(app);
 const storage = getStorage(app);
 const functions = getFunctions(app, 'southamerica-east1');
+
+// Helpers para persistir convite de colaborador em múltiplos storages (localStorage, sessionStorage, Cookie e URL)
+const savePendingCollabInvite = (inviteObj) => {
+    if (!inviteObj || !inviteObj.inviteId || !inviteObj.ownerUid) return;
+    const raw = JSON.stringify({ inviteId: inviteObj.inviteId, ownerUid: inviteObj.ownerUid });
+    try { localStorage.setItem('finpro_collab_invite', raw); } catch (e) {}
+    try { sessionStorage.setItem('finpro_collab_invite', raw); } catch (e) {}
+    try { document.cookie = `finpro_collab_invite=${encodeURIComponent(raw)}; path=/; max-age=31536000; SameSite=Lax`; } catch (e) {}
+};
+
+const getPendingCollabInvite = () => {
+    try {
+        const params = new URLSearchParams(window.location.search);
+        const urlInvite = params.get('invite');
+        const urlOwner = params.get('owner');
+        if (urlInvite && urlOwner) {
+            const obj = { inviteId: urlInvite, ownerUid: urlOwner };
+            savePendingCollabInvite(obj);
+            return obj;
+        }
+    } catch (e) {}
+    try {
+        const localRaw = localStorage.getItem('finpro_collab_invite') || sessionStorage.getItem('finpro_collab_invite');
+        if (localRaw) return JSON.parse(localRaw);
+    } catch (e) {}
+    try {
+        const match = document.cookie.match(/(?:^|;\s*)finpro_collab_invite=([^;]*)/);
+        if (match && match[1]) return JSON.parse(decodeURIComponent(match[1]));
+    } catch (e) {}
+    return null;
+};
+
+const clearPendingCollabInvite = () => {
+    try { localStorage.removeItem('finpro_collab_invite'); } catch (e) {}
+    try { sessionStorage.removeItem('finpro_collab_invite'); } catch (e) {}
+    try { document.cookie = 'finpro_collab_invite=; path=/; max-age=0; SameSite=Lax'; } catch (e) {}
+};
 
 // --- UTILITÁRIOS ---
 const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
@@ -107,15 +152,83 @@ const MigrationScreen = ({ onMigrate, isMigrating }) => (
 
 
 // --- VIEW DE AUTENTICAÇÃO ---
-const AuthView = ({ onGoogleSignIn }) => {
+const AuthView = ({ onGoogleSignIn, appBranding }) => {
     const [error, setError] = useState('');
+    const [isSigningIn, setIsSigningIn] = useState(false);
+    const pendingInvite = useMemo(() => getPendingCollabInvite(), []);
+
+    const isStandaloneMode = useMemo(() => {
+        try {
+            return Boolean(
+                (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+                window.navigator.standalone === true
+            );
+        } catch (e) {
+            return false;
+        }
+    }, []);
+
+    const isInAppWebView = useMemo(() => {
+        try {
+            const ua = navigator.userAgent || '';
+            return /Instagram|FBAN|FBAV|WhatsApp|Line|wv\)/i.test(ua);
+        } catch (e) {
+            return false;
+        }
+    }, []);
+
+    const isAndroid = useMemo(() => /Android/i.test(navigator.userAgent || ''), []);
+    const isIOS = useMemo(() => /iPhone|iPad|iPod/i.test(navigator.userAgent || ''), []);
+
+    const getFullTargetUrl = () => {
+        const url = new URL(window.location.href);
+        if (pendingInvite?.inviteId && pendingInvite?.ownerUid) {
+            url.searchParams.set('invite', pendingInvite.inviteId);
+            url.searchParams.set('owner', pendingInvite.ownerUid);
+        }
+        return url.toString();
+    };
+
+    const handleOpenInMainBrowser = () => {
+        const fullUrl = getFullTargetUrl();
+        if (isAndroid) {
+            const withoutProtocol = fullUrl.replace(/^https?:\/\//i, '');
+            const intentUrl = `intent://${withoutProtocol}#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(fullUrl)};end`;
+            window.location.href = intentUrl;
+            return;
+        }
+        window.open(fullUrl, '_blank');
+    };
+
+    // Se abriu por um atalho antigo em modo standalone no Android e não está logado, redireciona automaticamente para o Chrome onde a sessão já existe
+    useEffect(() => {
+        if ((isStandaloneMode || isInAppWebView) && isAndroid) {
+            const timer = setTimeout(() => {
+                handleOpenInMainBrowser();
+            }, 300);
+            return () => clearTimeout(timer);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isStandaloneMode, isInAppWebView, isAndroid]);
 
     const handleSignIn = async () => {
+        setError('');
+        if ((isStandaloneMode || isInAppWebView) && isAndroid) {
+            handleOpenInMainBrowser();
+            return;
+        }
+        setIsSigningIn(true);
         try {
             await onGoogleSignIn();
         } catch (err) {
-            setError('Ocorreu um erro ao tentar entrar com o Google. Tente novamente.');
             console.error(err);
+            if (err?.code === 'auth/popup-closed-by-user' || err?.code === 'auth/cancelled-popup-request') {
+                setError('A janela de login foi fechada antes de concluir. Se você abriu pelo atalho antigo do celular, toque em "Abrir no Navegador do Celular" abaixo.');
+            } else {
+                setError('Ocorreu um erro ao tentar entrar com o Google. Tente novamente ou abra direto no navegador.');
+            }
+        } finally {
+            setIsSigningIn(false);
         }
     };
 
@@ -129,19 +242,60 @@ const AuthView = ({ onGoogleSignIn }) => {
         </svg>
     );
 
+    const brandIcon = appBranding?.icon512 || appBranding?.icon192 || `${process.env.PUBLIC_URL || ''}/logo512.png`;
+    const brandName = appBranding?.appName || 'Financeiro PRO';
+
     return (
-        <div className="w-full h-screen flex justify-center items-center bg-gray-100">
-            <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-2xl shadow-lg text-center">
-                <h2 className="text-3xl font-bold text-gray-800">Bem-vindo ao Financeiro PRO</h2>
-                <p className="text-gray-600">Entre com a sua conta Google para continuar e aproveite 360 dias grátis.</p>
+        <div className="w-full min-h-screen flex justify-center items-center bg-gray-100 p-4">
+            <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-2xl shadow-lg text-center">
+                <div className="flex flex-col items-center">
+                    <img src={brandIcon} alt={brandName} className="w-20 h-20 object-contain mb-3 drop-shadow-md" />
+                    <h2 className="text-3xl font-bold text-gray-800">Bem-vindo ao {brandName}</h2>
+                </div>
+
+                {pendingInvite && (
+                    <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl text-indigo-800 text-xs font-medium">
+                        🔗 <strong>Acesso de Colaborador identificado!</strong> Entre com a sua conta Google para acessar o sistema compartilhado.
+                    </div>
+                )}
+
+                <p className="text-gray-600 text-sm">Entre com a sua conta Google para continuar.</p>
+
                 <button
                     onClick={handleSignIn}
-                    className="w-full flex items-center justify-center space-x-3 bg-white border border-gray-300 text-gray-700 font-semibold py-3 px-4 rounded-lg shadow-sm transition-all transform hover:scale-105 hover:bg-gray-50"
+                    disabled={isSigningIn}
+                    className="w-full flex items-center justify-center space-x-3 bg-white border border-gray-300 text-gray-700 font-semibold py-3 px-4 rounded-lg shadow-sm transition-all transform hover:scale-105 hover:bg-gray-50 disabled:opacity-60"
                 >
                     <GoogleIcon />
-                    <span>Entrar com o Google</span>
+                    <span>{isSigningIn ? 'Conectando ao Google...' : 'Entrar com o Google'}</span>
                 </button>
-                {error && <p className="text-red-500 text-sm text-center pt-4">{error}</p>}
+
+                {(isStandaloneMode || isInAppWebView || isAndroid || isIOS) && (
+                    <div className="pt-3 border-t border-gray-200 space-y-3 text-left">
+                        {(isStandaloneMode || isInAppWebView) && (
+                            <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl text-amber-900 text-xs space-y-2">
+                                <p className="font-bold">📱 Atalho em janela isolada detectado:</p>
+                                <p>
+                                    No celular, janelas isoladas bloqueiam o retorno do login Google. Toque no botão abaixo para abrir direto no navegador (onde seu login já fica salvo):
+                                </p>
+                                {isAndroid && (
+                                    <button
+                                        type="button"
+                                        onClick={handleOpenInMainBrowser}
+                                        className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow text-center block"
+                                    >
+                                        Abrir Direto no Chrome (Sem pedir login de novo)
+                                    </button>
+                                )}
+                                <p className="text-[11px] text-amber-800">
+                                    <strong>Como corrigir o atalho de vez:</strong> Remova o atalho antigo da tela inicial do celular, abra o sistema pelo navegador {isIOS ? 'Safari' : 'Chrome'} e clique em <strong>"Adicionar à tela inicial"</strong>. O novo atalho já abrirá logado!
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {error && <p className="text-red-500 text-sm text-center pt-2">{error}</p>}
             </div>
         </div>
     );
@@ -5989,24 +6143,25 @@ const applyAppBrandingToDOM = (iconUrl, appName) => {
             apple.href = finalIcon;
         }
 
-        // Atualiza o Web App Manifest dinamicamente para que ao clicar em "Instalar" ou "Criar Atalho" use a imagem escolhida
-        const dynManifest = {
-            short_name: finalName,
-            name: finalName,
-            icons: [
-                { src: finalIcon, sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
-                { src: finalIcon, sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
-            ],
-            start_url: window.location.origin + '/',
-            scope: window.location.origin + '/',
-            display: 'standalone',
-            theme_color: '#1e3a8a',
-            background_color: '#111827',
-        };
-        const blob = new Blob([JSON.stringify(dynManifest)], { type: 'application/json' });
-        const manifestEl = document.getElementById('app-manifest') || document.querySelector("link[rel='manifest']");
-        if (manifestEl) {
-            manifestEl.href = URL.createObjectURL(blob);
+        // Mantém display: 'browser' para que o atalho no celular abra no navegador principal (preservando o login Google)
+        if (iconUrl) {
+            const dynManifest = {
+                short_name: finalName,
+                name: finalName,
+                icons: [
+                    { src: finalIcon, sizes: '192x192', type: 'image/png', purpose: 'any' },
+                    { src: finalIcon, sizes: '512x512', type: 'image/png', purpose: 'any' },
+                ],
+                start_url: window.location.origin + window.location.pathname + window.location.search,
+                scope: window.location.origin + '/',
+                display: 'browser',
+                theme_color: '#1e3a8a',
+                background_color: '#111827',
+            };
+            const manifestEl = document.getElementById('app-manifest') || document.querySelector("link[rel='manifest']");
+            if (manifestEl) {
+                manifestEl.href = `data:application/manifest+json;charset=utf-8,${encodeURIComponent(JSON.stringify(dynManifest))}`;
+            }
         }
     } catch (e) {
         console.warn('Erro ao atualizar manifesto/ícone dinâmico:', e);
@@ -6743,15 +6898,13 @@ export default function App() {
     const [collaborators, setCollaborators] = useState([]);
     const [collaboratorSession, setCollaboratorSession] = useState(null); // Dados do convite quando logado como colaborador
 
-    // Captura parâmetros de convite (?invite=ID&owner=UID) da URL imediatamente ao abrir
+    // Captura parâmetros de convite (?invite=ID&owner=UID) da URL ao abrir (sem apagar da URL antes do login para não perder no atalho do celular)
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         const inviteId = params.get('invite');
         const ownerUid = params.get('owner');
         if (inviteId && ownerUid) {
-            localStorage.setItem('finpro_collab_invite', JSON.stringify({ inviteId, ownerUid }));
-            const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
-            window.history.replaceState({ path: cleanUrl }, '', cleanUrl);
+            savePendingCollabInvite({ inviteId, ownerUid });
         }
     }, []);
 
@@ -6770,21 +6923,22 @@ export default function App() {
 
     // Autenticação e criação de trial
     useEffect(() => {
+        // Caso tenha retornado de um signInWithRedirect no celular, processa o resultado
+        getRedirectResult(auth, browserPopupRedirectResolver).catch((err) => {
+            console.warn('Aviso getRedirectResult:', err);
+        });
+
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
             if (currentUser) {
                 setUser(currentUser);
                 const loggedUid = currentUser.uid;
 
-                // Verificar se há um convite pendente no navegador ou salvo no perfil do colaborador
+                // Verificar se há um convite pendente no navegador (URL, localStorage, sessionStorage, Cookie) ou salvo no perfil do colaborador
                 const profileRef = doc(db, `users/${loggedUid}/profile`, 'userProfile');
                 const subRef = doc(db, `users/${loggedUid}/subscription`, 'current');
                 const [profileSnap, subSnap] = await Promise.all([getDoc(profileRef), getDoc(subRef)]);
 
-                let savedInvite = null;
-                try {
-                    const localRaw = localStorage.getItem('finpro_collab_invite');
-                    if (localRaw) savedInvite = JSON.parse(localRaw);
-                } catch (e) { /* ignore */ }
+                let savedInvite = getPendingCollabInvite();
 
                 if (!savedInvite && profileSnap.exists() && profileSnap.data().activeCollaboration) {
                     savedInvite = profileSnap.data().activeCollaboration;
@@ -6800,11 +6954,11 @@ export default function App() {
                             const userEmail = (currentUser.email || '').toLowerCase();
                             if (inviteData.status === 'revoked') {
                                 alert('Este link de acesso foi cancelado pelo administrador.');
-                                localStorage.removeItem('finpro_collab_invite');
+                                clearPendingCollabInvite();
                                 await setDoc(profileRef, { activeCollaboration: null }, { merge: true });
                             } else if (inviteData.email && inviteData.email !== '' && inviteData.email.toLowerCase() !== userEmail) {
                                 alert(`Este convite é restrito ao e-mail ${inviteData.email}. Você entrou com ${currentUser.email}.`);
-                                localStorage.removeItem('finpro_collab_invite');
+                                clearPendingCollabInvite();
                             } else {
                                 // Vincula colaborador e ativa sessão
                                 await setDoc(inviteRef, {
@@ -6816,6 +6970,7 @@ export default function App() {
                                     migrationCompleted: true,
                                     activeCollaboration: savedInvite
                                 }, { merge: true });
+                                savePendingCollabInvite(savedInvite);
                                 setCollaboratorSession({ id: inviteSnap.id, ...inviteData });
                                 setMigrationStatus('not_needed');
                                 setIsAuthReady(true);
@@ -6823,7 +6978,7 @@ export default function App() {
                             }
                         } else {
                             alert('Convite não encontrado ou excluído pelo administrador.');
-                            localStorage.removeItem('finpro_collab_invite');
+                            clearPendingCollabInvite();
                             await setDoc(profileRef, { activeCollaboration: null }, { merge: true });
                         }
                     } catch (err) {
@@ -6879,7 +7034,7 @@ export default function App() {
         const unsub = onSnapshot(inviteRef, async (snap) => {
             if (!snap.exists() || snap.data().status === 'revoked') {
                 alert('A sua permissão de acesso como colaborador foi revogada pelo administrador.');
-                localStorage.removeItem('finpro_collab_invite');
+                clearPendingCollabInvite();
                 if (user?.uid) {
                     await setDoc(doc(db, `users/${user.uid}/profile`, 'userProfile'), { activeCollaboration: null }, { merge: true });
                 }
@@ -6945,12 +7100,14 @@ export default function App() {
 
     const handleExitCollaboration = async () => {
         if (!window.confirm('Deseja sair do modo colaborador e voltar para a sua conta pessoal?')) return;
-        localStorage.removeItem('finpro_collab_invite');
+        clearPendingCollabInvite();
         if (user?.uid) {
             await setDoc(doc(db, `users/${user.uid}/profile`, 'userProfile'), { activeCollaboration: null }, { merge: true });
         }
         setCollaboratorSession(null);
         setActiveCompanyId(null);
+        const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+        window.history.replaceState({ path: cleanUrl }, '', cleanUrl);
     };
 
     // Listener da configuração de backup e personalização de ícone/atalho
@@ -7425,7 +7582,19 @@ export default function App() {
 
     const handleGoogleSignIn = async () => {
         const provider = new GoogleAuthProvider();
-        await signInWithPopup(auth, provider);
+        provider.setCustomParameters({ prompt: 'select_account' });
+        try {
+            await setPersistence(auth, browserLocalPersistence);
+        } catch (e) { /* ignore */ }
+        try {
+            await signInWithPopup(auth, provider, browserPopupRedirectResolver);
+        } catch (err) {
+            if (err?.code === 'auth/popup-blocked') {
+                await signInWithRedirect(auth, provider, browserPopupRedirectResolver);
+                return;
+            }
+            throw err;
+        }
     };
 
     const handleBackup = async () => {
@@ -7585,7 +7754,7 @@ export default function App() {
     }
 
     if (!user) {
-        return <AuthView onGoogleSignIn={handleGoogleSignIn} />;
+        return <AuthView onGoogleSignIn={handleGoogleSignIn} appBranding={appBranding} />;
     }
 
     if (migrationStatus === 'checking') {
