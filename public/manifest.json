@@ -1,6 +1,6 @@
 {
-  "short_name": "React App",
-  "name": "Create React App Sample",
+  "short_name": "Financeiro PRO",
+  "name": "Financeiro PRO - Gestão Financeira",
   "icons": [
     {
       "src": "favicon.ico",
@@ -10,25 +10,27 @@
     {
       "src": "logo192.png",
       "type": "image/png",
-      "sizes": "192x192"
+      "sizes": "192x192",
+      "purpose": "any maskable"
     },
     {
       "src": "logo512.png",
       "type": "image/png",
-      "sizes": "512x512"
+      "sizes": "512x512",
+      "purpose": "any maskable"
     }
   ],
   "start_url": ".",
   "display": "standalone",
-  "theme_color": "#000000",
-  "background_color": "#ffffff",
+  "theme_color": "#1e3a8a",
+  "background_color": "#111827",
   "shortcuts": [
     {
       "name": "Novo Lançamento",
       "short_name": "Lançamento",
       "description": "Fazer um novo lançamento rápido",
       "url": "/?action=new_transaction",
-      "icons": [{ "src": "favicon.ico", "sizes": "64x64" }]
+      "icons": [{ "src": "logo192.png", "sizes": "192x192" }]
     }
   ]
 }

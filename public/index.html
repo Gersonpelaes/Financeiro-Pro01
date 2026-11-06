@@ -1,46 +1,60 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
   <head>
     <meta charset="utf-8" />
-    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+    <link id="app-favicon" rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+    <link id="app-apple-icon" rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#000000" />
+    <meta name="theme-color" content="#1e3a8a" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta id="app-apple-title" name="apple-mobile-web-app-title" content="Financeiro PRO" />
     <meta
       name="description"
-      content="Web site created using create-react-app"
+      content="Financeiro PRO - Sistema de Gestão Financeira Empresarial"
     />
-    <!--
-      manifest.json provides metadata used when your web app is installed on a
-      user's mobile device or desktop. See https://developers.google.com/web/fundamentals/web-app-manifest/
-    -->
-    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
-    <!--
-      Notice the use of %PUBLIC_URL% in the tags above.
-      It will be replaced with the URL of the `public` folder during the build.
-      Only files inside the `public` folder can be referenced from the HTML.
-
-      Unlike "/favicon.ico" or "favicon.ico", "%PUBLIC_URL%/favicon.ico" will
-      work correctly both with client-side routing and a non-root public URL.
-      Learn how to configure a non-root public URL by running `npm run build`.
-    -->
-    <title>React App</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
-
+    <link id="app-manifest" rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+    <title id="app-title">Financeiro PRO</title>
+    <script>
+      (function () {
+        try {
+          var customIcon = localStorage.getItem('finpro_custom_icon_512') || localStorage.getItem('finpro_custom_icon');
+          var customName = localStorage.getItem('finpro_custom_app_name') || 'Financeiro PRO';
+          if (customName) {
+            document.title = customName;
+            var appleTitle = document.getElementById('app-apple-title');
+            if (appleTitle) appleTitle.setAttribute('content', customName);
+          }
+          if (customIcon) {
+            var fav = document.getElementById('app-favicon');
+            var apple = document.getElementById('app-apple-icon');
+            if (fav) { fav.type = 'image/png'; fav.href = customIcon; }
+            if (apple) { apple.href = customIcon; }
+            var dynManifest = {
+              short_name: customName,
+              name: customName,
+              icons: [
+                { src: customIcon, sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
+                { src: customIcon, sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
+              ],
+              start_url: window.location.origin + '/',
+              scope: window.location.origin + '/',
+              display: 'standalone',
+              theme_color: '#1e3a8a',
+              background_color: '#111827'
+            };
+            var blob = new Blob([JSON.stringify(dynManifest)], { type: 'application/json' });
+            var manifestEl = document.getElementById('app-manifest');
+            if (manifestEl) manifestEl.href = URL.createObjectURL(blob);
+          }
+        } catch (e) {}
+      })();
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
   </head>
   <body class="h-screen">
-    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <noscript>Você precisa habilitar o JavaScript para executar este aplicativo.</noscript>
     <div id="root" class="h-full"></div>
-    <!--
-      This HTML file is a template.
-      If you open it directly in the browser, you will see an empty page.
-
-      You can add webfonts, meta tags, or analytics to this file.
-      The build step will place the bundled scripts into the <body> tag.
-
-      To begin the development, run `npm start` or `yarn start`.
-      To create a production bundle, use `npm run build` or `yarn build`.
-
-    -->
   </body>
 </html>

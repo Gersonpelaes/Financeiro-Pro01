@@ -5033,7 +5033,7 @@ const TransactionImportModal = ({ isOpen, onClose, onImport, account, accounts, 
 };
 
 
-const SettingsView = ({ onSaveEntity, onDeleteEntity, onBatchDelete, onImportTransactions, accounts, payees, categories, allTransactions, classificationMemory = [], companies = [], userId, activeCompanyId }) => {
+const SettingsView = ({ onSaveEntity, onDeleteEntity, onBatchDelete, onImportTransactions, accounts, payees, categories, allTransactions, classificationMemory = [], companies = [], userId, activeCompanyId, appBranding, onSaveAppBranding }) => {
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [accountToImport, setAccountToImport] = useState(null);
     const [activeTab, setActiveTab] = useState('accounts');
@@ -5387,10 +5387,11 @@ const SettingsView = ({ onSaveEntity, onDeleteEntity, onBatchDelete, onImportTra
                 </div>
             </div>
 
-            <div className="border-b dark:border-gray-700">
+            <div className="border-b dark:border-gray-700 flex flex-wrap gap-1">
                 <TabButton tab="accounts" label="Contas" />
                 <TabButton tab="payees" label="Favorecidos e Inteligência" />
                 <TabButton tab="categories" label="Categorias (Plano de Contas)" />
+                <TabButton tab="branding" label="Ícone e Atalho do Sistema" />
             </div>
 
             <div className="mt-4">
@@ -5414,6 +5415,12 @@ const SettingsView = ({ onSaveEntity, onDeleteEntity, onBatchDelete, onImportTra
                         onDelete={onDeleteEntity}
                         onApplyTemplate={handleApplyTemplate}
                         onOpenCopyCompanyModal={otherCompanies.length > 0 ? handleOpenCopyCompanyModal : null}
+                    />
+                )}
+                {activeTab === 'branding' && (
+                    <AppBrandingManager
+                        appBranding={appBranding}
+                        onSaveAppBranding={onSaveAppBranding}
                     />
                 )}
             </div>
@@ -5959,7 +5966,487 @@ const CollaboratorsManager = ({ collaborators = [], companies = [], onCreateInvi
     );
 };
 
-const GlobalSettingsView = ({ companies, onSave, onDelete, onBack, onBackup, onRestore, subscription, onSubscribe, backupConfig, onSaveBackupConfig, collaborators, onCreateInvite, onUpdateCollaborator, onRevokeCollaborator }) => {
+// --- GERENCIADOR DE ÍCONE PERSONALIZADO E ATALHO DO SISTEMA (PWA / DESKTOP / MOBILE) ---
+const DEFAULT_APP_ICON_URL = `${process.env.PUBLIC_URL || ''}/logo512.png`;
+const DEFAULT_APP_NAME = 'Financeiro PRO';
+
+const applyAppBrandingToDOM = (iconUrl, appName) => {
+    try {
+        const finalIcon = iconUrl || DEFAULT_APP_ICON_URL;
+        const finalName = (appName && appName.trim()) ? appName.trim() : DEFAULT_APP_NAME;
+
+        document.title = finalName;
+        const appleTitle = document.getElementById('app-apple-title');
+        if (appleTitle) appleTitle.setAttribute('content', finalName);
+
+        let fav = document.getElementById('app-favicon') || document.querySelector("link[rel*='icon']");
+        if (fav) {
+            fav.type = 'image/png';
+            fav.href = finalIcon;
+        }
+        let apple = document.getElementById('app-apple-icon') || document.querySelector("link[rel='apple-touch-icon']");
+        if (apple) {
+            apple.href = finalIcon;
+        }
+
+        // Atualiza o Web App Manifest dinamicamente para que ao clicar em "Instalar" ou "Criar Atalho" use a imagem escolhida
+        const dynManifest = {
+            short_name: finalName,
+            name: finalName,
+            icons: [
+                { src: finalIcon, sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
+                { src: finalIcon, sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
+            ],
+            start_url: window.location.origin + '/',
+            scope: window.location.origin + '/',
+            display: 'standalone',
+            theme_color: '#1e3a8a',
+            background_color: '#111827',
+        };
+        const blob = new Blob([JSON.stringify(dynManifest)], { type: 'application/json' });
+        const manifestEl = document.getElementById('app-manifest') || document.querySelector("link[rel='manifest']");
+        if (manifestEl) {
+            manifestEl.href = URL.createObjectURL(blob);
+        }
+    } catch (e) {
+        console.warn('Erro ao atualizar manifesto/ícone dinâmico:', e);
+    }
+};
+
+// Processa qualquer imagem enviada pelo usuário (recorte quadrado centralizado, remoção inteligente de fundo claro/quadriculado e cantos arredondados)
+const processUploadedIconImage = (file, { removeLightBackground = true, roundCorners = true } = {}) => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error('Falha ao ler arquivo de imagem.'));
+        reader.onload = (e) => {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onerror = () => reject(new Error('Formato de imagem inválido.'));
+            img.onload = () => {
+                try {
+                    const workSize = 512;
+                    const tempCanvas = document.createElement('canvas');
+                    tempCanvas.width = img.width;
+                    tempCanvas.height = img.height;
+                    const tempCtx = tempCanvas.getContext('2d');
+                    tempCtx.drawImage(img, 0, 0);
+
+                    let sx = 0, sy = 0, sw = img.width, sh = img.height;
+
+                    if (removeLightBackground) {
+                        const imgData = tempCtx.getImageData(0, 0, img.width, img.height);
+                        const data = imgData.data;
+                        const W = img.width;
+                        const H = img.height;
+
+                        const isBgPixel = (idx) => {
+                            const r = data[idx], g = data[idx + 1], b = data[idx + 2], a = data[idx + 3];
+                            if (a < 20) return true;
+                            const maxC = Math.max(r, g, b);
+                            const minC = Math.min(r, g, b);
+                            const sat = maxC - minC;
+                            return sat <= 24 && minC >= 155;
+                        };
+
+                        // Flood-fill a partir das bordas externas para remover fundo branco/quadriculado
+                        const visited = new Uint8Array(W * H);
+                        const queue = [];
+                        const pushIfBg = (x, y) => {
+                            const p = y * W + x;
+                            if (visited[p]) return;
+                            if (isBgPixel(p * 4)) {
+                                visited[p] = 1;
+                                queue.push(p);
+                            }
+                        };
+
+                        for (let x = 0; x < W; x++) { pushIfBg(x, 0); pushIfBg(x, H - 1); }
+                        for (let y = 0; y < H; y++) { pushIfBg(0, y); pushIfBg(W - 1, y); }
+
+                        let head = 0;
+                        while (head < queue.length) {
+                            const p = queue[head++];
+                            data[p * 4 + 3] = 0; // Torna transparente
+                            const x = p % W;
+                            const y = (p - x) / W;
+                            if (x > 0) pushIfBg(x - 1, y);
+                            if (x < W - 1) pushIfBg(x + 1, y);
+                            if (y > 0) pushIfBg(x, y - 1);
+                            if (y < H - 1) pushIfBg(x, y + 1);
+                        }
+
+                        tempCtx.putImageData(imgData, 0, 0);
+
+                        // Encontra bounding box do conteúdo restante
+                        let minX = W, maxX = 0, minY = H, maxY = 0;
+                        let foundAny = false;
+                        for (let y = 0; y < H; y++) {
+                            for (let x = 0; x < W; x++) {
+                                const alpha = data[(y * W + x) * 4 + 3];
+                                if (alpha > 25) {
+                                    if (x < minX) minX = x;
+                                    if (x > maxX) maxX = x;
+                                    if (y < minY) minY = y;
+                                    if (y > maxY) maxY = y;
+                                    foundAny = true;
+                                }
+                            }
+                        }
+
+                        if (foundAny && (maxX - minX) > 20 && (maxY - minY) > 20) {
+                            sx = minX;
+                            sy = minY;
+                            sw = maxX - minX + 1;
+                            sh = maxY - minY + 1;
+                        }
+                    }
+
+                    // Cria canvas quadrado final (512x512 e 192x192)
+                    const renderToSize = (targetSize) => {
+                        const outCanvas = document.createElement('canvas');
+                        outCanvas.width = targetSize;
+                        outCanvas.height = targetSize;
+                        const ctx = outCanvas.getContext('2d');
+
+                        if (roundCorners) {
+                            const r = targetSize * 0.18;
+                            ctx.beginPath();
+                            ctx.moveTo(r, 0);
+                            ctx.lineTo(targetSize - r, 0);
+                            ctx.quadraticCurveTo(targetSize, 0, targetSize, r);
+                            ctx.lineTo(targetSize, targetSize - r);
+                            ctx.quadraticCurveTo(targetSize, targetSize, targetSize - r, targetSize);
+                            ctx.lineTo(r, targetSize);
+                            ctx.quadraticCurveTo(0, targetSize, 0, targetSize - r);
+                            ctx.lineTo(0, r);
+                            ctx.quadraticCurveTo(0, 0, r, 0);
+                            ctx.closePath();
+                            ctx.clip();
+                        }
+
+                        // Centraliza proporcionalmente ocupando 100% do quadrado
+                        const scale = Math.max(targetSize / sw, targetSize / sh);
+                        const dw = sw * scale;
+                        const dh = sh * scale;
+                        const dx = (targetSize - dw) / 2;
+                        const dy = (targetSize - dh) / 2;
+
+                        ctx.drawImage(tempCanvas, sx, sy, sw, sh, dx, dy, dw, dh);
+                        return outCanvas;
+                    };
+
+                    const canvas512 = renderToSize(workSize);
+                    const canvas192 = renderToSize(192);
+                    const canvas256 = renderToSize(256);
+
+                    resolve({
+                        icon512: canvas512.toDataURL('image/png'),
+                        icon256: canvas256.toDataURL('image/png'),
+                        icon192: canvas192.toDataURL('image/png'),
+                    });
+                } catch (err) {
+                    reject(err);
+                }
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    });
+};
+
+// Gera um arquivo .ICO válido para Windows a partir de um PNG Data URL (para atalhos na Área de Trabalho)
+const downloadWindowsIcoFromPngDataUrl = async (iconSrc, fileName = 'icone_financeiro_pro.ico') => {
+    try {
+        // Garante um PNG 256x256 em bytes
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        await new Promise((res, rej) => {
+            img.onload = res;
+            img.onerror = rej;
+            img.src = iconSrc;
+        });
+        const canvas = document.createElement('canvas');
+        canvas.width = 256;
+        canvas.height = 256;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, 256, 256);
+
+        const pngBlob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+        const pngBuffer = await pngBlob.arrayBuffer();
+        const pngBytes = new Uint8Array(pngBuffer);
+
+        // Cabeçalho ICO (6 bytes) + Directory Entry (16 bytes) = 22 bytes
+        const icoBytes = new Uint8Array(22 + pngBytes.length);
+        const view = new DataView(icoBytes.buffer);
+
+        view.setUint16(0, 0, true); // Reserved
+        view.setUint16(2, 1, true); // Type: 1 = ICO
+        view.setUint16(4, 1, true); // Count: 1 image
+
+        icoBytes[6] = 0;  // Width: 0 means 256px
+        icoBytes[7] = 0;  // Height: 0 means 256px
+        icoBytes[8] = 0;  // Color palette
+        icoBytes[9] = 0;  // Reserved
+        view.setUint16(10, 1, true); // Color planes
+        view.setUint16(12, 32, true); // Bits per pixel (32-bit RGBA)
+        view.setUint32(14, pngBytes.length, true); // Image size in bytes
+        view.setUint32(18, 22, true); // Offset to PNG data
+
+        icoBytes.set(pngBytes, 22);
+
+        const icoBlob = new Blob([icoBytes], { type: 'image/x-icon' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(icoBlob);
+        link.download = fileName;
+        link.click();
+    } catch (e) {
+        alert('Erro ao gerar arquivo .ico: ' + e.message);
+    }
+};
+
+const AppBrandingManager = ({ appBranding, onSaveAppBranding }) => {
+    const fileInputRef = useRef(null);
+    const [appName, setAppName] = useState(appBranding?.appName || DEFAULT_APP_NAME);
+    const [previewIcon, setPreviewIcon] = useState(appBranding?.icon512 || appBranding?.icon192 || '');
+    const [processedIcons, setProcessedIcons] = useState(null);
+    const [removeLightBg, setRemoveLightBg] = useState(true);
+    const [roundCorners, setRoundCorners] = useState(true);
+    const [lastUploadedFile, setLastUploadedFile] = useState(null);
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const [deferredPrompt, setDeferredPrompt] = useState(() => window.__finproInstallPrompt || null);
+
+    useEffect(() => {
+        setAppName(appBranding?.appName || DEFAULT_APP_NAME);
+        setPreviewIcon(appBranding?.icon512 || appBranding?.icon192 || '');
+    }, [appBranding]);
+
+    useEffect(() => {
+        const handler = (e) => {
+            e.preventDefault();
+            window.__finproInstallPrompt = e;
+            setDeferredPrompt(e);
+        };
+        window.addEventListener('beforeinstallprompt', handler);
+        return () => window.removeEventListener('beforeinstallprompt', handler);
+    }, []);
+
+    const reprocessFile = async (file, rmBg, rndCorners) => {
+        if (!file) return;
+        setIsProcessing(true);
+        try {
+            const result = await processUploadedIconImage(file, {
+                removeLightBackground: rmBg,
+                roundCorners: rndCorners,
+            });
+            setProcessedIcons(result);
+            setPreviewIcon(result.icon512);
+        } catch (err) {
+            alert(err.message);
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    const handleFileSelect = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setLastUploadedFile(file);
+        await reprocessFile(file, removeLightBg, roundCorners);
+    };
+
+    const handleToggleOption = async (newRmBg, newRndCorners) => {
+        setRemoveLightBg(newRmBg);
+        setRoundCorners(newRndCorners);
+        if (lastUploadedFile) {
+            await reprocessFile(lastUploadedFile, newRmBg, newRndCorners);
+        }
+    };
+
+    const handleSaveBranding = async (e) => {
+        e.preventDefault();
+        setIsSaving(true);
+        try {
+            const icon512ToSave = processedIcons?.icon512 || previewIcon || '';
+            const icon192ToSave = processedIcons?.icon192 || previewIcon || '';
+            await onSaveAppBranding({
+                appName: appName.trim() || DEFAULT_APP_NAME,
+                icon192: icon192ToSave,
+                icon512: icon512ToSave,
+            });
+            alert('Ícone e nome do atalho atualizados com sucesso! Agora você já pode criar o atalho ou instalar o aplicativo com a nova imagem.');
+        } catch (err) {
+            alert('Erro ao salvar personalização: ' + err.message);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleRestoreDefault = async () => {
+        if (!window.confirm('Deseja restaurar o ícone dourado padrão do Financeiro PRO?')) return;
+        setIsSaving(true);
+        try {
+            setLastUploadedFile(null);
+            setProcessedIcons(null);
+            setPreviewIcon('');
+            setAppName(DEFAULT_APP_NAME);
+            await onSaveAppBranding({
+                appName: DEFAULT_APP_NAME,
+                icon192: '',
+                icon512: '',
+            });
+            alert('Ícone padrão restaurado com sucesso!');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleInstallShortcutNow = async () => {
+        if (deferredPrompt) {
+            deferredPrompt.prompt();
+            await deferredPrompt.userChoice;
+            window.__finproInstallPrompt = null;
+            setDeferredPrompt(null);
+        } else {
+            alert(
+                'Como criar o atalho com este ícone agora:\n\n' +
+                '💻 No Computador (Chrome / Edge / Brave):\n' +
+                '1. Clique nos 3 pontinhos (⋮) no canto superior direito do navegador.\n' +
+                '2. Vá em "Salvar e compartilhar" (ou "Aplicativos").\n' +
+                '3. Clique em "Instalar Financeiro PRO" ou "Criar atalho..." (marque "Abrir como janela").\n\n' +
+                '📱 No Celular (Android / iPhone):\n' +
+                '• Android (Chrome): Toque nos 3 pontinhos (⋮) -> "Adicionar à tela inicial" ou "Instalar aplicativo".\n' +
+                '• iPhone (Safari): Toque em Compartilhar -> "Adicionar à Tela de Início".'
+            );
+        }
+    };
+
+    const displayIconSrc = previewIcon || DEFAULT_APP_ICON_URL;
+
+    return (
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg space-y-6">
+            <div className="flex flex-wrap justify-between items-center gap-4 border-b dark:border-gray-700 pb-4">
+                <div>
+                    <h3 className="text-2xl font-bold text-gray-800 dark:text-gray-200">Ícone e Atalho de Instalação do Sistema</h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Escolha a imagem que será usada no ícone do sistema, na barra do navegador e no atalho da Área de Trabalho ou Celular.
+                    </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                    <Button onClick={handleInstallShortcutNow} className="bg-indigo-600 hover:bg-indigo-700">
+                        <Download size={18} />
+                        <span>{deferredPrompt ? 'Instalar Aplicativo Agora' : 'Como Criar Atalho na Tela'}</span>
+                    </Button>
+                    <Button onClick={() => downloadWindowsIcoFromPngDataUrl(displayIconSrc, 'icone_sistema.ico')} className="bg-teal-600 hover:bg-teal-700">
+                        <Download size={18} />
+                        <span>Baixar Arquivo .ICO (Windows)</span>
+                    </Button>
+                </div>
+            </div>
+
+            <form onSubmit={handleSaveBranding} className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+                {/* Coluna 1: Preview do Ícone como Atalho */}
+                <div className="flex flex-col items-center p-6 bg-gray-50 dark:bg-gray-900/50 rounded-2xl border dark:border-gray-700 text-center space-y-4">
+                    <span className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Pré-visualização do Atalho</span>
+                    <div className="relative p-4 bg-gradient-to-br from-slate-800 to-slate-950 rounded-3xl shadow-xl flex flex-col items-center justify-center w-44 h-44 border border-slate-700">
+                        <img
+                            src={displayIconSrc}
+                            alt="Ícone do Atalho"
+                            className="w-24 h-24 object-contain drop-shadow-lg"
+                        />
+                        <span className="mt-2 text-xs font-semibold text-white truncate max-w-[140px]">
+                            {appName || DEFAULT_APP_NAME}
+                        </span>
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {previewIcon ? 'Usando imagem personalizada enviada por você.' : 'Usando o ícone dourado padrão do Financeiro PRO.'}
+                    </p>
+                </div>
+
+                {/* Coluna 2 e 3: Upload e Configurações */}
+                <div className="lg:col-span-2 space-y-5">
+                    <label className="block">
+                        <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Nome do Sistema / Atalho</span>
+                        <input
+                            type="text"
+                            value={appName}
+                            onChange={(e) => setAppName(e.target.value)}
+                            placeholder="Ex: Financeiro PRO"
+                            className="mt-1 block w-full p-2.5 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
+                        />
+                    </label>
+
+                    <div className="p-5 border-2 border-dashed border-blue-300 dark:border-blue-700 rounded-xl bg-blue-50/40 dark:bg-blue-950/20 space-y-4">
+                        <div className="flex flex-wrap items-center justify-between gap-4">
+                            <div>
+                                <h4 className="font-bold text-gray-800 dark:text-gray-200">Enviar Nova Imagem para o Atalho</h4>
+                                <p className="text-xs text-gray-600 dark:text-gray-400">
+                                    Envie qualquer imagem (.PNG, .JPG, .WEBP). O sistema converte automaticamente em ícone quadrado de alta resolução.
+                                </p>
+                            </div>
+                            <input
+                                type="file"
+                                ref={fileInputRef}
+                                onChange={handleFileSelect}
+                                accept="image/*"
+                                className="hidden"
+                            />
+                            <Button type="button" onClick={() => fileInputRef.current?.click()} disabled={isProcessing} className="bg-blue-600 hover:bg-blue-700">
+                                <Upload size={18} />
+                                <span>{isProcessing ? 'Transformando...' : 'Escolher Imagem do Computador/Celular'}</span>
+                            </Button>
+                        </div>
+
+                        <div className="flex flex-wrap gap-6 pt-2 border-t border-blue-200 dark:border-blue-800/60 text-sm">
+                            <label className="flex items-center gap-2 cursor-pointer text-gray-700 dark:text-gray-300">
+                                <input
+                                    type="checkbox"
+                                    checked={removeLightBg}
+                                    onChange={(e) => handleToggleOption(e.target.checked, roundCorners)}
+                                    className="rounded text-blue-600"
+                                />
+                                <span>Remover fundo claro / quadriculado automaticamente</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer text-gray-700 dark:text-gray-300">
+                                <input
+                                    type="checkbox"
+                                    checked={roundCorners}
+                                    onChange={(e) => handleToggleOption(removeLightBg, e.target.checked)}
+                                    className="rounded text-blue-600"
+                                />
+                                <span>Arredondar cantos formato App</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl text-xs sm:text-sm text-amber-800 dark:text-amber-300 space-y-1">
+                        <p className="font-bold">💡 Dica importante sobre atalhos já criados na Área de Trabalho:</p>
+                        <p>
+                            • Quando você troca a imagem aqui e clica em <strong>Salvar Ícone do Sistema</strong>, o cabeçalho do sistema e a aba do navegador mudam na mesma hora.
+                        </p>
+                        <p>
+                            • Para que o ícone na sua <strong>Área de Trabalho do Windows ou Tela Inicial do Celular</strong> atualize para a nova imagem, basta criar o atalho novamente pelo navegador (ou no Windows clicar em <strong>"Baixar Arquivo .ICO"</strong> acima e trocar nas Propriedades do atalho).
+                        </p>
+                    </div>
+
+                    <div className="flex flex-wrap justify-end gap-3 pt-2">
+                        {previewIcon && (
+                            <Button type="button" onClick={handleRestoreDefault} disabled={isSaving} className="bg-gray-500 hover:bg-gray-600">
+                                Restaurar Ícone Padrão
+                            </Button>
+                        )}
+                        <Button type="submit" disabled={isSaving || isProcessing} className="bg-green-600 hover:bg-green-700">
+                            <CheckCircle size={18} />
+                            <span>{isSaving ? 'Salvando...' : 'Salvar Ícone do Sistema'}</span>
+                        </Button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    );
+};
+
+const GlobalSettingsView = ({ companies, onSave, onDelete, onBack, onBackup, onRestore, subscription, onSubscribe, backupConfig, onSaveBackupConfig, collaborators, onCreateInvite, onUpdateCollaborator, onRevokeCollaborator, appBranding, onSaveAppBranding }) => {
     const [activeTab, setActiveTab] = useState('empresas');
 
     const TabButton = ({ tabName, label, active }) => (
@@ -5985,6 +6472,7 @@ const GlobalSettingsView = ({ companies, onSave, onDelete, onBack, onBackup, onR
                 <div className="border-b border-gray-300 dark:border-gray-700 flex flex-wrap gap-1">
                     <TabButton tabName="empresas" label="Empresas" active={activeTab === 'empresas'} />
                     <TabButton tabName="colaboradores" label="Colaboradores e Links de Acesso" active={activeTab === 'colaboradores'} />
+                    <TabButton tabName="icone" label="Ícone e Atalho do Sistema" active={activeTab === 'icone'} />
                     <TabButton tabName="assinatura" label="Assinatura" active={activeTab === 'assinatura'} />
                     <TabButton tabName="backup" label="Backup / Restauração" active={activeTab === 'backup'} />
                 </div>
@@ -6000,6 +6488,12 @@ const GlobalSettingsView = ({ companies, onSave, onDelete, onBack, onBackup, onR
                             onCreateInvite={onCreateInvite}
                             onUpdateCollaborator={onUpdateCollaborator}
                             onRevokeCollaborator={onRevokeCollaborator}
+                        />
+                    )}
+                    {activeTab === 'icone' && (
+                        <AppBrandingManager
+                            appBranding={appBranding}
+                            onSaveAppBranding={onSaveAppBranding}
                         />
                     )}
                     {activeTab === 'assinatura' && (
@@ -6090,7 +6584,7 @@ const BackupManager = ({ onBackup, onRestore, backupConfig, onSaveBackupConfig }
 };
 
 
-const HubScreen = ({ companies, onSelect, onShowReports, onManageCompanies, isCollaborator, collaboratorSession, onExitCollaboration }) => {
+const HubScreen = ({ companies, onSelect, onShowReports, onManageCompanies, isCollaborator, collaboratorSession, onExitCollaboration, appBranding }) => {
     const visibleCompanies = useMemo(() => {
         const active = companies.filter(c => c.isActive !== false);
         if (isCollaborator && Array.isArray(collaboratorSession?.allowedCompanies)) {
@@ -6098,6 +6592,9 @@ const HubScreen = ({ companies, onSelect, onShowReports, onManageCompanies, isCo
         }
         return active;
     }, [companies, isCollaborator, collaboratorSession]);
+
+    const brandIcon = appBranding?.icon512 || appBranding?.icon192 || DEFAULT_APP_ICON_URL;
+    const brandName = appBranding?.appName || DEFAULT_APP_NAME;
 
     return (
         <div className="w-full h-screen flex flex-col justify-center items-center bg-gray-800 bg-cover bg-center" style={{ backgroundImage: "url(https://images.unsplash.com/photo-1555396273-367ea4eb4db5?q=80&w=2574&auto=format&fit=crop)" }}>
@@ -6115,7 +6612,10 @@ const HubScreen = ({ companies, onSelect, onShowReports, onManageCompanies, isCo
                         <button onClick={onExitCollaboration} className="ml-2 underline text-xs hover:text-red-200">Sair do modo colaborador</button>
                     </div>
                 )}
-                <h1 className="text-5xl font-extrabold text-white mb-4">Bem-vindo ao Financeiro PRO</h1>
+                <div className="flex flex-col items-center justify-center mb-4">
+                    <img src={brandIcon} alt={brandName} className="w-24 h-24 object-contain mb-3 drop-shadow-2xl" />
+                    <h1 className="text-5xl font-extrabold text-white">Bem-vindo ao {brandName}</h1>
+                </div>
                 <p className="text-xl text-white/80 mb-12">Selecione uma empresa para começar ou veja os seus relatórios consolidados.</p>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -6223,6 +6723,21 @@ export default function App() {
     const [backupConfig, setBackupConfig] = useState({ frequency: 'disabled', lastBackup: null });
     const [dashboardConfig, setDashboardConfig] = useState(null);
     const [classificationMemory, setClassificationMemory] = useState([]);
+    const [appBranding, setAppBranding] = useState(() => ({
+        appName: localStorage.getItem('finpro_custom_app_name') || DEFAULT_APP_NAME,
+        icon192: localStorage.getItem('finpro_custom_icon') || '',
+        icon512: localStorage.getItem('finpro_custom_icon_512') || localStorage.getItem('finpro_custom_icon') || '',
+    }));
+
+    // Captura evento global de instalação PWA (beforeinstallprompt)
+    useEffect(() => {
+        const handler = (e) => {
+            e.preventDefault();
+            window.__finproInstallPrompt = e;
+        };
+        window.addEventListener('beforeinstallprompt', handler);
+        return () => window.removeEventListener('beforeinstallprompt', handler);
+    }, []);
 
     // --- SISTEMA DE COLABORADORES E LINKS DE CONVITE ---
     const [collaborators, setCollaborators] = useState([]);
@@ -6438,20 +6953,81 @@ export default function App() {
         setActiveCompanyId(null);
     };
 
-    // Listener da configuração de backup
+    // Listener da configuração de backup e personalização de ícone/atalho
     useEffect(() => {
         if (!userId) return;
         const backupConfigRef = doc(db, `users/${userId}/profile`, 'backupConfig');
-        const unsub = onSnapshot(backupConfigRef, (doc) => {
-            if (doc.exists()) {
-                setBackupConfig(doc.data());
+        const unsubBackup = onSnapshot(backupConfigRef, (docSnap) => {
+            if (docSnap.exists()) {
+                setBackupConfig(docSnap.data());
             } else {
-                // If no config exists, create a default one
                 setDoc(backupConfigRef, { frequency: 'disabled', lastBackup: null });
             }
         });
-        return () => unsub();
+
+        const brandingRef = doc(db, `users/${userId}/profile`, 'appBranding');
+        const unsubBranding = onSnapshot(brandingRef, (docSnap) => {
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                const local512 = localStorage.getItem('finpro_custom_icon_512');
+                const iconUrl = data.icon192 ? (local512 || data.icon192) : '';
+                const name = data.appName || DEFAULT_APP_NAME;
+                setAppBranding({
+                    appName: name,
+                    icon192: data.icon192 || '',
+                    icon512: iconUrl,
+                });
+                if (data.icon192) {
+                    localStorage.setItem('finpro_custom_icon', data.icon192);
+                } else {
+                    localStorage.removeItem('finpro_custom_icon');
+                    localStorage.removeItem('finpro_custom_icon_512');
+                }
+                localStorage.setItem('finpro_custom_app_name', name);
+                applyAppBrandingToDOM(iconUrl, name);
+            }
+        });
+
+        return () => {
+            unsubBackup();
+            unsubBranding();
+        };
     }, [userId]);
+
+    const handleSaveAppBranding = async ({ appName, icon192, icon512 }) => {
+        const cleanName = (appName && appName.trim()) ? appName.trim() : DEFAULT_APP_NAME;
+        try {
+            if (icon512) {
+                localStorage.setItem('finpro_custom_icon_512', icon512);
+            } else {
+                localStorage.removeItem('finpro_custom_icon_512');
+            }
+            if (icon192) {
+                localStorage.setItem('finpro_custom_icon', icon192);
+            } else {
+                localStorage.removeItem('finpro_custom_icon');
+            }
+            localStorage.setItem('finpro_custom_app_name', cleanName);
+        } catch (e) {
+            console.warn('Aviso ao salvar ícone no localStorage:', e);
+        }
+
+        setAppBranding({
+            appName: cleanName,
+            icon192: icon192 || '',
+            icon512: icon512 || icon192 || '',
+        });
+        applyAppBrandingToDOM(icon512 || icon192 || '', cleanName);
+
+        if (userId) {
+            const brandingRef = doc(db, `users/${userId}/profile`, 'appBranding');
+            await setDoc(brandingRef, {
+                appName: cleanName,
+                icon192: icon192 || '',
+                updatedAt: new Date().toISOString(),
+            }, { merge: true });
+        }
+    };
 
     // Listener da subscrição
     useEffect(() => {
@@ -7045,6 +7621,8 @@ export default function App() {
                         onCreateInvite={handleCreateInvite}
                         onUpdateCollaborator={handleUpdateCollaborator}
                         onRevokeCollaborator={handleRevokeCollaborator}
+                        appBranding={appBranding}
+                        onSaveAppBranding={handleSaveAppBranding}
                     />
                 );
             case 'selector':
@@ -7058,6 +7636,7 @@ export default function App() {
                         isCollaborator={isCollaborator}
                         collaboratorSession={collaboratorSession}
                         onExitCollaboration={handleExitCollaboration}
+                        appBranding={appBranding}
                     />
                 );
         }
@@ -7093,6 +7672,8 @@ export default function App() {
                 onDeleteEntity={settingsDeleteHandler}
                 onBatchDelete={handleBatchDeleteTransactions}
                 onImportTransactions={handleImportWithCompanyId}
+                appBranding={appBranding}
+                onSaveAppBranding={handleSaveAppBranding}
                 {...{ accounts, payees, categories, allTransactions: transactions, classificationMemory, companies, userId, activeCompanyId }}
             />;
             default: return <DashboardView {...{ transactions, accounts, categories, futureEntries, budgets, dashboardConfig }} onSaveConfig={handleSaveDashboardConfig} />;
@@ -7230,11 +7811,17 @@ export default function App() {
             )}
             <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-white dark:bg-gray-800 p-6 flex flex-col shadow-lg transform transition-transform duration-300 md:relative md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} overflow-y-auto`}>
                 <div className="flex justify-between items-center mb-4 md:hidden">
-                    <h1 className="text-xl font-bold text-blue-700 dark:text-blue-400">Financeiro PRO</h1>
+                    <div className="flex items-center gap-2.5">
+                        <img src={appBranding?.icon512 || appBranding?.icon192 || DEFAULT_APP_ICON_URL} alt="Logo" className="w-8 h-8 object-contain" />
+                        <h1 className="text-xl font-bold text-blue-700 dark:text-blue-400 truncate">{appBranding?.appName || DEFAULT_APP_NAME}</h1>
+                    </div>
                     <button onClick={() => setIsMobileMenuOpen(false)} className="text-gray-500 hover:text-gray-700"><X size={24} /></button>
                 </div>
                 <div className="flex-grow">
-                    <h1 className="text-2xl font-bold text-blue-700 dark:text-blue-400 mb-4 hidden md:block">Financeiro PRO</h1>
+                    <div className="hidden md:flex items-center gap-3 mb-5">
+                        <img src={appBranding?.icon512 || appBranding?.icon192 || DEFAULT_APP_ICON_URL} alt="Logo" className="w-10 h-10 object-contain drop-shadow" />
+                        <h1 className="text-2xl font-bold text-blue-700 dark:text-blue-400 truncate">{appBranding?.appName || DEFAULT_APP_NAME}</h1>
+                    </div>
                     <div className="mb-8 p-3 bg-gray-100 dark:bg-gray-700/50 rounded-lg">
                         <p className="text-sm text-gray-500 dark:text-gray-400">Empresa Ativa</p>
                         <p className="font-bold text-lg text-gray-800 dark:text-gray-200">{activeCompany?.name}</p>
@@ -7286,7 +7873,8 @@ export default function App() {
                     <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 -ml-2 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg">
                         <Menu size={24} />
                     </button>
-                    <h2 className="text-xl font-bold text-blue-700 dark:text-blue-400 ml-2">Financeiro PRO</h2>
+                    <img src={appBranding?.icon512 || appBranding?.icon192 || DEFAULT_APP_ICON_URL} alt="Logo" className="w-7 h-7 object-contain ml-2" />
+                    <h2 className="text-xl font-bold text-blue-700 dark:text-blue-400 ml-2 truncate">{appBranding?.appName || DEFAULT_APP_NAME}</h2>
                 </div>
                 {!isSubscribed && (
                     <div className="absolute inset-0 bg-black/70 z-40 flex flex-col justify-center items-center text-white p-8 text-center">
