@@ -125,13 +125,13 @@ const getCategoryFullName = (categoryId, categories) => {
 // --- COMPONENTES DE UI REUTILIZÁVEIS ---
 const Modal = ({ isOpen, onClose, title, children, size = 'md' }) => {
     if (!isOpen) return null;
-    const sizeClass = { md: 'max-w-md', lg: 'max-w-4xl', xl: 'max-w-6xl' }[size] || 'max-w-md';
+    const sizeClass = { sm: 'max-w-sm', md: 'max-w-md', lg: 'max-w-4xl', xl: 'max-w-6xl' }[size] || 'max-w-md';
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-2 sm:p-4" onClick={onClose}>
-            <div className={`bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full ${sizeClass} p-4 sm:p-8 transform transition-all max-h-[95vh] overflow-y-auto`} onClick={e => e.stopPropagation()}>
-                <div className="flex justify-between items-center mb-4 sm:mb-6">
-                    <h2 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-200 pr-4">{title}</h2>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-3xl leading-none">&times;</button>
+        <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-2.5 sm:p-4" onClick={onClose}>
+            <div className={`bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full ${sizeClass} p-4 sm:p-8 transform transition-all max-h-[92dvh] overflow-y-auto`} onClick={e => e.stopPropagation()}>
+                <div className="flex justify-between items-center mb-3 sm:mb-6">
+                    <h2 className="text-lg sm:text-2xl font-bold text-gray-800 dark:text-gray-200 pr-4 leading-snug">{title}</h2>
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-3xl leading-none p-1">&times;</button>
                 </div>
                 {children}
             </div>
@@ -140,40 +140,40 @@ const Modal = ({ isOpen, onClose, title, children, size = 'md' }) => {
 };
 
 const Button = ({ onClick, children, className = 'bg-blue-600 hover:bg-blue-700', type = 'button', disabled = false }) => (
-    <button type={type} onClick={onClick} disabled={disabled} className={`flex items-center justify-center space-x-2 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed ${className}`}>
+    <button type={type} onClick={onClick} disabled={disabled} className={`flex items-center justify-center gap-1.5 sm:gap-2 text-white font-semibold py-2 px-3 sm:px-4 text-xs sm:text-sm md:text-base rounded-lg shadow-md transition-all active:scale-95 md:hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed ${className}`}>
         {children}
     </button>
 );
 
 const StatCard = ({ title, value, icon, color }) => (
-    <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg flex items-center space-x-4 transition-transform transform hover:scale-105">
-        <div className={`p-3 rounded-full ${color}`}>{icon}</div>
-        <div>
-            <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">{title}</p>
-            <p className="text-2xl font-bold text-gray-800 dark:text-gray-200">{value}</p>
+    <div className="bg-white dark:bg-gray-800 p-3.5 sm:p-6 rounded-xl sm:rounded-2xl shadow-md sm:shadow-lg flex items-center gap-2.5 sm:gap-4 transition-transform md:hover:scale-[1.02] min-w-0">
+        <div className={`p-2 sm:p-3 rounded-full flex-shrink-0 ${color}`}>{icon}</div>
+        <div className="min-w-0 flex-1">
+            <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 font-medium truncate" title={title}>{title}</p>
+            <p className="text-sm sm:text-xl md:text-2xl font-bold text-gray-800 dark:text-gray-200 truncate" title={String(value)}>{value}</p>
         </div>
     </div>
 );
 
 // --- COMPONENTES DE ESTADO DA APLICAÇÃO ---
 const LoadingScreen = ({ message }) => (
-    <div className="flex flex-col justify-center items-center h-screen w-screen bg-gray-100 dark:bg-gray-900">
-        <RefreshCw className="animate-spin text-blue-500 h-12 w-12 mb-4" />
-        <p className="text-lg dark:text-gray-300">{message || 'A carregar...'}</p>
+    <div className="flex flex-col justify-center items-center min-h-[100dvh] w-full bg-gray-100 dark:bg-gray-900 p-4">
+        <RefreshCw className="animate-spin text-blue-500 h-10 w-10 sm:h-12 sm:w-12 mb-4" />
+        <p className="text-base sm:text-lg dark:text-gray-300 text-center">{message || 'A carregar...'}</p>
     </div>
 );
 
 const MigrationScreen = ({ onMigrate, isMigrating }) => (
-    <div className="w-full h-screen flex flex-col justify-center items-center bg-gray-100 dark:bg-gray-900 p-4">
-        <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-lg text-center max-w-2xl">
-            <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-200">Atualização Importante da Conta</h1>
-            <p className="mt-4 text-gray-600 dark:text-gray-400">
+    <div className="w-full min-h-[100dvh] flex flex-col justify-center items-center bg-gray-100 dark:bg-gray-900 p-4">
+        <div className="bg-white dark:bg-gray-800 p-5 sm:p-8 rounded-2xl shadow-lg text-center max-w-2xl">
+            <h1 className="text-xl sm:text-3xl font-bold text-gray-800 dark:text-gray-200">Atualização Importante da Conta</h1>
+            <p className="mt-4 text-sm sm:text-base text-gray-600 dark:text-gray-400">
                 Olá! Para melhorar a sua experiência e permitir a gestão de múltiplas empresas, atualizámos a estrutura dos seus dados.
             </p>
-            <p className="mt-2 text-gray-600 dark:text-gray-400">
+            <p className="mt-2 text-sm sm:text-base text-gray-600 dark:text-gray-400">
                 Precisamos de migrar os seus dados existentes para o novo formato. Este é um processo único, rápido e seguro. Os seus dados não serão perdidos.
             </p>
-            <Button onClick={onMigrate} disabled={isMigrating} className="mt-8 bg-blue-600 hover:bg-blue-700 !text-white text-lg px-8 py-3">
+            <Button onClick={onMigrate} disabled={isMigrating} className="mt-6 sm:mt-8 bg-blue-600 hover:bg-blue-700 !text-white text-base sm:text-lg px-6 sm:px-8 py-2.5 sm:py-3 mx-auto">
                 <RefreshCw className={isMigrating ? 'animate-spin' : ''} size={20} />
                 <span>{isMigrating ? 'A migrar os seus dados...' : 'Iniciar a Migração'}</span>
             </Button>
@@ -202,7 +202,7 @@ const AuthView = ({ onGoogleSignIn, appBranding }) => {
     };
 
     const GoogleIcon = () => (
-        <svg className="w-6 h-6" viewBox="0 0 48 48">
+        <svg className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" viewBox="0 0 48 48">
             <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path>
             <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path>
             <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"></path>
@@ -215,11 +215,11 @@ const AuthView = ({ onGoogleSignIn, appBranding }) => {
     const brandName = appBranding?.appName || 'Financeiro PRO';
 
     return (
-        <div className="w-full min-h-screen flex justify-center items-center bg-gray-100 p-4">
-            <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-2xl shadow-lg text-center">
+        <div className="w-full min-h-[100dvh] flex justify-center items-center bg-gray-100 p-4">
+            <div className="w-full max-w-md p-6 sm:p-8 space-y-5 sm:space-y-6 bg-white rounded-2xl shadow-lg text-center">
                 <div className="flex flex-col items-center">
-                    <img src={brandIcon} alt={brandName} className="w-20 h-20 object-contain mb-3 drop-shadow-md" />
-                    <h2 className="text-3xl font-bold text-gray-800">Bem-vindo ao {brandName}</h2>
+                    <img src={brandIcon} alt={brandName} className="w-16 h-16 sm:w-20 sm:h-20 object-contain mb-3 drop-shadow-md" />
+                    <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">Bem-vindo ao {brandName}</h2>
                 </div>
 
                 {pendingInvite && (
@@ -233,7 +233,7 @@ const AuthView = ({ onGoogleSignIn, appBranding }) => {
                 <button
                     onClick={handleSignIn}
                     disabled={isSigningIn}
-                    className="w-full flex items-center justify-center space-x-3 bg-white border border-gray-300 text-gray-700 font-semibold py-3 px-4 rounded-lg shadow-sm transition-all transform hover:scale-105 hover:bg-gray-50 disabled:opacity-60"
+                    className="w-full flex items-center justify-center space-x-3 bg-white border border-gray-300 text-gray-700 font-semibold py-3 px-4 rounded-lg shadow-sm transition-all active:scale-95 hover:bg-gray-50 disabled:opacity-60"
                 >
                     <GoogleIcon />
                     <span>{isSigningIn ? 'Conectando ao Google...' : 'Entrar com o Google'}</span>
@@ -406,82 +406,82 @@ const DashboardView = ({ transactions, accounts, categories, futureEntries, budg
     if (!dashboardConfig) return <LoadingScreen message="A carregar dashboard..." />;
 
     return (
-        <div className="space-y-8">
+        <div className="space-y-4 sm:space-y-8">
             <div className="flex justify-between items-center">
-                <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-200">Dashboard</h2>
+                <h2 className="text-xl sm:text-3xl font-bold text-gray-800 dark:text-gray-200">Dashboard</h2>
                 <Button onClick={() => setIsSettingsModalOpen(true)} className="bg-gray-600 hover:bg-gray-700 !p-2">
-                    <Settings />
+                    <Settings size={18} />
                 </Button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-6">
                 {kpiCards.filter(kpi => dashboardConfig && dashboardConfig[kpi.key]).map(kpi => (
                     <StatCard key={kpi.key} {...kpi} />
                 ))}
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-8">
                 {dashboardConfig.showExpenseByCategory && (
-                    <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg">
-                        <h3 className="text-xl font-bold text-gray-800 dark:text-gray-200 mb-4">Despesas do Mês por Categoria</h3>
+                    <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-2xl shadow-lg">
+                        <h3 className="text-base sm:text-xl font-bold text-gray-800 dark:text-gray-200 mb-3 sm:mb-4">Despesas do Mês por Categoria</h3>
                         {expenseByCategory.length > 0 ? (
-                            <ResponsiveContainer width="100%" height={300}>
-                                <BarChart data={expenseByCategory} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                            <ResponsiveContainer width="100%" height={280}>
+                                <BarChart data={expenseByCategory} layout="vertical" margin={{ top: 5, right: 15, left: 0, bottom: 5 }}>
                                     <CartesianGrid strokeDasharray="3 3" />
-                                    <XAxis type="number" tickFormatter={formatCurrency} />
-                                    <YAxis type="category" dataKey="name" width={150} />
+                                    <XAxis type="number" tickFormatter={formatCurrency} tick={{ fontSize: 11 }} />
+                                    <YAxis type="category" dataKey="name" width={105} tick={{ fontSize: 11 }} />
                                     <Tooltip formatter={(value) => formatCurrency(value)} />
-                                    <Bar dataKey="value" fill="#ef4444" />
+                                    <Bar dataKey="value" fill="#ef4444" radius={[0, 4, 4, 0]} />
                                 </BarChart>
                             </ResponsiveContainer>
-                        ) : <p className="text-center text-gray-500 dark:text-gray-400 py-12">Sem despesas este mês.</p>}
+                        ) : <p className="text-center text-gray-500 dark:text-gray-400 py-10 text-sm">Sem despesas este mês.</p>}
                     </div>
                 )}
                 {dashboardConfig.showDueToday && (
-                    <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg">
-                        <h3 className="text-xl font-bold text-gray-800 dark:text-gray-200 mb-4">Contas a Vencer Hoje</h3>
+                    <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-2xl shadow-lg">
+                        <h3 className="text-base sm:text-xl font-bold text-gray-800 dark:text-gray-200 mb-3 sm:mb-4">Contas a Vencer Hoje</h3>
                         {dueToday.length > 0 ? (
-                            <ul className="space-y-3 max-h-[300px] overflow-y-auto">
+                            <ul className="space-y-3 max-h-[280px] overflow-y-auto">
                                 {dueToday.map(item => (
-                                    <li key={item.id} className="flex justify-between items-center border-b dark:border-gray-700 pb-2">
-                                        <div>
-                                            <p className="font-semibold text-gray-700 dark:text-gray-300">{item.description}</p>
-                                            <p className="text-sm text-gray-500 dark:text-gray-400">{getCategoryFullName(item.categoryId, categories)}</p>
+                                    <li key={item.id} className="flex justify-between items-center gap-2 border-b dark:border-gray-700 pb-2">
+                                        <div className="min-w-0">
+                                            <p className="font-semibold text-sm sm:text-base text-gray-700 dark:text-gray-300 truncate">{item.description}</p>
+                                            <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 truncate">{getCategoryFullName(item.categoryId, categories)}</p>
                                         </div>
-                                        <span className="font-bold text-red-600">{formatCurrency(item.amount)}</span>
+                                        <span className="font-bold text-sm sm:text-base text-red-600 flex-shrink-0">{formatCurrency(item.amount)}</span>
                                     </li>
                                 ))}
                             </ul>
-                        ) : <p className="text-center text-gray-500 dark:text-gray-400 py-12">Nenhuma conta vence hoje.</p>}
+                        ) : <p className="text-center text-gray-500 dark:text-gray-400 py-10 text-sm">Nenhuma conta vence hoje.</p>}
                     </div>
                 )}
                 {dashboardConfig.showBudgetSummary && (
-                    <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg lg:col-span-2">
-                        <h3 className="text-xl font-bold text-gray-800 dark:text-gray-200 mb-4">Resumo dos Orçamentos do Mês</h3>
+                    <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-2xl shadow-lg lg:col-span-2">
+                        <h3 className="text-base sm:text-xl font-bold text-gray-800 dark:text-gray-200 mb-3 sm:mb-4">Resumo dos Orçamentos do Mês</h3>
                         {budgetOverview.totalBudget > 0 ? (
                             <div>
-                                <div className="flex justify-between text-lg mb-2">
+                                <div className="flex flex-wrap justify-between gap-2 text-sm sm:text-lg mb-2">
                                     <span className="font-semibold text-gray-700 dark:text-gray-300">Gasto: <span className={budgetOverview.totalSpent > budgetOverview.totalBudget ? 'text-red-500' : 'text-green-500'}>{formatCurrency(budgetOverview.totalSpent)}</span></span>
                                     <span className="font-semibold text-gray-700 dark:text-gray-300">Orçamento: {formatCurrency(budgetOverview.totalBudget)}</span>
                                 </div>
                                 <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-6">
                                     <div
-                                        className={`h-6 rounded-full text-white text-sm flex items-center justify-center ${budgetOverview.progress > 100 ? 'bg-red-500' : 'bg-blue-500'}`}
+                                        className={`h-6 rounded-full text-white text-xs sm:text-sm flex items-center justify-center ${budgetOverview.progress > 100 ? 'bg-red-500' : 'bg-blue-500'}`}
                                         style={{ width: `${Math.min(budgetOverview.progress, 100)}%` }}
                                     >
                                         {budgetOverview.progress.toFixed(0)}%
                                     </div>
                                 </div>
                             </div>
-                        ) : <p className="text-center text-gray-500 dark:text-gray-400 py-12">Nenhum orçamento definido para este mês.</p>}
+                        ) : <p className="text-center text-gray-500 dark:text-gray-400 py-10 text-sm">Nenhum orçamento definido para este mês.</p>}
                     </div>
                 )}
             </div>
 
             <Modal isOpen={isSettingsModalOpen} onClose={() => setIsSettingsModalOpen(false)} title="Configurar Dashboard">
                 <div className="space-y-2">
-                    <p className="text-gray-600 dark:text-gray-400 mb-4">Selecione os indicadores que deseja ver no seu dashboard.</p>
-                    <div className="grid grid-cols-2 gap-4 max-h-96 overflow-y-auto pr-2">
+                    <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mb-3">Selecione os indicadores que deseja ver no seu dashboard.</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-4 max-h-96 overflow-y-auto pr-1">
                         {[
                             ...kpiCards.map(k => ({ key: k.key, label: k.title })),
                             { key: 'showExpenseByCategory', label: 'Gráfico de Despesas' },
@@ -489,12 +489,12 @@ const DashboardView = ({ transactions, accounts, categories, futureEntries, budg
                             { key: 'showBudgetSummary', label: 'Resumo de Orçamentos' },
                         ].map(item => (
                             <label key={item.key} className="flex items-center space-x-3 p-3 bg-gray-100 dark:bg-gray-700 rounded-lg cursor-pointer">
-                                <input type="checkbox" checked={!!(tempConfig && tempConfig[item.key])} onChange={() => handleConfigChange(item.key)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                                <span className="text-gray-800 dark:text-gray-300 font-medium">{item.label}</span>
+                                <input type="checkbox" checked={!!(tempConfig && tempConfig[item.key])} onChange={() => handleConfigChange(item.key)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 flex-shrink-0" />
+                                <span className="text-sm sm:text-base text-gray-800 dark:text-gray-300 font-medium">{item.label}</span>
                             </label>
                         ))}
                     </div>
-                    <div className="flex justify-end pt-6">
+                    <div className="flex justify-end pt-4 sm:pt-6">
                         <Button onClick={handleSaveSettings}>Guardar Configuração</Button>
                     </div>
                 </div>
@@ -854,99 +854,101 @@ const TransactionsView = ({ transactions, accounts, categories, payees, classifi
     }, [categories, formData.type]);
 
     return (
-        <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg h-full flex flex-col">
-            <div className="flex-shrink-0">
-                <div className="flex flex-wrap justify-between items-center mb-6 gap-4">
-                    <div className="flex items-end gap-4">
-                        <div>
-                            <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-200">Extrato da Conta</h2>
+        <div className="bg-white dark:bg-gray-800 p-3.5 sm:p-6 md:p-8 rounded-2xl shadow-lg md:h-full flex flex-col">
+            <div className="flex-shrink-0 space-y-3 sm:space-y-4 mb-4 sm:mb-6">
+                <div className="flex flex-wrap justify-between items-start sm:items-center gap-2">
+                    <h2 className="text-xl sm:text-3xl font-bold text-gray-800 dark:text-gray-200">Extrato da Conta</h2>
+                    <div className="text-right">
+                        <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">{isSimulating ? 'Saldo Simulado' : 'Saldo Atual'}</p>
+                        <p className="text-lg sm:text-2xl font-bold text-gray-800 dark:text-gray-200">{formatCurrency(currentBalance)}</p>
+                    </div>
+                </div>
+
+                <div className="flex flex-col lg:flex-row lg:justify-between lg:items-end gap-3 sm:gap-4">
+                    <div className="flex flex-wrap items-end gap-2.5 sm:gap-4 w-full lg:w-auto">
+                        <div className="w-full sm:w-56">
+                            <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mb-1">Conta</p>
                             <AccountSelector
                                 accounts={accounts}
                                 selectedAccountId={selectedAccountId}
                                 onChange={(e) => setSelectedAccountId(e.target.value)}
-                                className="!mt-2"
                             />
                         </div>
                         {/* Novos Filtros de Data */}
-                        <div>
-                            <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Período</p>
-                            <div className="flex gap-2 items-center">
+                        <div className="w-full sm:w-auto">
+                            <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mb-1">Período</p>
+                            <div className="flex gap-1.5 sm:gap-2 items-center">
                                 <input
                                     type="date"
                                     value={filterStartDate}
                                     onChange={(e) => setFilterStartDate(e.target.value)}
-                                    className="p-1 border dark:border-gray-600 rounded text-sm dark:bg-gray-700 dark:text-gray-300"
+                                    className="p-1.5 sm:p-2 border dark:border-gray-600 rounded-lg text-xs sm:text-sm dark:bg-gray-700 dark:text-gray-300 flex-1 sm:flex-none min-w-0"
                                 />
                                 <span className="text-gray-400">-</span>
                                 <input
                                     type="date"
                                     value={filterEndDate}
                                     onChange={(e) => setFilterEndDate(e.target.value)}
-                                    className="p-1 border dark:border-gray-600 rounded text-sm dark:bg-gray-700 dark:text-gray-300"
+                                    className="p-1.5 sm:p-2 border dark:border-gray-600 rounded-lg text-xs sm:text-sm dark:bg-gray-700 dark:text-gray-300 flex-1 sm:flex-none min-w-0"
                                 />
                             </div>
                         </div>
                         {/* Toggle Saldo Diário */}
-                        <div className="flex items-center pt-6">
-                            <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700 dark:text-gray-300 select-none">
+                        <div className="flex items-center py-1 sm:pb-2">
+                            <label className="flex items-center gap-2 cursor-pointer text-xs sm:text-sm text-gray-700 dark:text-gray-300 select-none">
                                 <input
                                     type="checkbox"
                                     checked={showDailyBalance}
                                     onChange={(e) => setShowDailyBalance(e.target.checked)}
-                                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
                                 />
                                 Saldo no Dia
                             </label>
                         </div>
                     </div>
-                    <div className="flex gap-6 items-center">
-                        <div className="text-right">
-                            <p className="text-gray-500 dark:text-gray-400">{isSimulating ? 'Saldo Simulado' : 'Saldo Atual'}</p>
-                            <p className="text-2xl font-bold text-gray-800 dark:text-gray-200">{formatCurrency(currentBalance)}</p>
-                        </div>
-                        <div className="flex items-center gap-4">
-                            {selectedTransactions.size > 0 && (
-                                <>
-                                    {canEdit && canDelete && (
-                                        <Button onClick={handleMoveToFuture} className="bg-purple-600 hover:bg-purple-700">
-                                            <CalendarClock size={20} />
-                                            <span>Mover para Futuro</span>
-                                        </Button>
-                                    )}
-                                    {canDelete && (
-                                        <Button onClick={handleDeleteSelected} className="bg-red-600 hover:bg-red-700">
-                                            <Trash2 size={20} />
-                                            <span>Apagar ({selectedTransactions.size})</span>
-                                        </Button>
-                                    )}
-                                </>
-                            )}
-                            {isSimulating ? (
-                                <Button onClick={() => setIsSimulating(false)} className="bg-gray-600 hover:bg-gray-700">
-                                    <ArrowLeft size={20} /><span>Voltar ao Extrato</span>
-                                </Button>
-                            ) : (
-                                <Button onClick={handleOpenSimulationModal} className="bg-yellow-500 hover:bg-yellow-600">
-                                    <Clock size={20} /><span>Simular Futuro</span>
-                                </Button>
-                            )}
-                            {canCreate && (
-                                <Button onClick={onOpenReconciliation} disabled={!selectedAccountId || selectedAccountId === 'all'} className="bg-blue-600 hover:bg-blue-700">
-                                    <GitCompareArrows size={20} /><span>Conciliar Extrato</span>
-                                </Button>
-                            )}
-                            {canCreate && (
-                                <Button onClick={() => handleOpenModal()}><PlusCircle size={20} /><span>Adicionar Transação</span></Button>
-                            )}
-                        </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                        {selectedTransactions.size > 0 && (
+                            <>
+                                {canEdit && canDelete && (
+                                    <Button onClick={handleMoveToFuture} className="bg-purple-600 hover:bg-purple-700">
+                                        <CalendarClock size={16} />
+                                        <span>Mover para Futuro</span>
+                                    </Button>
+                                )}
+                                {canDelete && (
+                                    <Button onClick={handleDeleteSelected} className="bg-red-600 hover:bg-red-700">
+                                        <Trash2 size={16} />
+                                        <span>Apagar ({selectedTransactions.size})</span>
+                                    </Button>
+                                )}
+                            </>
+                        )}
+                        {isSimulating ? (
+                            <Button onClick={() => setIsSimulating(false)} className="bg-gray-600 hover:bg-gray-700">
+                                <ArrowLeft size={16} /><span>Voltar ao Extrato</span>
+                            </Button>
+                        ) : (
+                            <Button onClick={handleOpenSimulationModal} className="bg-yellow-500 hover:bg-yellow-600">
+                                <Clock size={16} /><span>Simular Futuro</span>
+                            </Button>
+                        )}
+                        {canCreate && (
+                            <Button onClick={onOpenReconciliation} disabled={!selectedAccountId || selectedAccountId === 'all'} className="bg-blue-600 hover:bg-blue-700">
+                                <GitCompareArrows size={16} /><span>Conciliar Extrato</span>
+                            </Button>
+                        )}
+                        {canCreate && (
+                            <Button onClick={() => handleOpenModal()}><PlusCircle size={16} /><span>Adicionar Transação</span></Button>
+                        )}
                     </div>
                 </div>
             </div>
-            <div className="overflow-auto flex-grow">
-                <table className="w-full text-left min-w-[800px]">
-                    <thead className="sticky top-0 bg-white dark:bg-gray-800 z-10">
+            <div className="overflow-x-auto md:overflow-auto flex-grow border dark:border-gray-700 rounded-xl">
+                <table className="w-full text-left text-xs sm:text-sm min-w-[680px]">
+                    <thead className="sticky top-0 bg-gray-50 dark:bg-gray-900 z-10">
                         <tr className="border-b-2 border-gray-200 dark:border-gray-700">
-                            <th className="p-4 w-12 text-center">
+                            <th className="p-2.5 sm:p-4 w-10 sm:w-12 text-center">
                                 <input
                                     type="checkbox"
                                     className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
@@ -955,18 +957,18 @@ const TransactionsView = ({ transactions, accounts, categories, payees, classifi
                                     ref={input => { if (input) { input.indeterminate = selectedTransactions.size > 0 && selectedTransactions.size < transactionsWithBalance.filter(t => !t.isSimulated).length; } }}
                                 />
                             </th>
-                            <th className="p-4">Data</th>
-                            <th className="p-4">Descrição</th>
-                            <th className="p-4">Categoria</th>
-                            <th className="p-4 text-right">Valor</th>
-                            {showDailyBalance && <th className="p-4 text-right">Saldo</th>}
-                            <th className="p-4">Ações</th>
+                            <th className="p-2.5 sm:p-4 whitespace-nowrap">Data</th>
+                            <th className="p-2.5 sm:p-4">Descrição</th>
+                            <th className="p-2.5 sm:p-4">Categoria</th>
+                            <th className="p-2.5 sm:p-4 text-right whitespace-nowrap">Valor</th>
+                            {showDailyBalance && <th className="p-2.5 sm:p-4 text-right whitespace-nowrap">Saldo</th>}
+                            <th className="p-2.5 sm:p-4 text-center">Ações</th>
                         </tr>
                     </thead>
                     <tbody>
                         {transactionsWithBalance.map(t => (
                             <tr key={t.id} className={`border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 ${selectedTransactions.has(t.id) ? 'bg-blue-50 dark:bg-blue-900/40' : ''} ${t.isSimulated ? 'bg-yellow-50 dark:bg-yellow-900/20 italic' : ''}`}>
-                                <td className="p-4 text-center">
+                                <td className="p-2.5 sm:p-4 text-center">
                                     {!t.isSimulated && (
                                         <input
                                             type="checkbox"
@@ -976,26 +978,28 @@ const TransactionsView = ({ transactions, accounts, categories, payees, classifi
                                         />
                                     )}
                                 </td>
-                                <td className="p-4 text-gray-600 dark:text-gray-400">{formatDate(t.date)}</td>
-                                <td className="p-4 font-medium text-gray-800 dark:text-gray-200 flex items-center gap-2">
-                                    {t.description}
-                                    {t.attachmentURL && (
-                                        <a href={t.attachmentURL} target="_blank" rel="noopener noreferrer" title="Ver anexo">
-                                            <Paperclip className="text-blue-500" size={16} />
-                                        </a>
-                                    )}
+                                <td className="p-2.5 sm:p-4 text-gray-600 dark:text-gray-400 whitespace-nowrap">{formatDate(t.date)}</td>
+                                <td className="p-2.5 sm:p-4 font-medium text-gray-800 dark:text-gray-200">
+                                    <div className="flex items-center gap-1.5">
+                                        <span>{t.description}</span>
+                                        {t.attachmentURL && (
+                                            <a href={t.attachmentURL} target="_blank" rel="noopener noreferrer" title="Ver anexo" className="flex-shrink-0">
+                                                <Paperclip className="text-blue-500" size={15} />
+                                            </a>
+                                        )}
+                                    </div>
                                 </td>
-                                <td className="p-4 text-gray-600 dark:text-gray-400">
-                                    {t.isTransfer ? <span className="flex items-center gap-2 text-blue-600 font-medium"><ArrowRightLeft size={14} /> Transferência</span> : getCategoryFullName(t.categoryId, categories)}
+                                <td className="p-2.5 sm:p-4 text-gray-600 dark:text-gray-400">
+                                    {t.isTransfer ? <span className="flex items-center gap-1.5 text-blue-600 font-medium whitespace-nowrap"><ArrowRightLeft size={14} /> Transferência</span> : getCategoryFullName(t.categoryId, categories)}
                                     {t.isSimulated && <span className="text-xs ml-2 text-yellow-700 dark:text-yellow-400 font-bold">[SIMULAÇÃO]</span>}
                                 </td>
-                                <td className={`p-4 font-bold text-right ${t.type === 'revenue' ? 'text-green-600' : 'text-red-600'}`}>{t.type === 'revenue' ? '+' : '-'} {formatCurrency(t.amount)}</td>
-                                {showDailyBalance && <td className="p-4 font-mono text-right text-gray-700 dark:text-gray-300">{formatCurrency(t.runningBalance)}</td>}
-                                <td className="p-4">
+                                <td className={`p-2.5 sm:p-4 font-bold text-right whitespace-nowrap ${t.type === 'revenue' ? 'text-green-600' : 'text-red-600'}`}>{t.type === 'revenue' ? '+' : '-'} {formatCurrency(t.amount)}</td>
+                                {showDailyBalance && <td className="p-2.5 sm:p-4 font-mono text-right whitespace-nowrap text-gray-700 dark:text-gray-300">{formatCurrency(t.runningBalance)}</td>}
+                                <td className="p-2.5 sm:p-4">
                                     {!t.isSimulated && (
-                                        <div className="flex space-x-2">
-                                            {canEdit && <button onClick={() => handleOpenModal(t)} className="text-blue-500 hover:text-blue-700" title="Editar"><Edit size={18} /></button>}
-                                            {canDelete && <button onClick={() => onDelete('transactions', t)} className="text-red-500 hover:text-red-700" title="Excluir"><Trash2 size={18} /></button>}
+                                        <div className="flex justify-center space-x-2">
+                                            {canEdit && <button onClick={() => handleOpenModal(t)} className="text-blue-500 hover:text-blue-700 p-1" title="Editar"><Edit size={17} /></button>}
+                                            {canDelete && <button onClick={() => onDelete('transactions', t)} className="text-red-500 hover:text-red-700 p-1" title="Excluir"><Trash2 size={17} /></button>}
                                         </div>
                                     )}
                                 </td>
@@ -1007,12 +1011,12 @@ const TransactionsView = ({ transactions, accounts, categories, payees, classifi
 
             <Modal isOpen={isSimulationModalOpen} onClose={() => setIsSimulationModalOpen(false)} title="Simular Lançamentos Futuros">
                 <form onSubmit={handleStartSimulation} className="space-y-4">
-                    <p className="text-gray-700 dark:text-gray-300">Selecione o período para incluir os lançamentos futuros no extrato.</p>
-                    <div className="flex gap-4">
-                        <label className="flex-1 text-gray-700 dark:text-gray-300">Data Inicial
+                    <p className="text-sm sm:text-base text-gray-700 dark:text-gray-300">Selecione o período para incluir os lançamentos futuros no extrato.</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                        <label className="block text-sm text-gray-700 dark:text-gray-300">Data Inicial
                             <input type="date" name="start" value={simulationRange.start} onChange={handleSimRangeChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required />
                         </label>
-                        <label className="flex-1 text-gray-700 dark:text-gray-300">Data Final
+                        <label className="block text-sm text-gray-700 dark:text-gray-300">Data Final
                             <input type="date" name="end" value={simulationRange.end} onChange={handleSimRangeChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required />
                         </label>
                     </div>
@@ -1021,33 +1025,33 @@ const TransactionsView = ({ transactions, accounts, categories, payees, classifi
             </Modal>
 
             <Modal isOpen={isModalOpen} onClose={handleCloseModal} title={editingTransaction ? "Editar Transação" : "Nova Transação"}>
-                <form onSubmit={handleSubmit} className="space-y-6">
-                    <div className="flex space-x-4">
-                        <label className="flex-1"><span className="text-gray-700 dark:text-gray-300">Tipo</span><select name="type" value={formData.type} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300"><option value="expense">Despesa</option><option value="revenue">Receita</option><option value="transfer">Transferência</option></select></label>
-                        <label className="flex-1"><span className="text-gray-700 dark:text-gray-300">Data</span><input type="date" name="date" value={formData.date} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required /></label>
+                <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                        <label className="block"><span className="text-sm text-gray-700 dark:text-gray-300">Tipo</span><select name="type" value={formData.type} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300"><option value="expense">Despesa</option><option value="revenue">Receita</option><option value="transfer">Transferência</option></select></label>
+                        <label className="block"><span className="text-sm text-gray-700 dark:text-gray-300">Data</span><input type="date" name="date" value={formData.date} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required /></label>
                     </div>
 
                     {formData.type === 'transfer' ? (
                         <>
-                            <div className="flex space-x-4">
-                                <label className="flex-1"><span className="text-gray-700 dark:text-gray-300">Conta de Origem</span><AccountSelector accounts={accounts} selectedAccountId={formData.sourceAccountId} onChange={handleChange} name="sourceAccountId" excludeId={formData.destinationAccountId} /></label>
-                                <label className="flex-1"><span className="text-gray-700 dark:text-gray-300">Conta de Destino</span><AccountSelector accounts={accounts} selectedAccountId={formData.destinationAccountId} onChange={handleChange} name="destinationAccountId" excludeId={formData.sourceAccountId} /></label>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                                <label className="block"><span className="text-sm text-gray-700 dark:text-gray-300">Conta de Origem</span><AccountSelector accounts={accounts} selectedAccountId={formData.sourceAccountId} onChange={handleChange} name="sourceAccountId" excludeId={formData.destinationAccountId} /></label>
+                                <label className="block"><span className="text-sm text-gray-700 dark:text-gray-300">Conta de Destino</span><AccountSelector accounts={accounts} selectedAccountId={formData.destinationAccountId} onChange={handleChange} name="destinationAccountId" excludeId={formData.sourceAccountId} /></label>
                             </div>
-                            <div><label className="block"><span className="text-gray-700 dark:text-gray-300">Descrição (Opcional)</span><input type="text" name="description" value={formData.description} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" /></label></div>
-                            <div><label className="block"><span className="text-gray-700 dark:text-gray-300">Valor (R$)</span><input type="number" step="0.01" name="amount" value={formData.amount} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" placeholder="0.00" required /></label></div>
+                            <div><label className="block"><span className="text-sm text-gray-700 dark:text-gray-300">Descrição (Opcional)</span><input type="text" name="description" value={formData.description} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" /></label></div>
+                            <div><label className="block"><span className="text-sm text-gray-700 dark:text-gray-300">Valor (R$)</span><input type="number" step="0.01" name="amount" value={formData.amount} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" placeholder="0.00" required /></label></div>
                         </>
                     ) : (
                         <>
-                            <div><label className="block"><span className="text-gray-700 dark:text-gray-300">Descrição</span><input type="text" name="description" value={formData.description} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" placeholder="Ex: Salário, Aluguer" required /></label></div>
-                            <div className="flex space-x-4">
-                                <label className="flex-1"><span className="text-gray-700 dark:text-gray-300">Valor (R$)</span><input type="number" step="0.01" name="amount" value={formData.amount} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" placeholder="0.00" required /></label>
-                                <label className="flex-1"><span className="text-gray-700 dark:text-gray-300">Conta</span><AccountSelector accounts={accounts} selectedAccountId={formData.accountId} onChange={handleChange} /></label>
+                            <div><label className="block"><span className="text-sm text-gray-700 dark:text-gray-300">Descrição</span><input type="text" name="description" value={formData.description} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" placeholder="Ex: Salário, Aluguer" required /></label></div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                                <label className="block"><span className="text-sm text-gray-700 dark:text-gray-300">Valor (R$)</span><input type="number" step="0.01" name="amount" value={formData.amount} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" placeholder="0.00" required /></label>
+                                <label className="block"><span className="text-sm text-gray-700 dark:text-gray-300">Conta</span><AccountSelector accounts={accounts} selectedAccountId={formData.accountId} onChange={handleChange} /></label>
                             </div>
-                            <div className="flex space-x-4">
-                                <label className="flex-1">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                                <label className="block">
                                     <div className="flex justify-between items-center mb-1">
-                                        <span className="text-gray-700 dark:text-gray-300">Favorecido</span>
-                                        <button type="button" onClick={() => setIsAddPayeeModalOpen(true)} className="text-blue-500 hover:text-blue-700 text-sm flex items-center gap-1">
+                                        <span className="text-sm text-gray-700 dark:text-gray-300">Favorecido</span>
+                                        <button type="button" onClick={() => setIsAddPayeeModalOpen(true)} className="text-blue-500 hover:text-blue-700 text-xs sm:text-sm flex items-center gap-1">
                                             <PlusCircle size={14} /> Novo
                                         </button>
                                     </div>
@@ -1056,17 +1060,17 @@ const TransactionsView = ({ transactions, accounts, categories, payees, classifi
                                         {payees.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                                     </select>
                                 </label>
-                                <label className="flex-1"><span className="text-gray-700 dark:text-gray-300">Categoria</span><select name="categoryId" value={formData.categoryId} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required><option value="">Selecione...</option>{groupedCategories.map(parent => (<optgroup key={parent.id} label={parent.name}><option value={parent.id}>{parent.name} (Principal)</option>{parent.subcategories.map(sub => <option key={sub.id} value={sub.id}>{sub.name}</option>)}</optgroup>))}</select></label>
+                                <label className="block"><span className="text-sm text-gray-700 dark:text-gray-300">Categoria</span><select name="categoryId" value={formData.categoryId} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required><option value="">Selecione...</option>{groupedCategories.map(parent => (<optgroup key={parent.id} label={parent.name}><option value={parent.id}>{parent.name} (Principal)</option>{parent.subcategories.map(sub => <option key={sub.id} value={sub.id}>{sub.name}</option>)}</optgroup>))}</select></label>
                             </div>
                             <div>
-                                <label className="block"><span className="text-gray-700 dark:text-gray-300">Anexar Comprovativo</span>
-                                    <input type="file" onChange={(e) => setAttachmentFile(e.target.files[0])} className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+                                <label className="block"><span className="text-sm text-gray-700 dark:text-gray-300">Anexar Comprovativo</span>
+                                    <input type="file" onChange={(e) => setAttachmentFile(e.target.files[0])} className="mt-1 block w-full text-xs sm:text-sm text-gray-500 file:mr-3 file:py-2 file:px-3 sm:file:px-4 file:rounded-full file:border-0 file:text-xs sm:file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
                                 </label>
                                 {formData.attachmentURL && !attachmentFile && <div className="text-xs mt-1">Anexo atual: <a href={formData.attachmentURL} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Ver anexo</a>. Selecione um novo ficheiro para o substituir.</div>}
                             </div>
                         </>
                     )}
-                    <div className="flex justify-end pt-4"><Button type="submit"><span>Guardar</span></Button></div>
+                    <div className="flex justify-end pt-3 sm:pt-4"><Button type="submit"><span>Guardar</span></Button></div>
                 </form>
             </Modal>
             <Modal isOpen={isAddPayeeModalOpen} onClose={() => setIsAddPayeeModalOpen(false)} title="Novo Favorecido">
@@ -1544,53 +1548,53 @@ const ReportsView = ({ transactions, categories, accounts, futureEntries = [], p
     ];
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
             {/* BARRA GLOBAL DE FILTROS DE PERÍODO E VISUALIZAÇÃO */}
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg space-y-4">
-                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+            <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-2xl shadow-lg space-y-4">
+                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3 sm:gap-4">
                     <div>
-                        <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-200">Central de Relatórios e Gráficos</h2>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">Escolha o período, filtre por conta e alterne entre gráficos interativos e tabelas detalhadas.</p>
+                        <h2 className="text-xl sm:text-3xl font-bold text-gray-800 dark:text-gray-200">Central de Relatórios e Gráficos</h2>
+                        <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Escolha o período, filtre por conta e alterne entre gráficos interativos e tabelas detalhadas.</p>
                     </div>
                     {/* Alternador Gráficos / Tabelas */}
-                    <div className="flex items-center bg-gray-100 dark:bg-gray-700 p-1 rounded-xl">
+                    <div className="flex flex-wrap items-center bg-gray-100 dark:bg-gray-700 p-1 rounded-xl w-full sm:w-auto">
                         <button
                             onClick={() => setDisplayMode('both')}
-                            className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition ${displayMode === 'both' ? 'bg-blue-600 text-white shadow' : 'text-gray-600 dark:text-gray-300'}`}
+                            className={`flex-1 sm:flex-none px-2.5 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition ${displayMode === 'both' ? 'bg-blue-600 text-white shadow' : 'text-gray-600 dark:text-gray-300'}`}
                         >
                             Gráficos + Tabelas
                         </button>
                         <button
                             onClick={() => setDisplayMode('charts')}
-                            className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition ${displayMode === 'charts' ? 'bg-blue-600 text-white shadow' : 'text-gray-600 dark:text-gray-300'}`}
+                            className={`flex-1 sm:flex-none px-2.5 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition ${displayMode === 'charts' ? 'bg-blue-600 text-white shadow' : 'text-gray-600 dark:text-gray-300'}`}
                         >
-                            Somente Gráficos
+                            Só Gráficos
                         </button>
                         <button
                             onClick={() => setDisplayMode('tables')}
-                            className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition ${displayMode === 'tables' ? 'bg-blue-600 text-white shadow' : 'text-gray-600 dark:text-gray-300'}`}
+                            className={`flex-1 sm:flex-none px-2.5 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition ${displayMode === 'tables' ? 'bg-blue-600 text-white shadow' : 'text-gray-600 dark:text-gray-300'}`}
                         >
-                            Somente Tabelas
+                            Só Tabelas
                         </button>
                     </div>
                 </div>
 
                 {/* Filtros de Data, Atalhos, Conta e Futuros */}
-                <div className="flex flex-wrap items-center gap-3 pt-2 border-t dark:border-gray-700">
-                    <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-gray-600 dark:text-gray-300">De:</span>
+                <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 pt-2 border-t dark:border-gray-700">
+                    <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                        <span className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-300">De:</span>
                         <input
                             type="date"
                             value={startDate}
                             onChange={e => setStartDate(e.target.value)}
-                            className="p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-200 text-sm"
+                            className="p-1.5 sm:p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-200 text-xs sm:text-sm flex-1 sm:flex-none"
                         />
-                        <span className="text-sm font-medium text-gray-600 dark:text-gray-300">Até:</span>
+                        <span className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-300">Até:</span>
                         <input
                             type="date"
                             value={endDate}
                             onChange={e => setEndDate(e.target.value)}
-                            className="p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-200 text-sm"
+                            className="p-1.5 sm:p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-200 text-xs sm:text-sm flex-1 sm:flex-none"
                         />
                     </div>
 
@@ -1603,11 +1607,11 @@ const ReportsView = ({ transactions, categories, accounts, futureEntries = [], p
                         <button onClick={() => applyPresetPeriod('this_year')} className="px-2.5 py-1.5 text-xs font-medium bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-200 rounded-lg">Este Ano</button>
                     </div>
 
-                    <div className="flex items-center gap-2 ml-auto">
+                    <div className="flex flex-wrap items-center gap-2 sm:ml-auto w-full sm:w-auto">
                         <select
                             value={selectedAccountId}
                             onChange={e => setSelectedAccountId(e.target.value)}
-                            className="p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-200 text-sm"
+                            className="p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-200 text-xs sm:text-sm flex-1 sm:flex-none"
                         >
                             <option value="all">Todas as Contas</option>
                             {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
@@ -1625,32 +1629,32 @@ const ReportsView = ({ transactions, categories, accounts, futureEntries = [], p
                 </div>
 
                 {/* Cards de Resumo Rápido do Período */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
-                    <div className="p-4 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
-                        <p className="text-xs font-semibold uppercase text-green-700 dark:text-green-300">Receitas no Período</p>
-                        <p className="text-2xl font-bold text-green-700 dark:text-green-400 mt-1">{formatCurrency(periodSummary.rev)}</p>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4 pt-2">
+                    <div className="p-3 sm:p-4 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                        <p className="text-[11px] sm:text-xs font-semibold uppercase text-green-700 dark:text-green-300">Receitas no Período</p>
+                        <p className="text-base sm:text-2xl font-bold text-green-700 dark:text-green-400 mt-1 truncate">{formatCurrency(periodSummary.rev)}</p>
                     </div>
-                    <div className="p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
-                        <p className="text-xs font-semibold uppercase text-red-700 dark:text-red-300">Despesas no Período</p>
-                        <p className="text-2xl font-bold text-red-600 dark:text-red-400 mt-1">{formatCurrency(periodSummary.exp)}</p>
+                    <div className="p-3 sm:p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                        <p className="text-[11px] sm:text-xs font-semibold uppercase text-red-700 dark:text-red-300">Despesas no Período</p>
+                        <p className="text-base sm:text-2xl font-bold text-red-600 dark:text-red-400 mt-1 truncate">{formatCurrency(periodSummary.exp)}</p>
                     </div>
-                    <div className={`p-4 rounded-xl border ${periodSummary.net >= 0 ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' : 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800'}`}>
-                        <p className="text-xs font-semibold uppercase text-gray-700 dark:text-gray-300">Resultado (Saldo do Período)</p>
-                        <p className={`text-2xl font-bold mt-1 ${periodSummary.net >= 0 ? 'text-blue-700 dark:text-blue-400' : 'text-orange-600 dark:text-orange-400'}`}>{formatCurrency(periodSummary.net)}</p>
+                    <div className={`p-3 sm:p-4 rounded-xl border ${periodSummary.net >= 0 ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' : 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800'}`}>
+                        <p className="text-[11px] sm:text-xs font-semibold uppercase text-gray-700 dark:text-gray-300">Resultado (Saldo)</p>
+                        <p className={`text-base sm:text-2xl font-bold mt-1 truncate ${periodSummary.net >= 0 ? 'text-blue-700 dark:text-blue-400' : 'text-orange-600 dark:text-orange-400'}`}>{formatCurrency(periodSummary.net)}</p>
                     </div>
-                    <div className="p-4 rounded-xl bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800">
-                        <p className="text-xs font-semibold uppercase text-purple-700 dark:text-purple-300">Margem Líquida / Lançamentos</p>
-                        <p className="text-2xl font-bold text-purple-700 dark:text-purple-300 mt-1">{periodSummary.margin.toFixed(1)}% <span className="text-xs font-normal">({periodSummary.count} lanç.)</span></p>
+                    <div className="p-3 sm:p-4 rounded-xl bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800">
+                        <p className="text-[11px] sm:text-xs font-semibold uppercase text-purple-700 dark:text-purple-300">Margem / Lanç.</p>
+                        <p className="text-base sm:text-2xl font-bold text-purple-700 dark:text-purple-300 mt-1 truncate">{periodSummary.margin.toFixed(1)}% <span className="text-[11px] sm:text-xs font-normal">({periodSummary.count})</span></p>
                     </div>
                 </div>
 
                 {/* Navegação de Abas de Relatórios */}
-                <div className="flex flex-wrap gap-2 pt-3 border-t dark:border-gray-700">
+                <div className="flex flex-wrap gap-1.5 sm:gap-2 pt-3 border-t dark:border-gray-700">
                     {tabs.map(t => (
                         <button
                             key={t.id}
                             onClick={() => setActiveTab(t.id)}
-                            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${activeTab === t.id ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-200'}`}
+                            className={`flex items-center gap-1.5 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all ${activeTab === t.id ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-200'}`}
                         >
                             {t.icon}
                             <span>{t.label}</span>
@@ -2591,44 +2595,44 @@ const ReconciliationView = ({ transactions, accounts, categories, payees, classi
     };
 
     return (
-        <div className="space-y-8">
-            <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg">
-                <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-200 mb-4">Conciliação Bancária</h2>
-                <div className="flex gap-4 items-center">
-                    <AccountSelector accounts={accounts} selectedAccountId={selectedAccountId} onChange={e => setSelectedAccountId(e.target.value)} className="flex-grow" />
-                    <Button onClick={() => setIsImportModalOpen(true)} disabled={!selectedAccountId}>
-                        <Upload size={18} /> Importar Extrato
+        <div className="space-y-4 sm:space-y-8">
+            <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 md:p-8 rounded-2xl shadow-lg">
+                <h2 className="text-xl sm:text-3xl font-bold text-gray-800 dark:text-gray-200 mb-3 sm:mb-4">Conciliação Bancária</h2>
+                <div className="flex flex-wrap gap-2.5 sm:gap-4 items-center">
+                    <AccountSelector accounts={accounts} selectedAccountId={selectedAccountId} onChange={e => setSelectedAccountId(e.target.value)} className="w-full sm:w-auto sm:flex-grow" />
+                    <Button onClick={() => setIsImportModalOpen(true)} disabled={!selectedAccountId} className="flex-1 sm:flex-none">
+                        <Upload size={18} /> <span>Importar Extrato</span>
                     </Button>
-                    <Button onClick={() => setIsPosImportModalOpen(true)} disabled={!selectedAccountId} className="bg-green-600 hover:bg-green-700">
-                        <Download size={18} /> Baixar do Módulo Vendas
+                    <Button onClick={() => setIsPosImportModalOpen(true)} disabled={!selectedAccountId} className="bg-green-600 hover:bg-green-700 flex-1 sm:flex-none">
+                        <Download size={18} /> <span>Baixar do Módulo Vendas</span>
                     </Button>
                 </div>
             </div>
 
             {selectedAccountId && statementData.length > 0 && (
-                <div className="space-y-6">
+                <div className="space-y-4 sm:space-y-6">
                     {/* Matched Transactions */}
-                    <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg">
-                        <h3 className="text-xl font-bold text-green-600 mb-4">Correspondências Sugeridas ({reconciliationResult.matched.length})</h3>
+                    <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-2xl shadow-lg">
+                        <h3 className="text-lg sm:text-xl font-bold text-green-600 mb-3 sm:mb-4">Correspondências Sugeridas ({reconciliationResult.matched.length})</h3>
                         {reconciliationResult.matched.map(pair => (
-                            <div key={pair.system.id} className="grid grid-cols-2 gap-4 border-b dark:border-gray-700 p-2">
+                            <div key={pair.system.id} className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 border-b dark:border-gray-700 p-2 text-sm">
                                 <div><p><strong>Sistema:</strong> {pair.system.description} - {formatCurrency(pair.system.amount)} em {formatDate(pair.system.date)}</p></div>
                                 <div><p><strong>Extrato:</strong> {pair.statement.description} - {formatCurrency(pair.statement.amount)} em {formatDate(pair.statement.date)}</p></div>
                             </div>
                         ))}
                     </div>
                     {/* Only in Statement */}
-                    <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-xl font-bold text-blue-600">Apenas no Extrato ({reconciliationResult.onlyInStatement.length})</h3>
+                    <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-2xl shadow-lg">
+                        <div className="flex flex-wrap justify-between items-center gap-2 mb-3 sm:mb-4">
+                            <h3 className="text-lg sm:text-xl font-bold text-blue-600">Apenas no Extrato ({reconciliationResult.onlyInStatement.length})</h3>
                             {reconciliationResult.onlyInStatement.length > 0 && (
                                 <Button onClick={handleCreateAllTransactions} className="bg-green-600 hover:bg-green-700 !py-1 !px-3 text-sm">Criar Todas</Button>
                             )}
                         </div>
                         {reconciliationResult.onlyInStatement.map(item => (
-                            <div key={item.id} className="flex flex-wrap justify-between items-center border-b dark:border-gray-700 p-2 gap-2">
+                            <div key={item.id} className="flex flex-wrap justify-between items-center border-b dark:border-gray-700 p-2 gap-2 text-sm">
                                 <p className="flex-grow">{item.description} - {formatCurrency(item.amount)} em {formatDate(item.date)}</p>
-                                <div className="flex gap-2">
+                                <div className="flex flex-wrap gap-2">
                                     <Button onClick={() => handleCreateTransaction(item)} className="bg-green-500 hover:bg-green-600 !py-1 !px-2 text-xs">Criar Lançamento</Button>
                                     <Button onClick={() => handleOpenTransferModal(item)} className="bg-blue-500 hover:bg-blue-600 !py-1 !px-2 text-xs">É uma Transferência</Button>
                                 </div>
@@ -2636,10 +2640,10 @@ const ReconciliationView = ({ transactions, accounts, categories, payees, classi
                         ))}
                     </div>
                     {/* Only in System */}
-                    <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg">
-                        <h3 className="text-xl font-bold text-yellow-600 mb-4">Apenas no Sistema ({reconciliationResult.onlyInSystem.length})</h3>
+                    <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-2xl shadow-lg">
+                        <h3 className="text-lg sm:text-xl font-bold text-yellow-600 mb-3 sm:mb-4">Apenas no Sistema ({reconciliationResult.onlyInSystem.length})</h3>
                         {reconciliationResult.onlyInSystem.map(item => (
-                            <div key={item.id} className="border-b dark:border-gray-700 p-2">
+                            <div key={item.id} className="border-b dark:border-gray-700 p-2 text-sm">
                                 <p>{item.description} - {formatCurrency(item.amount)} em {formatDate(item.date)}</p>
                             </div>
                         ))}
@@ -2820,15 +2824,15 @@ const BudgetsView = ({ budgets, categories, transactions, onSave, onDelete }) =>
     }, [transactions, categories]);
 
     return (
-        <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg">
-            <div className="flex justify-between items-center mb-2">
-                <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-200">Orçamentos Mensais</h2>
-                <Button onClick={handleOpenModal}><PlusCircle size={20} /><span>Novo Orçamento</span></Button>
+        <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 md:p-8 rounded-2xl shadow-lg">
+            <div className="flex flex-wrap justify-between items-center gap-2 mb-3">
+                <h2 className="text-xl sm:text-3xl font-bold text-gray-800 dark:text-gray-200">Orçamentos Mensais</h2>
+                <Button onClick={handleOpenModal}><PlusCircle size={18} /><span>Novo Orçamento</span></Button>
             </div>
-            <div className="mb-6 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-center">
-                <p className="text-sm text-blue-700 dark:text-blue-300">Faturamento do mês atual (para cálculo de %): <span className="font-bold">{formatCurrency(monthlyRevenue)}</span></p>
+            <div className="mb-5 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-center">
+                <p className="text-xs sm:text-sm text-blue-700 dark:text-blue-300">Faturamento do mês atual (para cálculo de %): <span className="font-bold">{formatCurrency(monthlyRevenue)}</span></p>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                 {budgets.map(b => {
                     const spent = monthlyExpenses[b.categoryId] || 0;
                     const category = categories.find(c => c.id === b.categoryId);
@@ -2836,20 +2840,20 @@ const BudgetsView = ({ budgets, categories, transactions, onSave, onDelete }) =>
                     const progress = budgetAmount > 0 ? Math.min((spent / budgetAmount) * 100, 100) : 0;
                     const isOverBudget = spent > budgetAmount;
                     return (
-                        <div key={b.id} className="border dark:border-gray-700 p-4 rounded-lg shadow-sm">
+                        <div key={b.id} className="border dark:border-gray-700 p-3.5 sm:p-4 rounded-xl shadow-sm">
                             <div className="flex justify-between items-center mb-2">
-                                <span className="font-bold text-lg">{category?.name || 'Categoria Removida'}</span>
-                                <button onClick={() => onDelete('budgets', b.id)} className="text-red-500 hover:text-red-700"><Trash2 size={18} /></button>
+                                <span className="font-bold text-base sm:text-lg truncate">{category?.name || 'Categoria Removida'}</span>
+                                <button onClick={() => onDelete('budgets', b.id)} className="text-red-500 hover:text-red-700 flex-shrink-0"><Trash2 size={18} /></button>
                             </div>
-                            <div className="flex justify-between text-sm mb-1">
+                            <div className="flex flex-wrap justify-between text-xs sm:text-sm mb-1.5 gap-1">
                                 <span className={isOverBudget ? 'text-red-600 font-bold' : 'text-gray-600 dark:text-gray-400'}>Gasto: {formatCurrency(spent)}</span>
-                                <span className="text-gray-600 dark:text-gray-400">Orçamento: {formatCurrency(budgetAmount)} {b.budgetType === 'percentage' && `(${b.percentage}%)`}</span>
+                                <span className="text-gray-600 dark:text-gray-400">Meta: {formatCurrency(budgetAmount)} {b.budgetType === 'percentage' && `(${b.percentage}%)`}</span>
                             </div>
-                            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-4"><div className={`h-4 rounded-full ${isOverBudget ? 'bg-red-500' : 'bg-blue-500'}`} style={{ width: `${progress}%` }}></div></div>
+                            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3.5"><div className={`h-3.5 rounded-full ${isOverBudget ? 'bg-red-500' : 'bg-blue-500'}`} style={{ width: `${progress}%` }}></div></div>
                         </div>
                     );
                 })}
-                {budgets.length === 0 && <p className="text-gray-500 dark:text-gray-400 col-span-full text-center py-8">Nenhum orçamento definido.</p>}
+                {budgets.length === 0 && <p className="text-gray-500 dark:text-gray-400 col-span-full text-center py-8 text-sm">Nenhum orçamento definido.</p>}
             </div>
             <Modal isOpen={isModalOpen} onClose={handleCloseModal} title="Novo Orçamento">
                 <form onSubmit={handleSubmit} className="space-y-4">
@@ -2991,41 +2995,41 @@ const FutureEntriesView = ({ futureEntries, accounts, categories, payees, onSave
     }, [futureEntries, filter]);
 
     const FilterButton = ({ a_filter, label, count }) => (
-        <button onClick={() => setFilter(a_filter)} className={`px-4 py-2 rounded-lg font-semibold transition-colors ${filter === a_filter ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'}`}>
-            {label} <span className="text-xs bg-white/20 rounded-full px-2 py-1">{count}</span>
+        <button onClick={() => setFilter(a_filter)} className={`px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm rounded-lg font-semibold transition-colors ${filter === a_filter ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'}`}>
+            {label} <span className="text-[11px] bg-white/20 rounded-full px-1.5 py-0.5 ml-1">{count}</span>
         </button>
     );
 
     const getStatusBadge = (entry) => {
-        if (entry.status === 'reconciled') return <span className="flex items-center gap-1.5 text-xs font-medium text-green-700 bg-green-100 px-2 py-1 rounded-full"><CheckCircle size={14} /> Reconciliado</span>;
+        if (entry.status === 'reconciled') return <span className="flex items-center gap-1 text-xs font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded-full"><CheckCircle size={13} /> Reconciliado</span>;
         const today = new Date(); today.setHours(0, 0, 0, 0);
         const dueDate = new Date(entry.dueDate);
-        if (dueDate < today) return <span className="flex items-center gap-1.5 text-xs font-medium text-red-700 bg-red-100 px-2 py-1 rounded-full"><AlertTriangle size={14} /> Vencido</span>;
-        return <span className="flex items-center gap-1.5 text-xs font-medium text-blue-700 bg-blue-100 px-2 py-1 rounded-full"><Clock size={14} /> A Vencer</span>;
+        if (dueDate < today) return <span className="flex items-center gap-1 text-xs font-medium text-red-700 bg-red-100 px-2 py-0.5 rounded-full"><AlertTriangle size={13} /> Vencido</span>;
+        return <span className="flex items-center gap-1 text-xs font-medium text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full"><Clock size={13} /> A Vencer</span>;
     };
 
     return (
-        <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg">
-            <div className="flex flex-wrap justify-between items-center mb-6 gap-4">
-                <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-200">Lançamentos Futuros</h2>
-                <Button onClick={() => handleOpenModal()}><PlusCircle size={20} /><span>Novo Lançamento</span></Button>
+        <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 md:p-8 rounded-2xl shadow-lg">
+            <div className="flex flex-wrap justify-between items-center mb-4 sm:mb-6 gap-3">
+                <h2 className="text-xl sm:text-3xl font-bold text-gray-800 dark:text-gray-200">Lançamentos Futuros</h2>
+                <Button onClick={() => handleOpenModal()}><PlusCircle size={18} /><span>Novo Lançamento</span></Button>
             </div>
 
-            <div className="flex space-x-2 mb-6 border-b dark:border-gray-700 pb-4">
+            <div className="flex flex-wrap gap-2 mb-4 sm:mb-6 border-b dark:border-gray-700 pb-3 sm:pb-4">
                 <FilterButton a_filter="a_vencer" label="A Vencer" count={futureEntries.filter(e => e.status !== 'reconciled' && new Date(e.dueDate) >= new Date()).length} />
                 <FilterButton a_filter="vencidos" label="Vencidos" count={futureEntries.filter(e => e.status !== 'reconciled' && new Date(e.dueDate) < new Date()).length} />
                 <FilterButton a_filter="reconciliados" label="Reconciliados" count={futureEntries.filter(e => e.status === 'reconciled').length} />
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-3 sm:space-y-4">
                 {filteredEntries.map(entry => (
-                    <div key={entry.id} className="p-4 border dark:border-gray-700 rounded-lg flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gray-50 dark:bg-gray-700/50">
-                        <div className="flex-1">
-                            <div className="flex items-center gap-4">
+                    <div key={entry.id} className="p-3.5 sm:p-4 border dark:border-gray-700 rounded-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-3 sm:gap-4 bg-gray-50 dark:bg-gray-700/50">
+                        <div className="flex-1 min-w-0 w-full">
+                            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                                 {getStatusBadge(entry)}
-                                <p className="font-bold text-lg text-gray-800 dark:text-gray-200">{entry.description}</p>
+                                <p className="font-bold text-base sm:text-lg text-gray-800 dark:text-gray-200">{entry.description}</p>
                             </div>
-                            <div className="flex items-center gap-6 mt-2 text-sm text-gray-600 dark:text-gray-400">
+                            <div className="flex flex-wrap items-center gap-3 sm:gap-6 mt-2 text-xs sm:text-sm text-gray-600 dark:text-gray-400">
                                 <span>Vencimento: <strong>{formatDate(entry.dueDate)}</strong></span>
                                 <span>Valor: <strong className={entry.type === 'revenue' ? 'text-green-600' : 'text-red-600'}>{formatCurrency(entry.amount)}</strong></span>
                                 {entry.entryType !== 'unico' && <span className="capitalize flex items-center gap-1"><Repeat size={14} /> {entry.frequency}</span>}
@@ -3036,33 +3040,33 @@ const FutureEntriesView = ({ futureEntries, accounts, categories, payees, onSave
                                 </div>
                             )}
                         </div>
-                        <div className="flex items-center space-x-2">
-                            {entry.status !== 'reconciled' && <Button onClick={() => handleOpenReconcileModal(entry)} className="bg-green-600 hover:bg-green-700"><CheckCircle size={16} /> Reconciliar</Button>}
+                        <div className="flex items-center space-x-2 w-full md:w-auto justify-end border-t md:border-t-0 pt-2 md:pt-0 dark:border-gray-600">
+                            {entry.status !== 'reconciled' && <Button onClick={() => handleOpenReconcileModal(entry)} className="bg-green-600 hover:bg-green-700"><CheckCircle size={16} /> <span>Reconciliar</span></Button>}
                             <button onClick={() => handleOpenModal(entry)} className="text-blue-500 hover:text-blue-700 p-2"><Edit size={18} /></button>
                             <button onClick={() => onDelete('futureEntries', entry.id)} className="text-red-500 hover:text-red-700 p-2"><Trash2 size={18} /></button>
                         </div>
                     </div>
                 ))}
-                {filteredEntries.length === 0 && <p className="text-center text-gray-500 dark:text-gray-400 py-12">Nenhum lançamento encontrado para este filtro.</p>}
+                {filteredEntries.length === 0 && <p className="text-center text-gray-500 dark:text-gray-400 py-10 text-sm">Nenhum lançamento encontrado para este filtro.</p>}
             </div>
 
             {/* Modal de Novo/Editar Lançamento */}
             <Modal isOpen={isModalOpen} onClose={handleCloseModal} title={editingEntry ? 'Editar Lançamento' : 'Novo Lançamento'}>
                 <form onSubmit={handleSubmit} className="space-y-4">
-                    <label className="dark:text-gray-300">Descrição<input type="text" name="description" value={formData.description} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required /></label>
-                    <div className="flex gap-4">
-                        <label className="flex-1 dark:text-gray-300">Valor (R$)<input type="number" step="0.01" name="amount" value={formData.amount} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required /></label>
-                        <label className="flex-1 dark:text-gray-300">Tipo<select name="type" value={formData.type} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300"><option value="expense">Despesa</option><option value="revenue">Receita</option></select></label>
+                    <label className="dark:text-gray-300 block">Descrição<input type="text" name="description" value={formData.description} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required /></label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                        <label className="block dark:text-gray-300">Valor (R$)<input type="number" step="0.01" name="amount" value={formData.amount} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required /></label>
+                        <label className="block dark:text-gray-300">Tipo<select name="type" value={formData.type} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300"><option value="expense">Despesa</option><option value="revenue">Receita</option></select></label>
                     </div>
-                    <div className="flex gap-4">
-                        <label className="flex-1 dark:text-gray-300">Tipo de Lançamento<select name="entryType" value={formData.entryType} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300"><option value="unico">Único</option><option value="recorrente">Recorrente</option></select></label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                        <label className="block dark:text-gray-300">Tipo de Lançamento<select name="entryType" value={formData.entryType} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300"><option value="unico">Único</option><option value="recorrente">Recorrente</option></select></label>
                         {formData.entryType === 'recorrente' && (
-                            <label className="flex-1 dark:text-gray-300">Frequência<select name="frequency" value={formData.frequency} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300"><option value="daily">Diário</option><option value="weekly">Semanal</option><option value="monthly">Mensal</option><option value="yearly">Anual</option></select></label>
+                            <label className="block dark:text-gray-300">Frequência<select name="frequency" value={formData.frequency} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300"><option value="daily">Diário</option><option value="weekly">Semanal</option><option value="monthly">Mensal</option><option value="yearly">Anual</option></select></label>
                         )}
                     </div>
-                    <label className="dark:text-gray-300">Data de Vencimento {formData.entryType === 'recorrente' && '(próximo vencimento)'}<input type="date" name="dueDate" value={formData.dueDate} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required /></label>
-                    <div className="flex gap-4">
-                        <label className="flex-1">
+                    <label className="block dark:text-gray-300">Data de Vencimento {formData.entryType === 'recorrente' && '(próximo vencimento)'}<input type="date" name="dueDate" value={formData.dueDate} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required /></label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                        <label className="block">
                             <div className="flex justify-between items-center mb-1">
                                 <span className="text-gray-700 dark:text-gray-300">Favorecido (Opcional)</span>
                                 <button type="button" onClick={() => setIsAddPayeeModalOpen(true)} className="text-blue-500 hover:text-blue-700 text-sm flex items-center gap-1">
@@ -3074,7 +3078,7 @@ const FutureEntriesView = ({ futureEntries, accounts, categories, payees, onSave
                                 {payees.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                             </select>
                         </label>
-                        <label className="flex-1 dark:text-gray-300">Categoria<select name="categoryId" value={formData.categoryId} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required><option value="">Selecione...</option>{groupedCategories.map(parent => (<optgroup key={parent.id} label={parent.name}><option value={parent.id}>{parent.name} (Principal)</option>{parent.subcategories.map(sub => <option key={sub.id} value={sub.id}>{sub.name}</option>)}</optgroup>))}</select></label>
+                        <label className="block dark:text-gray-300">Categoria<select name="categoryId" value={formData.categoryId} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required><option value="">Selecione...</option>{groupedCategories.map(parent => (<optgroup key={parent.id} label={parent.name}><option value={parent.id}>{parent.name} (Principal)</option>{parent.subcategories.map(sub => <option key={sub.id} value={sub.id}>{sub.name}</option>)}</optgroup>))}</select></label>
                     </div>
                     <div className="flex justify-end pt-4"><Button type="submit">Guardar</Button></div>
                 </form>
@@ -3097,9 +3101,9 @@ const FutureEntriesView = ({ futureEntries, accounts, categories, payees, onSave
                 <form onSubmit={handleReconcileSubmit} className="space-y-4">
                     <div className="bg-gray-100 dark:bg-gray-700 p-3 rounded-lg">
                         <p className="font-bold">{entryToReconcile?.description}</p>
-                        <p>Vencimento: {formatDate(entryToReconcile?.dueDate || '')} - Valor Original: {formatCurrency(entryToReconcile?.amount)}</p>
+                        <p className="text-sm">Vencimento: {formatDate(entryToReconcile?.dueDate || '')} - Valor Original: {formatCurrency(entryToReconcile?.amount)}</p>
                     </div>
-                    <label className="dark:text-gray-300">Conta de Pagamento
+                    <label className="block dark:text-gray-300">Conta de Pagamento
                         <AccountSelector
                             accounts={accounts}
                             selectedAccountId={reconcileFormData.accountId}
@@ -3108,11 +3112,11 @@ const FutureEntriesView = ({ futureEntries, accounts, categories, payees, onSave
                             className="!mt-1"
                         />
                     </label>
-                    <div className="flex gap-4">
-                        <label className="flex-1 dark:text-gray-300">Valor Final Pago (com juros/desconto)<input type="number" step="0.01" name="finalAmount" value={reconcileFormData.finalAmount} onChange={handleReconcileChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required /></label>
-                        <label className="flex-1 dark:text-gray-300">Data do Pagamento<input type="date" name="paymentDate" value={reconcileFormData.paymentDate} onChange={handleReconcileChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required /></label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                        <label className="block dark:text-gray-300">Valor Final Pago (com juros/desconto)<input type="number" step="0.01" name="finalAmount" value={reconcileFormData.finalAmount} onChange={handleReconcileChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required /></label>
+                        <label className="block dark:text-gray-300">Data do Pagamento<input type="date" name="paymentDate" value={reconcileFormData.paymentDate} onChange={handleReconcileChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required /></label>
                     </div>
-                    <label className="dark:text-gray-300">Notas (Opcional)<input type="text" name="notes" value={reconcileFormData.notes} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" placeholder="Ex: Juros por atraso" /></label>
+                    <label className="block dark:text-gray-300">Notas (Opcional)<input type="text" name="notes" value={reconcileFormData.notes} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" placeholder="Ex: Juros por atraso" /></label>
                     <div className="flex justify-end pt-4"><Button type="submit" className="bg-green-600 hover:bg-green-700">Confirmar Pagamento</Button></div>
                 </form>
             </Modal>
@@ -3413,24 +3417,24 @@ const DREView = ({ transactions, categories, accounts, payees, onSave, onDelete,
         const cellBg = isSub ? 'bg-gray-50 dark:bg-gray-800' : 'bg-white dark:bg-gray-800';
         return (
             <tr className={`border-b border-gray-200 dark:border-gray-700/80 transition-colors group ${isSub ? 'bg-gray-50/70 dark:bg-gray-800/70 hover:bg-blue-50/70 dark:hover:bg-gray-700/60' : 'bg-white dark:bg-gray-800 hover:bg-blue-50/60 dark:hover:bg-gray-700/50'}`}>
-                <td className={`sticky left-0 z-10 p-3 whitespace-nowrap border-r border-b border-gray-200 dark:border-gray-700 min-w-[260px] max-w-[260px] w-[260px] shadow-[3px_0_5px_-2px_rgba(0,0,0,0.12)] ${cellBg} group-hover:bg-blue-50 dark:group-hover:bg-gray-700 transition-colors ${isSub ? 'pl-8 text-sm text-gray-600 dark:text-gray-300' : 'font-semibold text-gray-800 dark:text-gray-100'}`}>
+                <td className={`sticky left-0 z-10 p-2 sm:p-3 whitespace-nowrap border-r border-b border-gray-200 dark:border-gray-700 min-w-[145px] max-w-[165px] w-[155px] sm:min-w-[260px] sm:max-w-[260px] sm:w-[260px] shadow-[3px_0_5px_-2px_rgba(0,0,0,0.12)] ${cellBg} group-hover:bg-blue-50 dark:group-hover:bg-gray-700 transition-colors ${isSub ? 'pl-5 sm:pl-8 text-xs sm:text-sm text-gray-600 dark:text-gray-300' : 'text-xs sm:text-base font-semibold text-gray-800 dark:text-gray-100'}`}>
                     <button onClick={() => handleCategoryClick(item)} className="text-left w-full hover:text-blue-600 dark:hover:text-blue-400 truncate block transition-colors" title={item.name}>
                         {item.name}
                     </button>
                 </td>
                 {isMultiMonth && monthsList.map(m => (
-                    <td key={m} className="p-3 text-right whitespace-nowrap border-r border-b border-gray-200 dark:border-gray-700 min-w-[125px] font-mono text-xs sm:text-sm text-gray-700 dark:text-gray-300">
+                    <td key={m} className="p-2 sm:p-3 text-right whitespace-nowrap border-r border-b border-gray-200 dark:border-gray-700 min-w-[105px] sm:min-w-[125px] font-mono text-xs sm:text-sm text-gray-700 dark:text-gray-300">
                         <button onClick={() => handleCategoryClick(item, m)} className="hover:underline hover:text-blue-600 dark:hover:text-blue-400">
                             {formatCurrency(item.monthlyValues[m] || 0)}
                         </button>
                     </td>
                 ))}
-                <td className={`p-3 text-right whitespace-nowrap border-r border-b border-gray-200 dark:border-gray-700 min-w-[130px] font-mono text-xs sm:text-sm ${isMultiMonth ? 'font-bold bg-gray-50/80 dark:bg-gray-700/30 text-gray-900 dark:text-gray-100' : 'text-gray-700 dark:text-gray-300'}`}>
+                <td className={`p-2 sm:p-3 text-right whitespace-nowrap border-r border-b border-gray-200 dark:border-gray-700 min-w-[110px] sm:min-w-[130px] font-mono text-xs sm:text-sm ${isMultiMonth ? 'font-bold bg-gray-50/80 dark:bg-gray-700/30 text-gray-900 dark:text-gray-100' : 'text-gray-700 dark:text-gray-300'}`}>
                     <button onClick={() => handleCategoryClick(item)} className="hover:underline hover:text-blue-600 dark:hover:text-blue-400">
                         {formatCurrency(item.value)}
                     </button>
                 </td>
-                <td className="p-3 text-right font-mono text-xs sm:text-sm whitespace-nowrap border-b border-gray-200 dark:border-gray-700 min-w-[110px] text-gray-600 dark:text-gray-400">{item.percentage.toFixed(2)}%</td>
+                <td className="p-2 sm:p-3 text-right font-mono text-xs sm:text-sm whitespace-nowrap border-b border-gray-200 dark:border-gray-700 min-w-[85px] sm:min-w-[110px] text-gray-600 dark:text-gray-400">{item.percentage.toFixed(2)}%</td>
             </tr>
         );
     };
@@ -3439,11 +3443,11 @@ const DREView = ({ transactions, categories, accounts, payees, onSave, onDelete,
 
     return (
         <>
-            <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-2xl shadow-lg flex flex-col h-full max-h-full">
-                <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center mb-4 gap-4 flex-shrink-0">
-                    <h2 className="text-2xl md:text-3xl font-bold text-gray-800 dark:text-gray-200">DRE - Demonstrativo de Resultados</h2>
-                    <div className="flex flex-wrap items-center gap-3">
-                        <label className="flex items-center gap-2 cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/40 px-2.5 py-1.5 rounded-lg border dark:border-gray-600">
+            <div className="bg-white dark:bg-gray-800 p-3.5 sm:p-5 md:p-6 rounded-2xl shadow-lg flex flex-col md:h-full md:max-h-full">
+                <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center mb-4 gap-3 sm:gap-4 flex-shrink-0">
+                    <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800 dark:text-gray-200">DRE - Demonstrativo de Resultados</h2>
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full xl:w-auto">
+                        <label className="flex items-center gap-1.5 cursor-pointer text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/40 px-2.5 py-1.5 rounded-lg border dark:border-gray-600">
                             <input
                                 type="checkbox"
                                 checked={includeOverdue}
@@ -3452,7 +3456,7 @@ const DREView = ({ transactions, categories, accounts, payees, onSave, onDelete,
                             />
                             Incluir Vencidos
                         </label>
-                        <label className="flex items-center gap-2 cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/40 px-2.5 py-1.5 rounded-lg border dark:border-gray-600">
+                        <label className="flex items-center gap-1.5 cursor-pointer text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/40 px-2.5 py-1.5 rounded-lg border dark:border-gray-600">
                             <input
                                 type="checkbox"
                                 checked={includeFuture}
@@ -3461,8 +3465,8 @@ const DREView = ({ transactions, categories, accounts, payees, onSave, onDelete,
                             />
                             Incluir Futuros
                         </label>
-                        <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-700/40 px-3 py-1.5 rounded-lg border dark:border-gray-600">
-                            <span className="text-sm font-medium text-gray-600 dark:text-gray-300">De:</span>
+                        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 bg-gray-50 dark:bg-gray-700/40 px-2.5 py-1.5 rounded-lg border dark:border-gray-600 w-full sm:w-auto">
+                            <span className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-300">De:</span>
                             <input
                                 type="month"
                                 value={startPeriod}
@@ -3471,9 +3475,9 @@ const DREView = ({ transactions, categories, accounts, payees, onSave, onDelete,
                                     setStartPeriod(val);
                                     if (val > endPeriod) setEndPeriod(val);
                                 }}
-                                className="p-1.5 text-sm border dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-gray-200"
+                                className="p-1 sm:p-1.5 text-xs sm:text-sm border dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-gray-200 flex-1 sm:flex-none"
                             />
-                            <span className="text-sm font-medium text-gray-600 dark:text-gray-300">Até:</span>
+                            <span className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-300">Até:</span>
                             <input
                                 type="month"
                                 value={endPeriod}
@@ -3482,30 +3486,30 @@ const DREView = ({ transactions, categories, accounts, payees, onSave, onDelete,
                                     setEndPeriod(val);
                                     if (val < startPeriod) setStartPeriod(val);
                                 }}
-                                className="p-1.5 text-sm border dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-gray-200"
+                                className="p-1 sm:p-1.5 text-xs sm:text-sm border dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-gray-200 flex-1 sm:flex-none"
                             />
                         </div>
-                        <Button onClick={handleExportPDF} className="bg-green-600 hover:bg-green-700 shadow-sm"><FileOutput size={18} /> Exportar PDF</Button>
+                        <Button onClick={handleExportPDF} className="bg-green-600 hover:bg-green-700 shadow-sm"><FileOutput size={16} /> <span>Exportar PDF</span></Button>
                     </div>
                 </div>
                 <div className="overflow-auto flex-1 border dark:border-gray-700 rounded-lg relative shadow-inner">
                     <table className="w-full border-separate border-spacing-0">
                         <thead>
                             <tr className="text-left">
-                                <th className="sticky top-0 left-0 z-30 bg-gray-100 dark:bg-gray-900 p-3 min-w-[260px] max-w-[260px] w-[260px] border-b-2 border-r border-gray-300 dark:border-gray-700 text-xs sm:text-sm font-bold text-gray-700 dark:text-gray-200 shadow-[3px_3px_5px_-2px_rgba(0,0,0,0.15)]">Descrição / Categoria</th>
+                                <th className="sticky top-0 left-0 z-30 bg-gray-100 dark:bg-gray-900 p-2 sm:p-3 min-w-[145px] max-w-[165px] w-[155px] sm:min-w-[260px] sm:max-w-[260px] sm:w-[260px] border-b-2 border-r border-gray-300 dark:border-gray-700 text-xs sm:text-sm font-bold text-gray-700 dark:text-gray-200 shadow-[3px_3px_5px_-2px_rgba(0,0,0,0.15)]">Descrição / Categoria</th>
                                 {isMultiMonth && monthsList.map(m => (
-                                    <th key={m} className="sticky top-0 z-20 bg-gray-100 dark:bg-gray-900 p-3 text-right whitespace-nowrap text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-200 border-b-2 border-r border-gray-300 dark:border-gray-700 min-w-[125px] shadow-[0_3px_5px_-2px_rgba(0,0,0,0.1)]">{formatMonthLabel(m)}</th>
+                                    <th key={m} className="sticky top-0 z-20 bg-gray-100 dark:bg-gray-900 p-2 sm:p-3 text-right whitespace-nowrap text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-200 border-b-2 border-r border-gray-300 dark:border-gray-700 min-w-[105px] sm:min-w-[125px] shadow-[0_3px_5px_-2px_rgba(0,0,0,0.1)]">{formatMonthLabel(m)}</th>
                                 ))}
-                                <th className={`sticky top-0 z-20 bg-gray-100 dark:bg-gray-900 p-3 text-right whitespace-nowrap text-xs sm:text-sm border-b-2 border-r border-gray-300 dark:border-gray-700 min-w-[130px] shadow-[0_3px_5px_-2px_rgba(0,0,0,0.1)] ${isMultiMonth ? 'font-bold bg-gray-200/80 dark:bg-gray-800' : 'font-semibold'}`}>
+                                <th className={`sticky top-0 z-20 bg-gray-100 dark:bg-gray-900 p-2 sm:p-3 text-right whitespace-nowrap text-xs sm:text-sm border-b-2 border-r border-gray-300 dark:border-gray-700 min-w-[110px] sm:min-w-[130px] shadow-[0_3px_5px_-2px_rgba(0,0,0,0.1)] ${isMultiMonth ? 'font-bold bg-gray-200/80 dark:bg-gray-800' : 'font-semibold'}`}>
                                     {isMultiMonth ? 'Total' : 'Valor'}
                                 </th>
-                                <th className="sticky top-0 z-20 bg-gray-100 dark:bg-gray-900 p-3 text-right whitespace-nowrap text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-200 border-b-2 border-gray-300 dark:border-gray-700 min-w-[110px] shadow-[0_3px_5px_-2px_rgba(0,0,0,0.1)]">% Faturamento</th>
+                                <th className="sticky top-0 z-20 bg-gray-100 dark:bg-gray-900 p-2 sm:p-3 text-right whitespace-nowrap text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-200 border-b-2 border-gray-300 dark:border-gray-700 min-w-[85px] sm:min-w-[110px] shadow-[0_3px_5px_-2px_rgba(0,0,0,0.1)]">% Fat.</th>
                             </tr>
                         </thead>
                         <tbody>
                             {/* Receitas */}
                             <tr className="bg-green-50 dark:bg-green-950">
-                                <td className="sticky left-0 z-10 bg-green-50 dark:bg-green-950 p-2.5 font-bold text-green-800 dark:text-green-300 whitespace-nowrap border-r border-b border-green-200 dark:border-green-900 min-w-[260px] max-w-[260px] w-[260px] shadow-[3px_0_5px_-2px_rgba(0,0,0,0.12)]">Receita Operacional Bruta</td>
+                                <td className="sticky left-0 z-10 bg-green-50 dark:bg-green-950 p-2 sm:p-2.5 text-xs sm:text-sm font-bold text-green-800 dark:text-green-300 whitespace-nowrap border-r border-b border-green-200 dark:border-green-900 min-w-[145px] max-w-[165px] w-[155px] sm:min-w-[260px] sm:max-w-[260px] sm:w-[260px] shadow-[3px_0_5px_-2px_rgba(0,0,0,0.12)] truncate">Receita Operacional Bruta</td>
                                 <td colSpan={extraColsCount} className="bg-green-50/70 dark:bg-green-950/60 border-b border-green-200 dark:border-green-900"></td>
                             </tr>
                             {dreData.revenueData.map(parent => (
@@ -3514,18 +3518,18 @@ const DREView = ({ transactions, categories, accounts, payees, onSave, onDelete,
                                     {parent.subItems.map(sub => <TableRow key={sub.id} item={sub} isSub />)}
                                 </React.Fragment>
                             ))}
-                            <tr className="bg-gray-100 dark:bg-gray-700 font-bold">
-                                <td className="sticky left-0 z-10 bg-gray-100 dark:bg-gray-700 p-3 whitespace-nowrap border-r border-b-2 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 min-w-[260px] max-w-[260px] w-[260px] shadow-[3px_0_5px_-2px_rgba(0,0,0,0.12)]">(=) Total de Receitas</td>
+                            <tr className="bg-gray-100 dark:bg-gray-700 font-bold text-xs sm:text-sm">
+                                <td className="sticky left-0 z-10 bg-gray-100 dark:bg-gray-700 p-2 sm:p-3 whitespace-nowrap border-r border-b-2 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 min-w-[145px] max-w-[165px] w-[155px] sm:min-w-[260px] sm:max-w-[260px] sm:w-[260px] shadow-[3px_0_5px_-2px_rgba(0,0,0,0.12)] truncate">(=) Total de Receitas</td>
                                 {isMultiMonth && monthsList.map(m => (
-                                    <td key={m} className="p-3 text-right whitespace-nowrap border-r border-b-2 border-gray-300 dark:border-gray-600 font-mono text-xs sm:text-sm min-w-[125px]">{formatCurrency(dreData.totalRevenueByMonth[m] || 0)}</td>
+                                    <td key={m} className="p-2 sm:p-3 text-right whitespace-nowrap border-r border-b-2 border-gray-300 dark:border-gray-600 font-mono text-xs sm:text-sm min-w-[105px] sm:min-w-[125px]">{formatCurrency(dreData.totalRevenueByMonth[m] || 0)}</td>
                                 ))}
-                                <td className="p-3 text-right whitespace-nowrap border-r border-b-2 border-gray-300 dark:border-gray-600 font-mono text-xs sm:text-sm min-w-[130px]">{formatCurrency(dreData.totalRevenue)}</td>
-                                <td className="p-3 text-right font-mono text-xs sm:text-sm whitespace-nowrap border-b-2 border-gray-300 dark:border-gray-600 min-w-[110px]">100.00%</td>
+                                <td className="p-2 sm:p-3 text-right whitespace-nowrap border-r border-b-2 border-gray-300 dark:border-gray-600 font-mono text-xs sm:text-sm min-w-[110px] sm:min-w-[130px]">{formatCurrency(dreData.totalRevenue)}</td>
+                                <td className="p-2 sm:p-3 text-right font-mono text-xs sm:text-sm whitespace-nowrap border-b-2 border-gray-300 dark:border-gray-600 min-w-[85px] sm:min-w-[110px]">100.00%</td>
                             </tr>
 
                             {/* Despesas */}
                             <tr className="bg-red-50 dark:bg-red-950">
-                                <td className="sticky left-0 z-10 bg-red-50 dark:bg-red-950 p-2.5 font-bold text-red-800 dark:text-red-300 whitespace-nowrap border-r border-b border-red-200 dark:border-red-900 min-w-[260px] max-w-[260px] w-[260px] shadow-[3px_0_5px_-2px_rgba(0,0,0,0.12)]">Custos e Despesas Operacionais</td>
+                                <td className="sticky left-0 z-10 bg-red-50 dark:bg-red-950 p-2 sm:p-2.5 text-xs sm:text-sm font-bold text-red-800 dark:text-red-300 whitespace-nowrap border-r border-b border-red-200 dark:border-red-900 min-w-[145px] max-w-[165px] w-[155px] sm:min-w-[260px] sm:max-w-[260px] sm:w-[260px] shadow-[3px_0_5px_-2px_rgba(0,0,0,0.12)] truncate">Custos e Despesas Operacionais</td>
                                 <td colSpan={extraColsCount} className="bg-red-50/70 dark:bg-red-950/60 border-b border-red-200 dark:border-red-900"></td>
                             </tr>
                             {dreData.expenseData.map(parent => (
@@ -3534,28 +3538,28 @@ const DREView = ({ transactions, categories, accounts, payees, onSave, onDelete,
                                     {parent.subItems.map(sub => <TableRow key={sub.id} item={sub} isSub />)}
                                 </React.Fragment>
                             ))}
-                            <tr className="bg-gray-100 dark:bg-gray-700 font-bold">
-                                <td className="sticky left-0 z-10 bg-gray-100 dark:bg-gray-700 p-3 whitespace-nowrap border-r border-b-2 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 min-w-[260px] max-w-[260px] w-[260px] shadow-[3px_0_5px_-2px_rgba(0,0,0,0.12)]">(-) Total de Despesas</td>
+                            <tr className="bg-gray-100 dark:bg-gray-700 font-bold text-xs sm:text-sm">
+                                <td className="sticky left-0 z-10 bg-gray-100 dark:bg-gray-700 p-2 sm:p-3 whitespace-nowrap border-r border-b-2 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 min-w-[145px] max-w-[165px] w-[155px] sm:min-w-[260px] sm:max-w-[260px] sm:w-[260px] shadow-[3px_0_5px_-2px_rgba(0,0,0,0.12)] truncate">(-) Total de Despesas</td>
                                 {isMultiMonth && monthsList.map(m => (
-                                    <td key={m} className="p-3 text-right whitespace-nowrap border-r border-b-2 border-gray-300 dark:border-gray-600 font-mono text-xs sm:text-sm min-w-[125px]">{formatCurrency(dreData.totalExpenseByMonth[m] || 0)}</td>
+                                    <td key={m} className="p-2 sm:p-3 text-right whitespace-nowrap border-r border-b-2 border-gray-300 dark:border-gray-600 font-mono text-xs sm:text-sm min-w-[105px] sm:min-w-[125px]">{formatCurrency(dreData.totalExpenseByMonth[m] || 0)}</td>
                                 ))}
-                                <td className="p-3 text-right whitespace-nowrap border-r border-b-2 border-gray-300 dark:border-gray-600 font-mono text-xs sm:text-sm min-w-[130px]">{formatCurrency(dreData.totalExpense)}</td>
-                                <td className="p-3 text-right font-mono text-xs sm:text-sm whitespace-nowrap border-b-2 border-gray-300 dark:border-gray-600 min-w-[110px]">{(dreData.totalRevenue > 0 ? (dreData.totalExpense / dreData.totalRevenue) * 100 : 0).toFixed(2)}%</td>
+                                <td className="p-2 sm:p-3 text-right whitespace-nowrap border-r border-b-2 border-gray-300 dark:border-gray-600 font-mono text-xs sm:text-sm min-w-[110px] sm:min-w-[130px]">{formatCurrency(dreData.totalExpense)}</td>
+                                <td className="p-2 sm:p-3 text-right font-mono text-xs sm:text-sm whitespace-nowrap border-b-2 border-gray-300 dark:border-gray-600 min-w-[85px] sm:min-w-[110px]">{(dreData.totalRevenue > 0 ? (dreData.totalExpense / dreData.totalRevenue) * 100 : 0).toFixed(2)}%</td>
                             </tr>
 
                             {/* Resultado */}
-                            <tr className={`font-extrabold text-sm sm:text-base border-t-2 dark:border-gray-600 ${dreData.netResult >= 0 ? 'bg-green-100 dark:bg-green-950 text-green-900 dark:text-green-200' : 'bg-red-100 dark:bg-red-950 text-red-900 dark:text-red-200'}`}>
-                                <td className={`sticky left-0 z-10 p-3.5 whitespace-nowrap border-r border-b border-gray-300 dark:border-gray-600 min-w-[260px] max-w-[260px] w-[260px] shadow-[3px_0_5px_-2px_rgba(0,0,0,0.12)] ${dreData.netResult >= 0 ? 'bg-green-100 dark:bg-green-950 text-green-950 dark:text-green-100' : 'bg-red-100 dark:bg-red-950 text-red-950 dark:text-red-100'}`}>(=) Resultado Líquido do Período</td>
+                            <tr className={`font-extrabold text-xs sm:text-base border-t-2 dark:border-gray-600 ${dreData.netResult >= 0 ? 'bg-green-100 dark:bg-green-950 text-green-900 dark:text-green-200' : 'bg-red-100 dark:bg-red-950 text-red-900 dark:text-red-200'}`}>
+                                <td className={`sticky left-0 z-10 p-2.5 sm:p-3.5 whitespace-nowrap border-r border-b border-gray-300 dark:border-gray-600 min-w-[145px] max-w-[165px] w-[155px] sm:min-w-[260px] sm:max-w-[260px] sm:w-[260px] shadow-[3px_0_5px_-2px_rgba(0,0,0,0.12)] truncate ${dreData.netResult >= 0 ? 'bg-green-100 dark:bg-green-950 text-green-950 dark:text-green-100' : 'bg-red-100 dark:bg-red-950 text-red-950 dark:text-red-100'}`}>(=) Resultado Líquido</td>
                                 {isMultiMonth && monthsList.map(m => {
                                     const mRes = dreData.netResultByMonth[m] || 0;
                                     return (
-                                        <td key={m} className={`p-3.5 text-right whitespace-nowrap border-r border-b border-gray-300 dark:border-gray-600 min-w-[125px] font-mono ${mRes >= 0 ? 'text-green-900 dark:text-green-200' : 'text-red-900 dark:text-red-200'}`}>
+                                        <td key={m} className={`p-2.5 sm:p-3.5 text-right whitespace-nowrap border-r border-b border-gray-300 dark:border-gray-600 min-w-[105px] sm:min-w-[125px] font-mono ${mRes >= 0 ? 'text-green-900 dark:text-green-200' : 'text-red-900 dark:text-red-200'}`}>
                                             {formatCurrency(mRes)}
                                         </td>
                                     );
                                 })}
-                                <td className="p-3.5 text-right whitespace-nowrap border-r border-b border-gray-300 dark:border-gray-600 min-w-[130px] font-mono">{formatCurrency(dreData.netResult)}</td>
-                                <td className="p-3.5 text-right font-mono whitespace-nowrap border-b border-gray-300 dark:border-gray-600 min-w-[110px]">{(dreData.totalRevenue > 0 ? (dreData.netResult / dreData.totalRevenue) * 100 : 0).toFixed(2)}%</td>
+                                <td className="p-2.5 sm:p-3.5 text-right whitespace-nowrap border-r border-b border-gray-300 dark:border-gray-600 min-w-[110px] sm:min-w-[130px] font-mono">{formatCurrency(dreData.netResult)}</td>
+                                <td className="p-2.5 sm:p-3.5 text-right font-mono whitespace-nowrap border-b border-gray-300 dark:border-gray-600 min-w-[85px] sm:min-w-[110px]">{(dreData.totalRevenue > 0 ? (dreData.netResult / dreData.totalRevenue) * 100 : 0).toFixed(2)}%</td>
                             </tr>
                         </tbody>
                     </table>
@@ -3599,27 +3603,27 @@ const CompaniesManager = ({ companies, onSave, onDelete }) => {
 
     return (
         <>
-            <div className="flex justify-between items-center mb-6">
-                <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-200">Gerir Empresas</h2>
+            <div className="flex flex-wrap justify-between items-center gap-3 mb-5 sm:mb-6">
+                <h2 className="text-xl sm:text-3xl font-bold text-gray-800 dark:text-gray-200">Gerir Empresas</h2>
                 <Button onClick={() => handleOpenModal()}><PlusCircle size={18} /><span>Nova Empresa</span></Button>
             </div>
             <ul className="space-y-3">
                 {companies.map(c => (
-                    <li key={c.id} className="flex justify-between items-center p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg border dark:border-gray-700">
-                        <p className={`font-semibold ${c.isActive === false ? 'text-gray-400 dark:text-gray-500 line-through' : 'text-gray-700 dark:text-gray-300'}`}>{c.name}</p>
-                        <div className="flex items-center space-x-2">
+                    <li key={c.id} className="flex justify-between items-center p-3.5 sm:p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl border dark:border-gray-700">
+                        <p className={`font-semibold text-sm sm:text-base truncate mr-2 ${c.isActive === false ? 'text-gray-400 dark:text-gray-500 line-through' : 'text-gray-700 dark:text-gray-300'}`}>{c.name}</p>
+                        <div className="flex items-center space-x-2 flex-shrink-0">
                             <button onClick={() => {
                                 const newStatus = c.isActive === false ? true : false;
                                 onSave('companies', { ...c, isActive: newStatus }, c.id);
-                            }} className={`${c.isActive === false ? 'text-gray-400 hover:text-gray-600' : 'text-green-500 hover:text-green-700'} p-1`} title={c.isActive === false ? "Ativar Empresa" : "Desativar Empresa"}>
+                            }} className={`${c.isActive === false ? 'text-gray-400 hover:text-gray-600' : 'text-green-500 hover:text-green-700'} p-1.5`} title={c.isActive === false ? "Ativar Empresa" : "Desativar Empresa"}>
                                 {c.isActive === false ? <EyeOff size={16} /> : <Eye size={16} />}
                             </button>
-                            <button onClick={() => handleOpenModal(c)} className="text-blue-500 hover:text-blue-700 p-1" title="Renomear Empresa"><Edit size={16} /></button>
-                            <button onClick={() => onDelete('companies', c.id)} className="text-red-500 hover:text-red-700 p-1" title="Excluir Empresa"><Trash2 size={16} /></button>
+                            <button onClick={() => handleOpenModal(c)} className="text-blue-500 hover:text-blue-700 p-1.5" title="Renomear Empresa"><Edit size={16} /></button>
+                            <button onClick={() => onDelete('companies', c.id)} className="text-red-500 hover:text-red-700 p-1.5" title="Excluir Empresa"><Trash2 size={16} /></button>
                         </div>
                     </li>
                 ))}
-                {companies.length === 0 && <p className="text-gray-500 dark:text-gray-400 text-center py-8">Nenhuma empresa criada.</p>}
+                {companies.length === 0 && <p className="text-gray-500 dark:text-gray-400 text-center py-8 text-sm">Nenhuma empresa criada.</p>}
             </ul>
             <Modal isOpen={isModalOpen} onClose={handleCloseModal} title={editingCompany ? 'Renomear Empresa' : 'Nova Empresa'}>
                 <form onSubmit={handleSubmit} className="space-y-4">
@@ -3778,8 +3782,8 @@ const CategoryManager = ({ categories, onSave, onDelete, onApplyTemplate, onOpen
 
     return (
         <>
-            <div className="flex flex-wrap justify-between items-center mb-6 gap-3">
-                <h2 className="text-3xl font-extrabold text-gray-800 dark:text-gray-200">Gerenciador de Categorias</h2>
+            <div className="flex flex-wrap justify-between items-center mb-4 sm:mb-6 gap-3">
+                <h2 className="text-xl sm:text-3xl font-extrabold text-gray-800 dark:text-gray-200">Gerenciador de Categorias</h2>
                 <div className="flex flex-wrap gap-2">
                     <input type="file" ref={importFileInputRef} onChange={handleDirectImportCategoriesFile} accept=".json" className="hidden" />
                     {onOpenCopyCompanyModal && (
@@ -3802,10 +3806,10 @@ const CategoryManager = ({ categories, onSave, onDelete, onApplyTemplate, onOpen
                 </div>
             </div>
 
-            <div className="p-6 bg-blue-50 dark:bg-gray-700/50 rounded-xl border-2 border-blue-200 dark:border-blue-800 mb-8 flex flex-wrap justify-between items-center gap-4">
+            <div className="p-4 sm:p-6 bg-blue-50 dark:bg-gray-700/50 rounded-xl border-2 border-blue-200 dark:border-blue-800 mb-6 sm:mb-8 flex flex-wrap justify-between items-center gap-4">
                 <div>
-                    <h3 className="text-xl font-bold text-blue-800 dark:text-blue-300">Plano de Contas</h3>
-                    <p className="mt-1 text-sm text-blue-700 dark:text-blue-400">
+                    <h3 className="text-lg sm:text-xl font-bold text-blue-800 dark:text-blue-300">Plano de Contas</h3>
+                    <p className="mt-1 text-xs sm:text-sm text-blue-700 dark:text-blue-400">
                         {categories.length > 0
                             ? `Você possui ${categories.length} categorias ativas. Você pode exportar seu plano, importar categorias adicionais de um arquivo JSON ou copiar de outra empresa.`
                             : 'Comece rapidamente usando um modelo pronto com IA, importe um arquivo JSON ou copie de outra empresa.'}
@@ -3817,7 +3821,7 @@ const CategoryManager = ({ categories, onSave, onDelete, onApplyTemplate, onOpen
                 </Button>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-12">
                 <CategorySection title="Despesas" categoryList={expenseCategories} />
                 <CategorySection title="Receitas" categoryList={revenueCategories} />
             </div>
@@ -3905,17 +3909,17 @@ const AccountsManager = ({ accounts, onSave, onDelete, onImport }) => {
     );
 
     return (
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg h-full">
-            <div className="flex justify-between items-center mb-4">
-                <h3 className="text-2xl font-bold text-gray-800 dark:text-gray-200">Contas</h3>
+        <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-2xl shadow-lg h-full">
+            <div className="flex flex-wrap justify-between items-center gap-2 mb-4">
+                <h3 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-200">Contas</h3>
                 <Button onClick={() => handleOpenModal()}><PlusCircle size={18} /><span>Nova Conta</span></Button>
             </div>
-            <ul className="space-y-4">
+            <ul className="space-y-3 sm:space-y-4">
                 {hierarchicalAccounts.map(acc => (
                     <React.Fragment key={acc.id}>
                         <AccountListItem account={acc} />
                         {acc.subAccounts.length > 0 && (
-                            <ul className="pl-8 space-y-2 border-l-2 dark:border-gray-700 ml-4">
+                            <ul className="pl-4 sm:pl-8 space-y-2 border-l-2 dark:border-gray-700 ml-2 sm:ml-4">
                                 {acc.subAccounts.map(sub => <AccountListItem key={sub.id} account={sub} isSub />)}
                             </ul>
                         )}
@@ -4185,11 +4189,11 @@ const PayeesManager = ({ payees, categories, allTransactions, classificationMemo
     };
 
     return (
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg h-full space-y-6">
+        <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-2xl shadow-lg h-full space-y-4 sm:space-y-6">
             <div className="flex flex-wrap justify-between items-center gap-3">
                 <div>
-                    <h3 className="text-2xl font-bold text-gray-700 dark:text-gray-200">Favorecidos e Inteligência Bancária</h3>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                    <h3 className="text-xl sm:text-2xl font-bold text-gray-700 dark:text-gray-200">Favorecidos e Inteligência Bancária</h3>
+                    <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
                         Cadastre fornecedores/clientes e exporte ou copie a inteligência de classificação automática entre empresas.
                     </p>
                 </div>
@@ -5465,27 +5469,27 @@ const SettingsView = ({ onSaveEntity, onDeleteEntity, onBatchDelete, onImportTra
     const TabButton = ({ tab, label }) => (
         <button
             onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2 font-semibold rounded-t-lg transition-colors focus:outline-none ${activeTab === tab ? 'bg-white dark:bg-gray-800 border-b-0' : 'bg-gray-100 dark:bg-gray-700'}`}
+            className={`px-3 py-2 sm:px-4 sm:py-2.5 text-xs sm:text-sm font-semibold rounded-lg sm:rounded-t-lg sm:rounded-b-none transition-colors focus:outline-none ${activeTab === tab ? 'bg-blue-600 text-white sm:bg-white sm:dark:bg-gray-800 sm:text-blue-600 sm:dark:text-blue-400 shadow-sm sm:shadow-none sm:border-b-0' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'}`}
         >{label}</button>
     );
 
     return (
-        <div className="space-y-8">
-            <div className="flex flex-wrap justify-between items-center gap-4">
-                <h2 className="text-4xl font-bold text-gray-800 dark:text-gray-200">Configurações da Empresa</h2>
+        <div className="space-y-4 sm:space-y-8">
+            <div className="flex flex-wrap justify-between items-center gap-3 sm:gap-4">
+                <h2 className="text-xl sm:text-3xl md:text-4xl font-bold text-gray-800 dark:text-gray-200">Configurações da Empresa</h2>
                 <div className="flex flex-wrap gap-2">
                     {otherCompanies.length > 0 && (
                         <Button onClick={handleOpenCopyCompanyModal} className="bg-indigo-600 hover:bg-indigo-700 flex items-center gap-2">
-                            <BookCopy size={18} /> Copiar Cadastros / IA de Outra Empresa
+                            <BookCopy size={16} /> <span>Copiar Cadastros / IA de Outra Empresa</span>
                         </Button>
                     )}
                     <Button onClick={handleFindDuplicates} className="bg-red-600 hover:bg-red-700 flex items-center gap-2">
-                        <Trash2 size={18} /> Limpar Lançamentos Duplicados
+                        <Trash2 size={16} /> <span>Limpar Lançamentos Duplicados</span>
                     </Button>
                 </div>
             </div>
 
-            <div className="border-b dark:border-gray-700 flex flex-wrap gap-1">
+            <div className="sm:border-b dark:border-gray-700 flex flex-wrap gap-1.5 sm:gap-1">
                 <TabButton tab="accounts" label="Contas" />
                 <TabButton tab="payees" label="Favorecidos e Inteligência" />
                 <TabButton tab="categories" label="Categorias (Plano de Contas)" />
@@ -5663,17 +5667,17 @@ const ConsolidatedReportsView = ({ allCompaniesData, companies, onBack }) => {
     }, [allCompaniesData, activeCompanies]);
 
     return (
-        <div className="p-8 space-y-8 bg-gray-100 dark:bg-gray-900 min-h-screen">
-            <div className="flex items-center justify-between">
-                <h1 className="text-4xl font-bold text-gray-800 dark:text-gray-200">Relatório Consolidado</h1>
-                <Button onClick={onBack} className="bg-gray-600 hover:bg-gray-700"><ArrowLeft size={18} /> Voltar</Button>
+        <div className="p-4 sm:p-6 md:p-8 space-y-5 sm:space-y-8 bg-gray-100 dark:bg-gray-900 min-h-[100dvh] overflow-y-auto">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+                <h1 className="text-xl sm:text-3xl md:text-4xl font-bold text-gray-800 dark:text-gray-200">Relatório Consolidado</h1>
+                <Button onClick={onBack} className="bg-gray-600 hover:bg-gray-700"><ArrowLeft size={16} /> <span>Voltar</span></Button>
             </div>
 
             <StatCard title="Saldo Total Consolidado" value={formatCurrency(totalConsolidatedBalance)} icon={<DollarSign className="text-white" />} color="bg-purple-600" />
 
-            <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg">
-                <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-200 mb-6">Receita vs. Despesa por Empresa</h2>
-                <ResponsiveContainer width="100%" height={400}>
+            <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 md:p-8 rounded-2xl shadow-lg">
+                <h2 className="text-lg sm:text-2xl font-bold text-gray-800 dark:text-gray-200 mb-4 sm:mb-6">Receita vs. Despesa por Empresa</h2>
+                <ResponsiveContainer width="100%" height={320}>
                     <BarChart data={chartData}>
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="name" />
@@ -5686,9 +5690,9 @@ const ConsolidatedReportsView = ({ allCompaniesData, companies, onBack }) => {
                 </ResponsiveContainer>
             </div>
 
-            <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg">
-                <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-200 mb-6">Saldo por Empresa</h2>
-                <ResponsiveContainer width="100%" height={400}>
+            <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 md:p-8 rounded-2xl shadow-lg">
+                <h2 className="text-lg sm:text-2xl font-bold text-gray-800 dark:text-gray-200 mb-4 sm:mb-6">Saldo por Empresa</h2>
+                <ResponsiveContainer width="100%" height={320}>
                     <BarChart data={chartData}>
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="name" />
@@ -6429,11 +6433,11 @@ const AppBrandingManager = ({ appBranding, onSaveAppBranding }) => {
     const displayIconSrc = previewIcon || DEFAULT_APP_ICON_URL;
 
     return (
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg space-y-6">
-            <div className="flex flex-wrap justify-between items-center gap-4 border-b dark:border-gray-700 pb-4">
+        <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-2xl shadow-lg space-y-5 sm:space-y-6">
+            <div className="flex flex-wrap justify-between items-center gap-3 sm:gap-4 border-b dark:border-gray-700 pb-4">
                 <div>
-                    <h3 className="text-2xl font-bold text-gray-800 dark:text-gray-200">Ícone e Atalho de Instalação do Sistema</h3>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                    <h3 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-200">Ícone e Atalho de Instalação do Sistema</h3>
+                    <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
                         Escolha a imagem que será usada no ícone do sistema, na barra do navegador e no atalho da Área de Trabalho ou Celular.
                     </p>
                 </div>
@@ -6557,8 +6561,8 @@ const GlobalSettingsView = ({ companies, onSave, onDelete, onBack, onBackup, onR
     const TabButton = ({ tabName, label, active }) => (
         <button
             onClick={() => setActiveTab(tabName)}
-            className={`px-6 py-3 font-semibold rounded-t-lg transition-colors focus:outline-none ${active
-                ? 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 border-b-0'
+            className={`px-3 py-2 sm:px-5 sm:py-3 text-xs sm:text-sm md:text-base font-semibold rounded-lg sm:rounded-t-lg sm:rounded-b-none transition-colors focus:outline-none ${active
+                ? 'bg-blue-600 text-white sm:bg-white sm:dark:bg-gray-800 sm:text-blue-600 sm:dark:text-blue-400 shadow-sm sm:shadow-none sm:border-b-0'
                 : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-600'
                 }`}
         >
@@ -6567,22 +6571,22 @@ const GlobalSettingsView = ({ companies, onSave, onDelete, onBack, onBackup, onR
     );
 
     return (
-        <div className="p-8 space-y-8 bg-gray-100 dark:bg-gray-900 min-h-screen">
-            <div className="flex items-center justify-between">
-                <h1 className="text-4xl font-bold text-gray-800 dark:text-gray-200">Configurações Globais</h1>
-                <Button onClick={onBack} className="bg-gray-600 hover:bg-gray-700"><ArrowLeft size={18} /> Voltar ao Hub</Button>
+        <div className="p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-8 bg-gray-100 dark:bg-gray-900 min-h-[100dvh] overflow-y-auto">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+                <h1 className="text-xl sm:text-3xl md:text-4xl font-bold text-gray-800 dark:text-gray-200">Configurações Globais</h1>
+                <Button onClick={onBack} className="bg-gray-600 hover:bg-gray-700"><ArrowLeft size={16} /> <span>Voltar ao Hub</span></Button>
             </div>
 
             <div>
-                <div className="border-b border-gray-300 dark:border-gray-700 flex flex-wrap gap-1">
+                <div className="sm:border-b border-gray-300 dark:border-gray-700 flex flex-wrap gap-1.5 sm:gap-1 mb-2 sm:mb-0">
                     <TabButton tabName="empresas" label="Empresas" active={activeTab === 'empresas'} />
-                    <TabButton tabName="colaboradores" label="Colaboradores e Links de Acesso" active={activeTab === 'colaboradores'} />
-                    <TabButton tabName="icone" label="Ícone e Atalho do Sistema" active={activeTab === 'icone'} />
+                    <TabButton tabName="colaboradores" label="Colaboradores e Links" active={activeTab === 'colaboradores'} />
+                    <TabButton tabName="icone" label="Ícone e Atalho" active={activeTab === 'icone'} />
                     <TabButton tabName="assinatura" label="Assinatura" active={activeTab === 'assinatura'} />
                     <TabButton tabName="backup" label="Backup / Restauração" active={activeTab === 'backup'} />
                 </div>
 
-                <div className="bg-white dark:bg-gray-800 p-8 rounded-b-2xl rounded-r-2xl shadow-lg">
+                <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-tl-none shadow-lg">
                     {activeTab === 'empresas' && (
                         <CompaniesManager companies={companies} onSave={onSave} onDelete={onDelete} />
                     )}
@@ -6645,12 +6649,12 @@ const BackupManager = ({ onBackup, onRestore, backupConfig, onSaveBackupConfig }
 
     return (
         <div>
-            <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-200 mb-6">Backup e Restauração</h2>
-            <div className="space-y-6">
+            <h2 className="text-xl sm:text-3xl font-bold text-gray-800 dark:text-gray-200 mb-4 sm:mb-6">Backup e Restauração</h2>
+            <div className="space-y-4 sm:space-y-6">
                 <div className="p-4 border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/20 rounded-lg">
                     <h3 className="font-bold text-gray-800 dark:text-gray-300">Backup Automático</h3>
                     <p className="text-sm text-gray-700 dark:text-gray-400 mt-1 mb-3">Configure uma frequência para backups de segurança. A verificação para um novo backup é feita ao iniciar a aplicação.</p>
-                    <div className="flex items-center gap-4">
+                    <div className="flex flex-wrap items-center gap-3 sm:gap-4">
                         <label htmlFor="backup-frequency" className="font-semibold text-gray-700 dark:text-gray-300">Frequência:</label>
                         <select
                             id="backup-frequency"
@@ -6702,41 +6706,45 @@ const HubScreen = ({ companies, onSelect, onShowReports, onManageCompanies, isCo
     const brandName = appBranding?.appName || DEFAULT_APP_NAME;
 
     return (
-        <div className="w-full h-screen flex flex-col justify-center items-center bg-gray-800 bg-cover bg-center" style={{ backgroundImage: "url(https://images.unsplash.com/photo-1555396273-367ea4eb4db5?q=80&w=2574&auto=format&fit=crop)" }}>
-            <div className="absolute inset-0 bg-black/60"></div>
-            <div className="relative z-10 w-full max-w-4xl text-center p-8">
+        <div className="w-full min-h-[100dvh] overflow-y-auto flex flex-col justify-start sm:justify-center items-center bg-gray-800 bg-cover bg-center relative py-5 px-4 sm:p-8" style={{ backgroundImage: "url(https://images.unsplash.com/photo-1555396273-367ea4eb4db5?q=80&w=2574&auto=format&fit=crop)" }}>
+            <div className="fixed inset-0 bg-black/65 pointer-events-none"></div>
+            <div className="relative z-10 w-full max-w-4xl text-center">
                 {!isCollaborator ? (
-                    <button onClick={onManageCompanies} className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors flex items-center gap-2 bg-white/10 hover:bg-white/20 px-4 py-2 rounded-xl" title="Gerir Empresas e Colaboradores">
-                        <Settings size={20} />
-                        <span className="text-sm font-semibold">Configurações & Colaboradores</span>
-                    </button>
+                    <div className="w-full flex justify-end mb-4 sm:mb-6">
+                        <button onClick={onManageCompanies} className="text-white/85 hover:text-white transition-colors inline-flex items-center gap-2 bg-white/15 hover:bg-white/25 backdrop-blur-md px-3.5 py-2 rounded-xl border border-white/15 shadow-sm" title="Gerir Empresas e Colaboradores">
+                            <Settings size={18} className="flex-shrink-0" />
+                            <span className="text-xs sm:text-sm font-semibold">Configurações & Colaboradores</span>
+                        </button>
+                    </div>
                 ) : (
-                    <div className="mb-6 inline-flex items-center gap-3 bg-indigo-600/90 text-white px-4 py-2 rounded-full text-sm shadow-lg">
+                    <div className="mb-4 sm:mb-6 inline-flex flex-wrap items-center justify-center gap-2 sm:gap-3 bg-indigo-600/90 text-white px-3.5 py-2 rounded-2xl sm:rounded-full text-xs sm:text-sm shadow-lg">
                         <Users size={16} />
                         <span>Acesso de Colaborador: <strong>{collaboratorSession?.name}</strong></span>
-                        <button onClick={onExitCollaboration} className="ml-2 underline text-xs hover:text-red-200">Sair do modo colaborador</button>
+                        <button onClick={onExitCollaboration} className="underline text-xs hover:text-red-200">Sair do modo colaborador</button>
                     </div>
                 )}
-                <div className="flex flex-col items-center justify-center mb-4">
-                    <img src={brandIcon} alt={brandName} className="w-24 h-24 object-contain mb-3 drop-shadow-2xl" />
-                    <h1 className="text-5xl font-extrabold text-white">Bem-vindo ao {brandName}</h1>
+                <div className="flex flex-col items-center justify-center mb-3 sm:mb-4">
+                    <img src={brandIcon} alt={brandName} className="w-16 h-16 sm:w-24 sm:h-24 object-contain mb-2.5 sm:mb-3 drop-shadow-2xl" />
+                    <h1 className="text-2xl sm:text-4xl md:text-5xl font-extrabold text-white leading-tight px-2">Bem-vindo ao {brandName}</h1>
                 </div>
-                <p className="text-xl text-white/80 mb-12">Selecione uma empresa para começar ou veja os seus relatórios consolidados.</p>
+                <p className="text-sm sm:text-lg md:text-xl text-white/80 mb-6 sm:mb-10 px-2">Selecione uma empresa para começar ou veja os seus relatórios consolidados.</p>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-6">
                     {visibleCompanies.map(company => (
-                        <button key={company.id} onClick={() => onSelect(company.id)} className="group bg-white/10 hover:bg-white/20 backdrop-blur-md p-6 rounded-2xl text-white text-left transition-all transform hover:scale-105">
-                            <Building size={32} className="mb-4 text-blue-300 group-hover:text-white transition-colors" />
-                            <h2 className="text-xl font-bold">{company.name}</h2>
-                            <p className="text-sm text-white/70">Aceder ao painel</p>
+                        <button key={company.id} onClick={() => onSelect(company.id)} className="group bg-white/10 hover:bg-white/20 backdrop-blur-md p-4 sm:p-6 rounded-2xl text-white text-left transition-all transform active:scale-95 md:hover:scale-[1.03] border border-white/10 flex sm:block items-center gap-4">
+                            <Building size={28} className="sm:mb-4 text-blue-300 group-hover:text-white transition-colors flex-shrink-0" />
+                            <div className="min-w-0">
+                                <h2 className="text-base sm:text-xl font-bold truncate">{company.name}</h2>
+                                <p className="text-xs sm:text-sm text-white/70">Aceder ao painel</p>
+                            </div>
                         </button>
                     ))}
                 </div>
 
                 {visibleCompanies.length > 0 && (
-                    <div className="mt-12">
-                        <Button onClick={onShowReports} className="bg-purple-600 hover:bg-purple-700">
-                            <BarChart2 size={20} />
+                    <div className="mt-6 sm:mt-10 pb-4">
+                        <Button onClick={onShowReports} className="bg-purple-600 hover:bg-purple-700 w-full sm:w-auto">
+                            <BarChart2 size={18} />
                             <span>Ver Relatório Consolidado</span>
                         </Button>
                     </div>
@@ -6765,25 +6773,25 @@ const SubscriptionView = ({ subscription, onSubscribe }) => {
     };
 
     return (
-        <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg max-w-2xl mx-auto">
-            <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-200 mb-6">A Minha Assinatura</h2>
+        <div className="bg-white dark:bg-gray-800 p-4 sm:p-8 rounded-2xl shadow-lg max-w-2xl mx-auto">
+            <h2 className="text-xl sm:text-3xl font-bold text-gray-800 dark:text-gray-200 mb-4 sm:mb-6">A Minha Assinatura</h2>
 
-            <div className={`p-6 rounded-lg border ${isActive ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800' : 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800'}`}>
-                <div className="flex items-center space-x-4">
-                    {isActive ? <ShieldCheck className="text-green-500" size={32} /> : <AlertTriangle className="text-red-500" size={32} />}
+            <div className={`p-4 sm:p-6 rounded-lg border ${isActive ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800' : 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800'}`}>
+                <div className="flex items-center space-x-3 sm:space-x-4">
+                    {isActive ? <ShieldCheck className="text-green-500 flex-shrink-0" size={28} /> : <AlertTriangle className="text-red-500 flex-shrink-0" size={28} />}
                     <div>
-                        <p className="text-lg font-semibold">{isActive ? 'Assinatura Ativa' : 'Assinatura Expirada'}</p>
-                        {subscription?.status === 'trialing' && <p className="text-sm">O seu período de teste termina em: <strong>{endDate}</strong></p>}
-                        {subscription?.status === 'active' && <p className="text-sm">A sua assinatura é válida até: <strong>{endDate}</strong></p>}
-                        {!isActive && <p className="text-sm">O seu acesso às funcionalidades está limitado. Renove a sua assinatura para continuar.</p>}
+                        <p className="text-base sm:text-lg font-semibold">{isActive ? 'Assinatura Ativa' : 'Assinatura Expirada'}</p>
+                        {subscription?.status === 'trialing' && <p className="text-xs sm:text-sm">O seu período de teste termina em: <strong>{endDate}</strong></p>}
+                        {subscription?.status === 'active' && <p className="text-xs sm:text-sm">A sua assinatura é válida até: <strong>{endDate}</strong></p>}
+                        {!isActive && <p className="text-xs sm:text-sm">O seu acesso às funcionalidades está limitado. Renove a sua assinatura para continuar.</p>}
                     </div>
                 </div>
             </div>
 
-            <div className="mt-8 text-center">
-                <h3 className="text-xl font-semibold mb-4">Plano PRO</h3>
-                <p className="text-4xl font-bold mb-2">R$ 49,90<span className="text-lg font-normal">/mês</span></p>
-                <p className="text-gray-600 dark:text-gray-400 mb-6">Acesso ilimitado a todas as funcionalidades.</p>
+            <div className="mt-6 sm:mt-8 text-center">
+                <h3 className="text-lg sm:text-xl font-semibold mb-2 sm:mb-4">Plano PRO</h3>
+                <p className="text-3xl sm:text-4xl font-bold mb-2">R$ 49,90<span className="text-base sm:text-lg font-normal">/mês</span></p>
+                <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mb-6">Acesso ilimitado a todas as funcionalidades.</p>
                 <Button onClick={handleSubscriptionClick} disabled={isSubscribing} className="bg-green-600 hover:bg-green-700 w-full max-w-xs mx-auto">
                     {isSubscribing ? <RefreshCw className="animate-spin" /> : <CreditCard size={20} />}
                     <span>{isSubscribing ? 'A redirecionar...' : (isActive ? 'Gerir Assinatura' : 'Assinar Agora')}</span>
@@ -7802,8 +7810,15 @@ export default function App() {
     };
 
     const NavItem = ({ icon, label, active, onClick }) => (
-        <button onClick={onClick} className={`flex items-center space-x-3 w-full text-left px-4 py-3 rounded-lg transition-colors ${active ? 'bg-blue-600 text-white shadow-md' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>
-            {icon}<span className="font-medium">{label}</span>
+        <button
+            onClick={() => {
+                onClick();
+                setIsMobileMenuOpen(false);
+            }}
+            className={`flex items-center space-x-2.5 md:space-x-3 w-full text-left px-3 py-2.5 md:px-4 md:py-3 rounded-xl text-sm md:text-base transition-colors ${active ? 'bg-blue-600 text-white shadow-md' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
+        >
+            <span className="flex-shrink-0 [&>svg]:w-5 [&>svg]:h-5">{icon}</span>
+            <span className="font-medium truncate">{label}</span>
         </button>
     );
 
@@ -7923,30 +7938,30 @@ export default function App() {
 
 
     return (
-        <div className={`flex h-screen bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200 font-sans overflow-hidden`}>
+        <div className={`flex h-[100dvh] bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200 font-sans overflow-hidden`}>
             {isMobileMenuOpen && (
                 <div 
-                    className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden" 
+                    className="fixed inset-0 bg-black/50 backdrop-blur-[1px] z-40 md:hidden" 
                     onClick={() => setIsMobileMenuOpen(false)}
                 />
             )}
-            <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-white dark:bg-gray-800 p-6 flex flex-col shadow-lg transform transition-transform duration-300 md:relative md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} overflow-y-auto`}>
-                <div className="flex justify-between items-center mb-4 md:hidden">
-                    <div className="flex items-center gap-2.5">
-                        <img src={appBranding?.icon512 || appBranding?.icon192 || DEFAULT_APP_ICON_URL} alt="Logo" className="w-8 h-8 object-contain" />
-                        <h1 className="text-xl font-bold text-blue-700 dark:text-blue-400 truncate">{appBranding?.appName || DEFAULT_APP_NAME}</h1>
+            <aside className={`fixed inset-y-0 left-0 z-50 w-64 sm:w-72 bg-white dark:bg-gray-800 p-4 md:p-6 flex flex-col shadow-2xl md:shadow-lg transform transition-transform duration-300 md:relative md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} overflow-y-auto`}>
+                <div className="flex justify-between items-center mb-3 pb-3 border-b dark:border-gray-700 md:hidden">
+                    <div className="flex items-center gap-2 min-w-0">
+                        <img src={appBranding?.icon512 || appBranding?.icon192 || DEFAULT_APP_ICON_URL} alt="Logo" className="w-7 h-7 object-contain flex-shrink-0" />
+                        <h1 className="text-base font-bold text-blue-700 dark:text-blue-400 truncate">{appBranding?.appName || DEFAULT_APP_NAME}</h1>
                     </div>
-                    <button onClick={() => setIsMobileMenuOpen(false)} className="text-gray-500 hover:text-gray-700"><X size={24} /></button>
+                    <button onClick={() => setIsMobileMenuOpen(false)} className="p-1.5 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 flex-shrink-0"><X size={20} /></button>
                 </div>
                 <div className="flex-grow">
                     <div className="hidden md:flex items-center gap-3 mb-5">
-                        <img src={appBranding?.icon512 || appBranding?.icon192 || DEFAULT_APP_ICON_URL} alt="Logo" className="w-10 h-10 object-contain drop-shadow" />
+                        <img src={appBranding?.icon512 || appBranding?.icon192 || DEFAULT_APP_ICON_URL} alt="Logo" className="w-10 h-10 object-contain drop-shadow flex-shrink-0" />
                         <h1 className="text-2xl font-bold text-blue-700 dark:text-blue-400 truncate">{appBranding?.appName || DEFAULT_APP_NAME}</h1>
                     </div>
-                    <div className="mb-8 p-3 bg-gray-100 dark:bg-gray-700/50 rounded-lg">
-                        <p className="text-sm text-gray-500 dark:text-gray-400">Empresa Ativa</p>
-                        <p className="font-bold text-lg text-gray-800 dark:text-gray-200">{activeCompany?.name}</p>
-                        <button onClick={() => setActiveCompanyId(null)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline mt-1">Trocar de empresa</button>
+                    <div className="mb-4 md:mb-6 p-2.5 md:p-3 bg-gray-100 dark:bg-gray-700/50 rounded-xl">
+                        <p className="text-xs text-gray-500 dark:text-gray-400">Empresa Ativa</p>
+                        <p className="font-bold text-sm md:text-lg text-gray-800 dark:text-gray-200 truncate">{activeCompany?.name}</p>
+                        <button onClick={() => { setIsMobileMenuOpen(false); setActiveCompanyId(null); }} className="text-xs text-blue-600 dark:text-blue-400 hover:underline mt-0.5 font-medium">Trocar de empresa</button>
                         {isCollaborator && (
                             <div className="mt-2 pt-2 border-t dark:border-gray-600">
                                 <span className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 dark:text-indigo-400">
@@ -7955,7 +7970,7 @@ export default function App() {
                             </div>
                         )}
                     </div>
-                    <nav className="space-y-2">
+                    <nav className="space-y-1 md:space-y-2">
                         <NavItem icon={<LayoutDashboard />} label="Dashboard" active={view === 'dashboard'} onClick={() => setView('dashboard')} />
                         <NavItem icon={<List />} label="Transações" active={view === 'transactions'} onClick={() => setView('transactions')} />
                         <NavItem icon={<CalendarClock />} label="Fluxo de Caixa Semanal" active={view === 'weeklyCashFlow'} onClick={() => setView('weeklyCashFlow')} />
@@ -7978,9 +7993,9 @@ export default function App() {
                         <NavItem icon={<Settings />} label="Configurações" active={view === 'settings'} onClick={() => setView('settings')} />
                     </nav>
                 </div>
-                <div className="pt-4 border-t dark:border-gray-700">
-                    <button onClick={toggleTheme} className="flex items-center space-x-3 w-full text-left px-4 py-3 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 font-medium">
-                        {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
+                <div className="pt-3 mt-3 border-t dark:border-gray-700 space-y-1">
+                    <button onClick={toggleTheme} className="flex items-center space-x-2.5 md:space-x-3 w-full text-left px-3 py-2 md:px-4 md:py-3 rounded-xl text-xs sm:text-sm md:text-base text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 font-medium">
+                        {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
                         <span>Mudar para tema {theme === 'light' ? 'Escuro' : 'Claro'}</span>
                     </button>
                     <button onClick={() => {
@@ -7988,40 +8003,51 @@ export default function App() {
                             window.history.replaceState(null, '', window.location.pathname + window.location.search);
                         }
                         signOut(auth);
-                    }} className="flex items-center space-x-3 w-full text-left px-4 py-3 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 font-medium">
-                        <LogOut size={20} />
+                    }} className="flex items-center space-x-2.5 md:space-x-3 w-full text-left px-3 py-2 md:px-4 md:py-3 rounded-xl text-xs sm:text-sm md:text-base text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 font-medium">
+                        <LogOut size={18} />
                         <span>Terminar Sessão</span>
                     </button>
                 </div>
             </aside>
-            <main className={`flex-1 flex flex-col p-4 md:p-8 relative ${isTransactionsView || view === 'dre' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
-                <div className="flex items-center mb-4 md:hidden flex-shrink-0">
-                    <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 -ml-2 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg">
-                        <Menu size={24} />
-                    </button>
-                    <img src={appBranding?.icon512 || appBranding?.icon192 || DEFAULT_APP_ICON_URL} alt="Logo" className="w-7 h-7 object-contain ml-2" />
-                    <h2 className="text-xl font-bold text-blue-700 dark:text-blue-400 ml-2 truncate">{appBranding?.appName || DEFAULT_APP_NAME}</h2>
+            <main className={`flex-1 flex flex-col p-2.5 sm:p-5 md:p-8 relative overflow-y-auto overflow-x-hidden ${isTransactionsView || view === 'dre' ? 'md:overflow-hidden' : ''}`}>
+                <div className="flex items-center justify-between mb-3 px-1 py-1.5 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200/70 dark:border-gray-700/70 md:hidden flex-shrink-0">
+                    <div className="flex items-center min-w-0">
+                        <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg flex-shrink-0" aria-label="Abrir Menu">
+                            <Menu size={22} />
+                        </button>
+                        <img src={appBranding?.icon512 || appBranding?.icon192 || DEFAULT_APP_ICON_URL} alt="Logo" className="w-6 h-6 object-contain ml-1.5 flex-shrink-0" />
+                        <h2 className="text-base font-bold text-blue-700 dark:text-blue-400 ml-2 truncate">{appBranding?.appName || DEFAULT_APP_NAME}</h2>
+                    </div>
+                    {activeCompany?.name && (
+                        <button
+                            onClick={() => setActiveCompanyId(null)}
+                            className="mr-2 px-2.5 py-1 text-xs font-semibold bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded-lg truncate max-w-[130px]"
+                            title="Trocar de empresa"
+                        >
+                            {activeCompany.name}
+                        </button>
+                    )}
                 </div>
                 {!isSubscribed && (
-                    <div className="absolute inset-0 bg-black/70 z-40 flex flex-col justify-center items-center text-white p-8 text-center">
-                        <AlertTriangle size={64} className="text-yellow-400 mb-4" />
-                        <h2 className="text-3xl font-bold mb-2">O seu período de teste terminou!</h2>
-                        <p className="text-lg mb-6">Para continuar a usar todas as funcionalidades, por favor, ative a sua assinatura.</p>
+                    <div className="absolute inset-0 bg-black/70 z-40 flex flex-col justify-center items-center text-white p-6 sm:p-8 text-center">
+                        <AlertTriangle size={56} className="text-yellow-400 mb-4" />
+                        <h2 className="text-2xl sm:text-3xl font-bold mb-2">O seu período de teste terminou!</h2>
+                        <p className="text-sm sm:text-lg mb-6">Para continuar a usar todas as funcionalidades, por favor, ative a sua assinatura.</p>
                         <Button onClick={() => { setActiveCompanyId(null); setHubView('global_settings'); }} className="bg-green-600 hover:bg-green-700">
                             <CreditCard size={20} />
                             <span>Ver Plano de Assinatura</span>
                         </Button>
                     </div>
                 )}
-                <div className={`${isTransactionsView ? 'h-full' : ''} ${!isSubscribed ? 'blur-sm' : ''}`}>
+                <div className={`${isTransactionsView || view === 'dre' ? 'md:h-full' : ''} ${!isSubscribed ? 'blur-sm' : ''}`}>
                     {renderView()}
                 </div>
                 {isPosModalOpen && (
                 <div className="fixed inset-0 z-[60] bg-white overflow-auto flex flex-col">
-                    <div className="flex justify-between items-center p-4 bg-gray-800 text-white">
-                        <h2 className="text-xl font-bold">Controle de Vendas/Caixa</h2>
-                        <button onClick={() => setIsPosModalOpen(false)} className="text-gray-300 hover:text-white p-2">
-                            <X size={24} />
+                    <div className="flex justify-between items-center p-3 sm:p-4 bg-gray-800 text-white">
+                        <h2 className="text-base sm:text-xl font-bold">Controle de Vendas/Caixa</h2>
+                        <button onClick={() => setIsPosModalOpen(false)} className="text-gray-300 hover:text-white p-1.5">
+                            <X size={22} />
                         </button>
                     </div>
                     <div className="flex-grow overflow-auto relative">
@@ -8057,7 +8083,7 @@ const TransactionDetailModal = ({ isOpen, onClose, title, transactions, accounts
     return (
         <Modal isOpen={isOpen} onClose={onClose} title={title} size="lg">
             <div className="max-h-[60vh] overflow-auto">
-                <table className="w-full text-left min-w-[600px]">
+                <table className="w-full text-left min-w-[500px] text-sm">
                     <thead>
                         <tr className="border-b-2 dark:border-gray-700">
                             <th className="p-2">Data</th>
@@ -8069,9 +8095,9 @@ const TransactionDetailModal = ({ isOpen, onClose, title, transactions, accounts
                     <tbody>
                         {transactions.map(t => (
                             <tr key={t.id} className="border-b dark:border-gray-700">
-                                <td className="p-2">{formatDate(t.date)}</td>
+                                <td className="p-2 whitespace-nowrap">{formatDate(t.date)}</td>
                                 <td className="p-2">{t.description}</td>
-                                <td className={`p-2 text-right font-semibold ${t.type === 'revenue' ? 'text-green-500' : 'text-red-500'}`}>
+                                <td className={`p-2 text-right font-semibold whitespace-nowrap ${t.type === 'revenue' ? 'text-green-500' : 'text-red-500'}`}>
                                     {formatCurrency(t.amount)}
                                 </td>
                                 <td className="p-2">
@@ -8142,26 +8168,26 @@ const TransactionEditModal = ({ isOpen, onClose, editingTransaction, accounts, c
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="Editar Transação">
-            <form onSubmit={handleSubmit} className="space-y-6">
-                <div><label className="block"><span className="text-gray-700 dark:text-gray-300">Descrição</span><input type="text" name="description" value={formData.description || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required /></label></div>
-                <div className="flex space-x-4">
-                    <label className="flex-1"><span className="text-gray-700 dark:text-gray-300">Valor (R$)</span><input type="number" step="0.01" name="amount" value={formData.amount || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" placeholder="0.00" required /></label>
-                    <label className="flex-1"><span className="text-gray-700 dark:text-gray-300">Data</span><input type="date" name="date" value={formData.date || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required /></label>
+            <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
+                <div><label className="block"><span className="text-gray-700 dark:text-gray-300 text-sm">Descrição</span><input type="text" name="description" value={formData.description || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required /></label></div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                    <label className="block"><span className="text-gray-700 dark:text-gray-300 text-sm">Valor (R$)</span><input type="number" step="0.01" name="amount" value={formData.amount || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" placeholder="0.00" required /></label>
+                    <label className="block"><span className="text-gray-700 dark:text-gray-300 text-sm">Data</span><input type="date" name="date" value={formData.date || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required /></label>
                 </div>
-                <div className="flex space-x-4">
-                    <label className="flex-1"><span className="text-gray-700 dark:text-gray-300">Conta</span><AccountSelector accounts={accounts} selectedAccountId={formData.accountId} onChange={handleChange} /></label>
-                    <label className="flex-1"><span className="text-gray-700 dark:text-gray-300">Favorecido</span><select name="payeeId" value={formData.payeeId || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300"><option value="">Nenhum</option>{payees.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
-                </div>
-                <div>
-                    <label className="flex-1"><span className="text-gray-700 dark:text-gray-300">Categoria</span><select name="categoryId" value={formData.categoryId || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required><option value="">Selecione...</option>{groupedCategories.map(parent => (<optgroup key={parent.id} label={parent.name}><option value={parent.id}>{parent.name} (Principal)</option>{parent.subcategories.map(sub => <option key={sub.id} value={sub.id}>{sub.name}</option>)}</optgroup>))}</select></label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                    <label className="block"><span className="text-gray-700 dark:text-gray-300 text-sm">Conta</span><AccountSelector accounts={accounts} selectedAccountId={formData.accountId} onChange={handleChange} /></label>
+                    <label className="block"><span className="text-gray-700 dark:text-gray-300 text-sm">Favorecido</span><select name="payeeId" value={formData.payeeId || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300"><option value="">Nenhum</option>{payees.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
                 </div>
                 <div>
-                    <label className="block"><span className="text-gray-700 dark:text-gray-300">Anexar Comprovativo</span>
+                    <label className="block"><span className="text-gray-700 dark:text-gray-300 text-sm">Categoria</span><select name="categoryId" value={formData.categoryId || ''} onChange={handleChange} className="mt-1 block w-full p-2 border dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-gray-300" required><option value="">Selecione...</option>{groupedCategories.map(parent => (<optgroup key={parent.id} label={parent.name}><option value={parent.id}>{parent.name} (Principal)</option>{parent.subcategories.map(sub => <option key={sub.id} value={sub.id}>{sub.name}</option>)}</optgroup>))}</select></label>
+                </div>
+                <div>
+                    <label className="block"><span className="text-gray-700 dark:text-gray-300 text-sm">Anexar Comprovativo</span>
                         <input type="file" onChange={(e) => setAttachmentFile(e.target.files[0])} className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
                     </label>
                     {formData.attachmentURL && !attachmentFile && <div className="text-xs mt-1">Anexo atual: <a href={formData.attachmentURL} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Ver anexo</a>. Selecione um novo ficheiro para o substituir.</div>}
                 </div>
-                <div className="flex justify-end pt-4"><Button type="submit"><span>Guardar Alterações</span></Button></div>
+                <div className="flex justify-end pt-3"><Button type="submit"><span>Guardar Alterações</span></Button></div>
             </form>
         </Modal>
     );
@@ -8203,32 +8229,32 @@ const WeeklyCashFlowView = ({ futureEntries, categories }) => {
     }, [futureEntries]);
 
     return (
-        <div className="space-y-8">
-            <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-200">Fluxo de Caixa Semanal (Despesas Futuras)</h2>
-            <div className="grid grid-cols-1 gap-6">
+        <div className="space-y-4 sm:space-y-8">
+            <h2 className="text-xl sm:text-3xl font-bold text-gray-800 dark:text-gray-200">Fluxo de Caixa Semanal (Despesas Futuras)</h2>
+            <div className="grid grid-cols-1 gap-4 sm:gap-6">
                 {weeklyData.map((week, index) => (
-                    <div key={index} className={`p-6 rounded-2xl shadow-lg ${week.isOverdue ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800' : 'bg-white dark:bg-gray-800'}`}>
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className={`text-xl font-bold ${week.isOverdue ? 'text-red-800 dark:text-red-300' : 'text-gray-800 dark:text-gray-200'}`}>
+                    <div key={index} className={`p-4 sm:p-6 rounded-2xl shadow-lg ${week.isOverdue ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800' : 'bg-white dark:bg-gray-800'}`}>
+                        <div className="flex flex-wrap justify-between items-center gap-2 mb-3 sm:mb-4">
+                            <h3 className={`text-base sm:text-xl font-bold ${week.isOverdue ? 'text-red-800 dark:text-red-300' : 'text-gray-800 dark:text-gray-200'}`}>
                                 {week.range}
-                                {index === 2 && <span className="text-sm font-normal text-blue-500 ml-2">(Semana Atual)</span>}
+                                {index === 2 && <span className="text-xs sm:text-sm font-normal text-blue-500 ml-2">(Semana Atual)</span>}
                             </h3>
-                            <span className={`text-2xl font-bold ${week.isOverdue ? 'text-red-600' : 'text-gray-800 dark:text-gray-200'}`}>{formatCurrency(week.total)}</span>
+                            <span className={`text-lg sm:text-2xl font-bold ${week.isOverdue ? 'text-red-600' : 'text-gray-800 dark:text-gray-200'}`}>{formatCurrency(week.total)}</span>
                         </div>
                         {week.entries.length > 0 ? (
                             <ul className="space-y-2">
                                 {week.entries.map(entry => (
-                                    <li key={entry.id} className="flex justify-between items-center text-sm border-t dark:border-gray-700 pt-2">
-                                        <div>
-                                            <p className="font-semibold">{entry.description}</p>
-                                            <p className="text-xs text-gray-500 dark:text-gray-400">{getCategoryFullName(entry.categoryId, categories)}</p>
+                                    <li key={entry.id} className="flex justify-between items-center gap-2 text-sm border-t dark:border-gray-700 pt-2">
+                                        <div className="min-w-0">
+                                            <p className="font-semibold truncate">{entry.description}</p>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{getCategoryFullName(entry.categoryId, categories)}</p>
                                         </div>
-                                        <span className="font-semibold">{formatCurrency(entry.amount)}</span>
+                                        <span className="font-semibold whitespace-nowrap">{formatCurrency(entry.amount)}</span>
                                     </li>
                                 ))}
                             </ul>
                         ) : (
-                            <p className="text-center text-gray-500 dark:text-gray-400 py-4">Nenhuma despesa programada para esta semana.</p>
+                            <p className="text-center text-sm text-gray-500 dark:text-gray-400 py-3 sm:py-4">Nenhuma despesa programada para esta semana.</p>
                         )}
                     </div>
                 ))}

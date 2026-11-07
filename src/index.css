@@ -3,3 +3,33 @@
 @tailwind components;
 
 @tailwind utilities;
+
+@layer base {
+  html,
+  body {
+    overscroll-behavior-x: none;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  /* Evita zoom automático no iOS ao focar em campos de formulário no celular */
+  @media (max-width: 640px) {
+    input[type="text"],
+    input[type="number"],
+    input[type="email"],
+    input[type="password"],
+    input[type="date"],
+    input[type="month"],
+    select,
+    textarea {
+      font-size: 16px;
+    }
+  }
+}
+
+/* Rolagem suave e sem travamentos em containers internos no mobile */
+.overflow-y-auto,
+.overflow-x-auto,
+.overflow-auto {
+  -webkit-overflow-scrolling: touch;
+}
